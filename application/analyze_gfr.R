@@ -28,6 +28,11 @@ phi_lims = sapply(1:q, \(k) {
   range(c(PhiAvgAll[-(1:4),k,]))
 })
 
+fve = lambda.avg / sum(lambda.avg)
+
+saveRDS(PhiAvgEval, "application/eigf_gfr.rds")
+saveRDS(lambda.avg, "application/eigval_gfr.rds")
+
 setEPS()
 postscript(file="figures/gfr_eigfun.eps", width=7, height=6.2)
 npanel = prod(c(q, length(check_points)))
@@ -37,24 +42,22 @@ layout(mat = matrix(c(1:npanel, rep(npanel+1, q)), byrow=TRUE,
 par(mar=c(2,4.5,2,1.5), oma=c(2,0,1,0))
 for (idx in seq_along(check_points)) {
   for (k in 1:q) {
-    
-    if (k==1) {
-      numtext = "1st"
-    } else if (k==2) {
-      numtext = "2nd"
-    } else {
-      numtext = "3rd"
-    }
-
+    # if (k==1) {
+    #   numtext = "1st"
+    # } else if (k==2) {
+    #   numtext = "2nd"
+    # } else {
+    #   numtext = "3rd"
+    # }
     plot(tgrid1, PhiAvgAll[,k,check_points[idx]+1], type="l", col="#A21B2D", lty=1, lwd=3,
          xlab="", ylab="", main=NULL, ylim = phi_lims[,k])
     lines(tgrid2, PhiEstAll.ll[,k,check_points[idx]], lty=4, col="#1A73A0", lwd=3)
-    
     if (k==1) {
       mtext(paste0("n=",num_labels[idx]), side = 2, line = 3)
     }
     if (idx==1) {
-      mtext(paste(numtext, "FPC"), side = 3, line = 1)
+      # mtext(paste(numtext, "FPC,", "FVE=", round(fve[k]*100,1), "%"), side = 3, line = 1)
+      mtext(paste0("FPC ", k, ", ", round(fve[k]*100,1), "%"), side = 3, line = 1)
     }
     if (idx==3 && k == 2) {
       mtext("Years After Transplant", side = 1, line = 3)

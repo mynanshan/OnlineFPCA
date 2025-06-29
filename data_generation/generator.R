@@ -97,6 +97,7 @@ get_rp.he2022 <- function(set = c("easy", "prac")) {
   ))
 }
 
+
 get_rp.wang2020 <- function(r1 = 3, r2 = 2, alpha = 2, lambda0 = 1) {
   npc <- r1 * r2
   t0 <- c(0, 0); t1 <- c(1, 1)
@@ -283,4 +284,35 @@ get_measurements <-
   }
 }
 
+
+# Measurements from real eigenfunctions  ----------------------------------
+
+gendata.gfr <- function(
+  n = 1000, t0 = 0, t1 = 1,
+  m_mean = 6, m_sd = 2, sigma = 0.08,
+  eigf.path = "application/eigf_gfr.rds",
+  eigval.path = "application/eigval_gfr.rds"
+) {
+  PhiMat <- readRDS(eigf.path)  # (M, npc)
+  lamvec <- readRDS(eigval.path)
+  npc <- ncol(PhiMat)
+  stopifnot(length(lamvec) == npc)
+  M <- nrow(PhiMat)
+  tgrid <- seq(t0, t1, length.out = M)
+  scores <- rnorm(n * npc) |> 
+    matrix(nrow = n, ncol = npc) |> 
+    sweep(2, sqrt(lamvec), "*")
+  X <- scores %*% t(PhiMat)  # (n, M)
+  Y <- X + rnorm(n * M, mean = 0, sd = sigma)
+  Lmi <- rnorm(n, mean = m_mean, sd = m_sd) |>
+    pmax(2) |> round()
+  Ltid <- lapply(1:n, \(i) sort(sample(1:M, Lmi[i])))
+  Lt <- lapply(1:n, \(i) tgrid[Ltid[[i]]])
+  Ly <- lapply(1:n, \(i) Y[i, Ltid[[i]]])
+  list(
+    Lt = Lt, Ly = Ly, Lmi = Lmi,
+    Ltid = Ltid, tgrid = tgrid, t0 = t0, t1 = t1,
+    Phi = PhiMat, lam = lamvec
+  )
+}
 

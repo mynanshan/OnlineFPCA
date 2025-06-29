@@ -6,19 +6,13 @@ set.seed(seed0)
 
 ## Experiment settings
 nRep <- 20
-# noiseList <- c(0.5, 0.2)
 noiseList <- c(0.5)
-# alphaList <- c(1.2, 2, 3)
 alphaList <- c(2)
 nBatchList <- c(5)
 nParams <- 6
 nPass <- 3
 nBlock <- 100
-# NinitList <- c(100,200,500,1000)
-# NinitList <- c(100,500)
 NinitList <- c(100)
-# npcList <- 1:4
-# initMethods <- c("face", "pace")
 initMethods <- c("face")
 npcList <- 3
 qmax <- max(npcList)
@@ -27,9 +21,6 @@ nIters.1pass <- seq(nBlock,N,nBlock)
 nIters <- seq(nBlock,nPass*N,nBlock)
 nRecord.1pass <- round(N/nBlock)
 nRecord <- length(nIters)
-# stepsizeList <- c(1e0, 3e-1, 1e-1, 3e-2)
-# stepsizeList <- c(1e-1, 1e-2, 1e-3)
-# stepsizeList <- 1e-1
 stepsizeList <- 2e-1
 stepsize.min <- 5e-2
 sgd.step.scale <- 1 # use a smaller step size for sgd 
@@ -183,9 +174,9 @@ for (alpha in alphaList) {
                 nIter1pass <- N / nBatch
                 asgdIterStart <- round(nRecord.1pass*0.7*nBlockIter)
                 adamIterEnd <- round(nRecord.1pass*1.7*nBlockIter)
-                
+
                 inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
-                
+
                 # Adam --------------
                 fit <- fpca.sgd(
                   fdata_generator, tgrid, inits = inits,
