@@ -1,4 +1,4 @@
-#!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/r/4.5.0/bin/R
+#!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/r/4.5.0/bin/Rscript
 #SBATCH --job-name=simu_gfr        # Job name
 #SBATCH --output=logs/simu_gfr_%j.out         # Standard output file (%j expands to jobID)
 #SBATCH --time=2:00:00                   # Maximum runtime (hh:mm:ss)
