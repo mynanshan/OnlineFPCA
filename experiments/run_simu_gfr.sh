@@ -4,6 +4,5 @@ reps=${1:-100}
 
 for (( i=1; i<=reps; i++ )); do
   echo "Running simulation iteration $i..."
-  sbatch examples/simu_simple.R \
-    --seed        "$i"
+  sbatch experiments/simu_gfr.R --seed "$i"
 done
