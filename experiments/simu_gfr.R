@@ -52,26 +52,26 @@ dirpath <- file.path("experiments", exprmt)
 if (!dir.exists(dirpath)) dir.create(dirpath, recursive = TRUE)
 
 n_digit_seed = ceiling(log10(seed))
-seedtext <- paste0(rep("0", 4 - n_digit_seed), seed)
+seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("simu_gfr_sd",seedtext,".csv")
 
 res <- data.frame(seed = numeric(),
-                  Method = character(),
-                  StepSize = numeric(),
-                  N = numeric(),
-                  Ninit = numeric(),
-                  initMethod = character(),
-                  npc = numeric(),
-                  nBatch = numeric(),
-                  Time = numeric(),
-                  # AV = numeric(),
-                  # EWMABV = numeric(),
-                  RMSEphi1 = numeric(),
-                  RMSEphi2 = numeric(),
-                  RMSEphi3 = numeric(),
-                  RMSEphi1.avg = numeric(),
-                  RMSEphi2.avg = numeric(),
-                  RMSEphi3.avg = numeric())
+  Method = character(),
+  StepSize = numeric(),
+  N = numeric(),
+  Ninit = numeric(),
+  initMethod = character(),
+  npc = numeric(),
+  nBatch = numeric(),
+  Time = numeric(),
+  # AV = numeric(),
+  # EWMABV = numeric(),
+  RMSEphi1 = numeric(),
+  RMSEphi2 = numeric(),
+  RMSEphi3 = numeric(),
+  RMSEphi1.avg = numeric(),
+  RMSEphi2.avg = numeric(),
+  RMSEphi3.avg = numeric())
 
 set.seed(seed)
 
@@ -113,8 +113,8 @@ message("Start OnlineFPCA ---------------")
 
 start_time.init <- Sys.time()
 tmpdat <- data.frame(argvals = unlist(dat$Lt[1:Ninit]),
-                     subj = rep(1:Ninit, dat$Lmi[1:Ninit]),
-                     y = unlist(dat$Ly[1:Ninit]))
+  subj = rep(1:Ninit, dat$Lmi[1:Ninit]),
+  y = unlist(dat$Ly[1:Ninit]))
 fitFace <- face::face.sparse(tmpdat, center=FALSE, argvals.new = evalGrid, knots = p)
 end_time.init <- Sys.time()
 
@@ -189,44 +189,44 @@ for (optMethod in c("SGD", "Adam")) {
   tau_path_id_extend <- c(rep(tau_path_id[1], nRoundNoTune), tau_path_id)
   
   ThetaAll <- sapply(seq_along(fit$params.history$iter.params),
-                     \(i) params$Theta[,,tau_path_id_extend[i],i],
-                     simplify = "array")
+    \(i) params$Theta[,,tau_path_id_extend[i],i],
+    simplify = "array")
   rmseAll <- sapply(1:q, \(k) {
     diffTheta <- sweep(ThetaAll[,k,], 1, phiTrueFunc$coefs[,k], "-")
     diffPhi <- B %*% diffTheta
     sqrt(colMeans(diffPhi^2))})
   ThetaAll.avg <- sapply(seq_along(fit$params.history$iter.params),
-                         \(i) params$Theta.avg[,,tau_path_id_extend[i],i],
-                         simplify = "array")
+    \(i) params$Theta.avg[,,tau_path_id_extend[i],i],
+    simplify = "array")
   rmseAll.avg <- sapply(1:q, \(k) {
     diffTheta <- sweep(ThetaAll.avg[,k,], 1, phiTrueFunc$coefs[,k], "-")
     diffPhi <- B %*% diffTheta
     sqrt(colMeans(diffPhi^2))})
   
   times <- c(colSums(fit$time.history[,1:nIter1pass]),
-             fit$time.history[1,(nIter1pass+1):(nPass*nIter1pass)])
+    fit$time.history[1,(nIter1pass+1):(nPass*nIter1pass)])
   times <- colSums(matrix(times, nrow=nBlockIter))
   times <- c(difftime(end_time.init,start_time.init,units = 'secs'), times)
-
+  
   res <- rbind(
     res, 
-     data.frame(seed = rep(seed, nRecord+1),
-                Method = rep(paste0("Pspline-", optMethod), nRecord+1),
-                StepSize = rep(stepsize, nRecord+1),
-                N = c(0,nIters),
-                Ninit = rep(Ninit, nRecord+1),
-                initMethod = rep(initMethod, nRecord+1),
-                npc = rep(q, nRecord+1),
-                nBatch = rep(nBatch, nRecord+1),
-                Time = times,
-                # AV = c(NA,vscores[,"av"]),
-                # EWMABV = c(NA,vscores[,"ewmabv"]),
-                RMSEphi1 = rmseAll[,1],
-                RMSEphi2 = rmseAll[,2],
-                RMSEphi3 = rmseAll[,3],
-                RMSEphi1.avg = rmseAll.avg[,1],
-                RMSEphi2.avg = rmseAll.avg[,2],
-                RMSEphi3.avg = rmseAll.avg[,3])
+    data.frame(seed = rep(seed, nRecord+1),
+      Method = rep(paste0("Pspline-", optMethod), nRecord+1),
+      StepSize = rep(stepsize, nRecord+1),
+      N = c(0,nIters),
+      Ninit = rep(Ninit, nRecord+1),
+      initMethod = rep(initMethod, nRecord+1),
+      npc = rep(q, nRecord+1),
+      nBatch = rep(nBatch, nRecord+1),
+      Time = times,
+      # AV = c(NA,vscores[,"av"]),
+      # EWMABV = c(NA,vscores[,"ewmabv"]),
+      RMSEphi1 = rmseAll[,1],
+      RMSEphi2 = rmseAll[,2],
+      RMSEphi3 = rmseAll[,3],
+      RMSEphi1.avg = rmseAll.avg[,1],
+      RMSEphi2.avg = rmseAll.avg[,2],
+      RMSEphi3.avg = rmseAll.avg[,3])
   )
 }
 
@@ -243,8 +243,8 @@ Kmax <- round(N / nBlock)  # total number of data blocks, 1000
 fit.ll <- fpca.lpoly.online(
   fdata_generator, n = nBlock,
   evalArgs = list(EV1 = EV1, EV2 = EV2, t0 = t0, t1 = t1,
-                  eval_mu = eval_mu, eval_gam_vec = eval_gam_vec,
-                  eval_gam_mat = eval_gam_mat),
+    eval_mu = eval_mu, eval_gam_vec = eval_gam_vec,
+    eval_gam_mat = eval_gam_mat),
   streamArgs = list(Kmax = Kmax),
   L2 = nParams, L1 = 1, G = 0.5, R = 1, Mcl = 1,
   optimal_C = FALSE, C0 = 1,
@@ -271,23 +271,23 @@ rmseAll.ll <- sapply(1:npc, \(k) {
 
 res <- rbind(
   res, 
-   data.frame(seed = rep(seed, nRecord.1pass),
-              Method = rep("LocLin", nRecord.1pass),
-              StepSize = rep(NA, nRecord.1pass),
-              N = nIters.1pass,
-              Ninit = rep(NA, nRecord.1pass),
-              initMethod = rep(NA, nRecord.1pass),
-              npc = rep(npc, nRecord.1pass),
-              nBatch = rep(NA, nRecord.1pass),
-              Time = fit.ll$time,
-              # AV = rep(NA, nRecord.1pass),
-              # EWMABV = rep(NA, nRecord.1pass),
-              RMSEphi1 = rmseAll.ll[,1],
-              RMSEphi2 = rmseAll.ll[,2],
-              RMSEphi3 = rmseAll.ll[,3],
-              RMSEphi1.avg = rmseAll.ll[,1],
-              RMSEphi2.avg = rmseAll.ll[,2],
-              RMSEphi3.avg = rmseAll.ll[,3])
+  data.frame(seed = rep(seed, nRecord.1pass),
+    Method = rep("LocLin", nRecord.1pass),
+    StepSize = rep(NA, nRecord.1pass),
+    N = nIters.1pass,
+    Ninit = rep(NA, nRecord.1pass),
+    initMethod = rep(NA, nRecord.1pass),
+    npc = rep(npc, nRecord.1pass),
+    nBatch = rep(NA, nRecord.1pass),
+    Time = fit.ll$time,
+    # AV = rep(NA, nRecord.1pass),
+    # EWMABV = rep(NA, nRecord.1pass),
+    RMSEphi1 = rmseAll.ll[,1],
+    RMSEphi2 = rmseAll.ll[,2],
+    RMSEphi3 = rmseAll.ll[,3],
+    RMSEphi1.avg = rmseAll.ll[,1],
+    RMSEphi2.avg = rmseAll.ll[,2],
+    RMSEphi3.avg = rmseAll.ll[,3])
 )
 
 
@@ -313,31 +313,31 @@ PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[,1:npc,drop=F])
 rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[,1:npc])^2))
 res <- rbind(
   res, 
-   data.frame(seed = seed,
-              Method = "Batch-PACE",
-              StepSize = NA,
-              N = N,
-              Ninit = NA,
-              initMethod = NA,
-              npc = npc,
-              nBatch = N,
-              Time = difftime(batch_end,batch_start,units = 'secs'),
-              # AV = fit0$av,
-              # EWMABV = fit0$ewmabv,
-              RMSEphi1 = rmseBatch[1],
-              RMSEphi2 = rmseBatch[2],
-              RMSEphi3 = rmseBatch[3],
-              RMSEphi1.avg = rmseBatch[1],
-              RMSEphi2.avg = rmseBatch[2],
-              RMSEphi3.avg = rmseBatch[3])
+  data.frame(seed = seed,
+    Method = "Batch-PACE",
+    StepSize = NA,
+    N = N,
+    Ninit = NA,
+    initMethod = NA,
+    npc = npc,
+    nBatch = N,
+    Time = difftime(batch_end,batch_start,units = 'secs'),
+    # AV = fit0$av,
+    # EWMABV = fit0$ewmabv,
+    RMSEphi1 = rmseBatch[1],
+    RMSEphi2 = rmseBatch[2],
+    RMSEphi3 = rmseBatch[3],
+    RMSEphi1.avg = rmseBatch[1],
+    RMSEphi2.avg = rmseBatch[2],
+    RMSEphi3.avg = rmseBatch[3])
 )
 
 
 # Batch method 2: FACE ----------------------------------------------------
 
 tmpdat <- data.frame(argvals = unlist(dat$Lt),
-                     subj = rep(1:N, dat$Lmi),
-                     y = unlist(dat$Ly))
+  subj = rep(1:N, dat$Lmi),
+  y = unlist(dat$Ly))
 batch_start <- Sys.time()
 fitBatch <- face::face.sparse(tmpdat, center=FALSE, argvals.new = evalGrid, knots = p)
 muBatchEval <- fitBatch$mu.new
@@ -356,30 +356,30 @@ PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
 PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[,1:npc,drop=F])
 rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[,1:npc])^2))
 res <- rbind(res, 
-           data.frame(seed = seed,
-                      Method = "Batch-FACE",
-                      StepSize = NA,
-                      N = N,
-                      Ninit = NA,
-                      initMethod = NA,
-                      npc = npc,
-                      nBatch = N,
-                      Time = difftime(batch_end,batch_start,units = 'secs'),
-                      # AV = fit0$av,
-                      # EWMABV = fit0$ewmabv,
-                      RMSEphi1 = rmseBatch[1],
-                      RMSEphi2 = rmseBatch[2],
-                      RMSEphi3 = rmseBatch[3],
-                      RMSEphi1.avg = rmseBatch[1],
-                      RMSEphi2.avg = rmseBatch[2],
-                      RMSEphi3.avg = rmseBatch[3]))
+  data.frame(seed = seed,
+    Method = "Batch-FACE",
+    StepSize = NA,
+    N = N,
+    Ninit = NA,
+    initMethod = NA,
+    npc = npc,
+    nBatch = N,
+    Time = difftime(batch_end,batch_start,units = 'secs'),
+    # AV = fit0$av,
+    # EWMABV = fit0$ewmabv,
+    RMSEphi1 = rmseBatch[1],
+    RMSEphi2 = rmseBatch[2],
+    RMSEphi3 = rmseBatch[3],
+    RMSEphi1.avg = rmseBatch[1],
+    RMSEphi2.avg = rmseBatch[2],
+    RMSEphi3.avg = rmseBatch[3]))
 
 
 # Batch method 3: REML ----------------------------------------------------
 tmpdat <- cbind(rep(1:N, dat$Lmi), unlist(dat$Ly), unlist(dat$Lt))
 batch_start <- Sys.time()
 fitBatch <- fpca::fpca.mle(tmpdat, M.set=c(5:9), r.set=npc, ini.method="loc",
-                          basis.method="bs", max.step=50, grid.l=evalGrid, grids=evalGrid)
+  basis.method="bs", max.step=50, grid.l=evalGrid, grids=evalGrid)
 muBatchEval <- fitBatch$fitted_mean
 theta_muBatch <- smooth_basis(evalGrid, muBatchEval, basis, lambda = 1e-10)$coefs
 PhiBatchEval <- flip_direc(t(fitBatch$eigenfunctions), PhiTrueEval[,1:npc])
@@ -396,23 +396,23 @@ PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[,1:npc,drop=F])
 rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[,1:npc])^2))
 res <- rbind(
   res, 
-   data.frame(seed = seed,
-              Method = "Batch-REML",
-              StepSize = NA,
-              N = N,
-              Ninit = NA,
-              initMethod = NA,
-              npc = npc,
-              nBatch = N,
-              Time = difftime(batch_end,batch_start,units = 'secs'),
-              # AV = fit0$av,
-              # EWMABV = fit0$ewmabv,
-              RMSEphi1 = rmseBatch[1],
-              RMSEphi2 = rmseBatch[2],
-              RMSEphi3 = rmseBatch[3],
-              RMSEphi1.avg = rmseBatch[1],
-              RMSEphi2.avg = rmseBatch[2],
-              RMSEphi3.avg = rmseBatch[3])
+  data.frame(seed = seed,
+    Method = "Batch-REML",
+    StepSize = NA,
+    N = N,
+    Ninit = NA,
+    initMethod = NA,
+    npc = npc,
+    nBatch = N,
+    Time = difftime(batch_end,batch_start,units = 'secs'),
+    # AV = fit0$av,
+    # EWMABV = fit0$ewmabv,
+    RMSEphi1 = rmseBatch[1],
+    RMSEphi2 = rmseBatch[2],
+    RMSEphi3 = rmseBatch[3],
+    RMSEphi1.avg = rmseBatch[1],
+    RMSEphi2.avg = rmseBatch[2],
+    RMSEphi3.avg = rmseBatch[3])
 )
 
 # Batch method 4: SOAP ------------------------------------------
@@ -431,30 +431,30 @@ batch_end <- Sys.time()
 rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[,1:npc])^2))
 res <- rbind(
   res, 
-   data.frame(seed = seed,
-              Method = "Batch-SOAP",
-              StepSize = NA,
-              N = N,
-              Ninit = NA,
-              initMethod = NA,
-              npc = npc,
-              nBatch = N,
-              Time = difftime(batch_end,batch_start,units = 'secs') +
-                difftime(end_time.init,start_time.init,units = 'secs'),
-              # AV = fit0$av,
-              # EWMABV = fit0$ewmabv,
-              RMSEphi1 = rmseBatch[1],
-              RMSEphi2 = rmseBatch[2],
-              RMSEphi3 = rmseBatch[3],
-              RMSEphi1.avg = rmseBatch[1],
-              RMSEphi2.avg = rmseBatch[2],
-              RMSEphi3.avg = rmseBatch[3])
+  data.frame(seed = seed,
+    Method = "Batch-SOAP",
+    StepSize = NA,
+    N = N,
+    Ninit = NA,
+    initMethod = NA,
+    npc = npc,
+    nBatch = N,
+    Time = difftime(batch_end,batch_start,units = 'secs') +
+      difftime(end_time.init,start_time.init,units = 'secs'),
+    # AV = fit0$av,
+    # EWMABV = fit0$ewmabv,
+    RMSEphi1 = rmseBatch[1],
+    RMSEphi2 = rmseBatch[2],
+    RMSEphi3 = rmseBatch[3],
+    RMSEphi1.avg = rmseBatch[1],
+    RMSEphi2.avg = rmseBatch[2],
+    RMSEphi3.avg = rmseBatch[3])
 )
 
 
 # End experiment ----------------------------------------------------------
 
-write.csv(res, file.path(dirpath, filename), row.names = FALSE)
+readr::write_csv(res, file.path(dirpath, filename))
 
 message("Finishing replication: ", seed)
 set.seed(NULL)

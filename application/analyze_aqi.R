@@ -1,3 +1,64 @@
+source("./R/fdaMdim.R")
+source("./R/helper.R")
+source("./R/onlineFPCA.R")
+
+### Settings
+datapath <- "data/epa-aqs"
+respath <- "application"
+
+load(file.path(datapath, "aqi-us.Rda"))
+siteinfo <- readxl::read_excel(file.path(datapath, "siteinfo.xlsx"))
+
+lonrange <- c(-125, -67)
+latrange <- c(25, 49)
+yearrange <- 1982:2022
+latgrid <- seq(latrange[1]+1, latrange[2], 2)
+longrid <- seq(lonrange[1]+1, lonrange[2], 2)
+locGrid <- margins2grid(list(latgrid, longrid))
+# save(latrange, lonrange, yearrange, locGrid, evalGrid, basis, file="aqi_settings.Rdata")
+colnames(locGrid) <- c("lat", "lon")
+
+locGridRescale = scale(locGrid, center=c(latrange[1], lonrange[1]),
+                       scale=c(diff(latrange), diff(lonrange)))
+
+evalGridList <- list((latgrid-latrange[1]) / diff(latrange),
+                     (longrid-lonrange[1]) / diff(lonrange))
+evalGrid <- margins2grid(evalGridList)
+
+# numbering the locations
+lat_id = match(dat$Latitude.Binned, latgrid)
+lon_id = match(dat$Longitude.Binned, longrid)
+dat$LocId = (lon_id-1)*length(latgrid) + lat_id
+
+basis <- TensorBasis(list(
+  create.bspline.basis(c(0,1), nbasis = 6, norder = 4),
+  create.bspline.basis(c(0,1), nbasis = 8, norder = 4)))
+p <- attr(basis, "nbasis")
+
+N = length(unique(dat$Date.Local))
+q <- 6
+nBatch <- 10
+nParams <- 6
+nPass <- 10
+nBlock <- 100
+nIters.1pass <- seq(nBlock,N,nBlock)
+nIters <- seq(nBlock,nPass*N,nBlock)
+nRecord.1pass <- round(N/nBlock)
+nRecord <- length(nIters)
+# stepsizeList <- c(1e0, 3e-1, 1e-1, 3e-2)
+stepsize <- 2e-1
+stepsize.min <- 5e-2
+sgd.step.scale <- 1 # use a smaller step size for sgd 
+nRoundNoTune <- 1
+nRoundTune <- nRecord.1pass - nRoundNoTune
+asgd.use <- TRUE
+nBlockIter <- nBlock / nBatch
+nIter1pass <- round(N / nBatch)
+asgdIterStart <- round(nRecord.1pass*0.7*nBlockIter)
+adamIterEnd <- round(nRecord.1pass*1.7*nBlockIter)
+
+
+
 ### run the uncommented codes from aqi.R
 respath <- "application"
 load(file.path(respath, "fit_aqi.Rdata"))
@@ -9,6 +70,10 @@ l <- which(fit$tau == tau.min)[1]
 Theta.avg <- fit$Theta.avg[,,l]
 lambda.avg <- fit$lambda.avg[,l]
 sigma2.avg <- fit$sigma2.avg[l]
+
+B <- eval_basis(locGridRescale, basis)
+G <- get_basis_inprod_matrix(basis)
+Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
 
 ord = order(lambda.avg, decreasing = TRUE)
 PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg[,ord], basis))
@@ -31,15 +96,10 @@ dev.off()
 ThetaAll.avg <- sapply(seq_along(fit$params.history$iter.params),
   \(i) params$Theta.avg[,,tau_path_id_extend[i],i],
   simplify = "array")
-# PhiAvgAll <- eval_fd(evalGrid, FuncData(ThetaAll.avg, basis))
 
-# # batch results
-# ThetaBatch <- fitBatch$Theta
-# muBatchEval <- eval_fd(evalGrid, FuncData(fitBatch$theta_mu, basis))
-# PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
-# lambdaBatch = colMeans(fitBatch$alphamat^2)
-# fve_batch = round(lambdaBatch / sum(lambdaBatch), 3) * 100
-
+saveRDS(PhiAvgEval, file.path(respath, "eigf_aqi.rds"))
+saveRDS(lambda.avg[ord], file.path(respath, "eigval_aqi.rds"))
+saveRDS(evalGrid, file.path(respath, "tgrid_aqi.rds"))
 
 # plot the results ===============
 library(ggplot2)

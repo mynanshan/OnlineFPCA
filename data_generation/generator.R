@@ -316,3 +316,35 @@ gendata.gfr <- function(
   )
 }
 
+gendata.aqi <- function(
+  n = 1000, t0 = c(0, 0), t1 = c(1, 1),
+  m_mean = 30, m_sd = 10, sigma = 0.1,
+  eigf.path = "application/eigf_aqi.rds",
+  eigval.path = "application/eigval_aqi.rds",
+  tgrid.path = "application/tgrid_aqi.rds"
+) {
+  PhiMat <- readRDS(eigf.path)  # (M, npc)
+  lamvec <- readRDS(eigval.path)
+  tgrid <- readRDS(tgrid.path)
+  lamvec <- lamvec / sum(lamvec) # original values are too small
+  npc <- ncol(PhiMat)
+  M <- nrow(PhiMat)
+  stopifnot(length(lamvec) == npc)
+  stopifnot(M == nrow(tgrid))
+  stopifnot(ncol(tgrid) == 2)
+  scores <- rnorm(n * npc) |> 
+    matrix(nrow = n, ncol = npc) |> 
+    sweep(2, sqrt(lamvec), "*")
+  X <- scores %*% t(PhiMat)  # (n, M)
+  Y <- X + rnorm(n * M, mean = 0, sd = sigma)
+  Lmi <- rnorm(n, mean = m_mean, sd = m_sd) |>
+    pmax(2) |> round()
+  Ltid <- lapply(1:n, \(i) sort(sample(1:M, Lmi[i])))
+  Lt <- lapply(1:n, \(i) tgrid[Ltid[[i]],,drop=F])
+  Ly <- lapply(1:n, \(i) Y[i, Ltid[[i]]])
+  list(
+    Lt = Lt, Ly = Ly, Lmi = Lmi,
+    Ltid = Ltid, tgrid = tgrid, t0 = t0, t1 = t1,
+    Phi = PhiMat, lam = lamvec
+  )
+}
