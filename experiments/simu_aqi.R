@@ -40,13 +40,13 @@ nBatch <- 5
 nParams <- 6
 nPass <- 5
 nBlock <- 100
-Ninit <- 100
+Ninit <- 200
 N <- 5000
 nIters.1pass <- seq(nBlock,N,nBlock)
 nIters <- seq(nBlock,nPass*N,nBlock)
 nRecord.1pass <- round(N/nBlock)
 nRecord <- length(nIters)
-stepsize <- 2e-1
+stepsize <- 3e-1
 stepsize.min <- 1e-1
 sgd.step.scale <- 1 # when < 1, use a smaller step size for sgd 
 nRoundNoTune <- 1
