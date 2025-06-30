@@ -3,7 +3,7 @@ library(pak)
 required_pkgs <- c(
   "fda", "face", "fdapace",
   "Metrics", "fastmatrix", "RSpectra",
-  "mgcv", "argparse", "Rcpp",
+  "mgcv", "argparse", "Rcpp", "rTensor",
   "stringr", "tidyr", "dplyr", "readr",
   "lubridate", "readxl", "Rdimtools", "sm"
 )
