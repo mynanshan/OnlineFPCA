@@ -114,7 +114,7 @@ legend("bottom", inset=c(0.1, 0.2),
        legend = c("onlineFPCA-RAdam    ", "onlineFPCA-RSGD    "),
        lty = c(1,2), lwd=1.3, pch=1:2, col=c("#A21B2D", "#0F7323"),
        cex=1.1, horiz=TRUE, bty="n")
-par(par.old)
+par(pa)
 # dev.off()
 # par(mar=c(1,1,0,1))
 # plot(1, type = "n", axes=FALSE, xlab="", ylab="")

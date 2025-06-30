@@ -1,11 +1,11 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/r/4.5.0/bin/Rscript
 #SBATCH --job-name=simu_aqi        # Job name
-#SBATCH --output=logs/simu_aqi_%j.out         # Standard output file (%j expands to jobID)
+#SBATCH --output=logs/simu_aqi_%j.out    # Standard output file (%j expands to jobID)
 #SBATCH --time=3:00:00                   # Maximum runtime (hh:mm:ss)
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem-per-cpu=8G                          # Memory allocation
+#SBATCH --mem-per-cpu=8G                 # Memory allocation
 
 parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."
@@ -47,7 +47,7 @@ nIters <- seq(nBlock,nPass*N,nBlock)
 nRecord.1pass <- round(N/nBlock)
 nRecord <- length(nIters)
 stepsize <- 2e-1
-stepsize.min <- 1e-2
+stepsize.min <- 1e-1
 sgd.step.scale <- 1 # when < 1, use a smaller step size for sgd 
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
@@ -61,20 +61,24 @@ n_digit_seed = ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("simu_",exprmt,"_sd",seedtext,".csv")
 
-res <- data.frame(seed = numeric(),
-                  Method = character(),
-                  StepSize = numeric(),
-                  N = numeric(),
-                  nBatch = numeric(),
-                  Time = numeric(),
-                  # AV = numeric(),
-                  # EWMABV = numeric(),
-                  RMSEphi1 = numeric(),
-                  RMSEphi2 = numeric(),
-                  RMSEphi3 = numeric(),
-                  RMSEphi1.avg = numeric(),
-                  RMSEphi2.avg = numeric(),
-                  RMSEphi3.avg = numeric())
+res <- data.frame(
+  seed = numeric(),
+  Method = character(),
+  StepSize = numeric(),
+  N = numeric(),
+  nBatch = numeric(),
+  Time = numeric(),
+  # AV = numeric(),
+  # EWMABV = numeric(),
+  RMSEphi1 = numeric(),
+  RMSEphi2 = numeric(),
+  RMSEphi3 = numeric(),
+  RMSEphi4 = numeric(),
+  RMSEphi1.avg = numeric(),
+  RMSEphi2.avg = numeric(),
+  RMSEphi3.avg = numeric(),
+  RMSEphi4.avg = numeric()
+)
 
 set.seed(seed)
 
@@ -254,9 +258,11 @@ for (optMethod in c("SGD", "Adam")) {
       RMSEphi1 = rmseAll[,1],
       RMSEphi2 = rmseAll[,2],
       RMSEphi3 = rmseAll[,3],
+      RMSEphi4 = rmseAll[,4],
       RMSEphi1.avg = rmseAll.avg[,1],
       RMSEphi2.avg = rmseAll.avg[,2],
-      RMSEphi3.avg = rmseAll.avg[,3])
+      RMSEphi3.avg = rmseAll.avg[,3],
+      RMSEphi4.avg = rmseAll.avg[,4])
   )
 }
 
@@ -289,9 +295,11 @@ res <- rbind(res,
                       RMSEphi1 = rmseBatch[1],
                       RMSEphi2 = rmseBatch[2],
                       RMSEphi3 = rmseBatch[3],
+                      RMSEphi4 = rmseBatch[4],
                       RMSEphi1.avg = rmseBatch[1],
                       RMSEphi2.avg = rmseBatch[2],
-                      RMSEphi3.avg = rmseBatch[3]))
+                      RMSEphi3.avg = rmseBatch[3],
+                      RMSEphi4.avg = rmseBatch[4]))
 
 # End experiment ----------------------------------------------------------
 
