@@ -1,9 +1,9 @@
-arg <- commandArgs(trailingOnly = TRUE)
-seed0 <- as.numeric(arg[1])
-if (is.na(seed0)) stop("UNKNOWN SEED")
-
-set.seed(seed0)
-# set.seed(1)
+# arg <- commandArgs(trailingOnly = TRUE)
+# seed0 <- as.numeric(arg[1])
+# if (is.na(seed0)) stop("UNKNOWN SEED")
+# 
+# set.seed(seed0)
+set.seed(1)
 
 
 mOpCov_path <- "external_codes/mOpCov/"

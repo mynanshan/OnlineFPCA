@@ -51,9 +51,9 @@ exprmt <- "gfr"
 dirpath <- file.path("experiments", exprmt)
 if (!dir.exists(dirpath)) dir.create(dirpath, recursive = TRUE)
 
-n_digit_seed = ceiling(log10(seed))
+n_digit_seed = ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
-filename <- paste0("simu_gfr_sd",seedtext,".csv")
+filename <- paste0("simu_",exprmt,"_sd",seedtext,".csv")
 
 res <- data.frame(seed = numeric(),
   Method = character(),
