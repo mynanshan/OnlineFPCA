@@ -13,7 +13,7 @@ parser <- argparse::ArgumentParser(
 parser$add_argument(
   "--seed",
   type = "integer",
-  default = 1,
+  default = 1234,
   help = "Seed used for this experiment."
 )
 args <- parser$parse_args()
