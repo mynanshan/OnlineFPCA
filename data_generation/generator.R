@@ -312,22 +312,25 @@ gendata.gfr <- function(
   list(
     Lt = Lt, Ly = Ly, Lmi = Lmi,
     Ltid = Ltid, tgrid = tgrid, t0 = t0, t1 = t1,
-    Phi = PhiMat, lam = lamvec
+    Phi = PhiMat, lam = lamvec, sigma2 = sigma^2
   )
 }
 
 gendata.aqi <- function(
   n = 1000, t0 = c(0, 0), t1 = c(1, 1),
-  m_mean = 30, m_sd = 10, sigma = 0.1,
+  m_mean = 30, m_sd = 6, sigma = 0.1,
   eigf.path = "application/eigf_aqi.rds",
   eigval.path = "application/eigval_aqi.rds",
   tgrid.path = "application/tgrid_aqi.rds"
 ) {
-  PhiMat <- readRDS(eigf.path)  # (M, npc)
-  lamvec <- readRDS(eigval.path)
+  npc <- 3
+  PhiMat <- readRDS(eigf.path)[,1:npc]  # (M, npc)
+  # lamvec <- readRDS(eigval.path)[1:npc]  # (M, npc)
+  # lamvec <- lamvec / sum(lamvec)
   tgrid <- readRDS(tgrid.path)
-  lamvec <- lamvec / sum(lamvec) # original values are too small
-  npc <- ncol(PhiMat)
+  alpha <- 2
+  # lamvec <- 4 * exp(-(0:(npc-1)) * log(alpha))
+  lamvec <- 4 * (1:npc)^(-alpha) 
   M <- nrow(PhiMat)
   stopifnot(length(lamvec) == npc)
   stopifnot(M == nrow(tgrid))
@@ -345,6 +348,6 @@ gendata.aqi <- function(
   list(
     Lt = Lt, Ly = Ly, Lmi = Lmi,
     Ltid = Ltid, tgrid = tgrid, t0 = t0, t1 = t1,
-    Phi = PhiMat, lam = lamvec
+    Phi = PhiMat, lam = lamvec, sigma2 = sigma^2
   )
 }

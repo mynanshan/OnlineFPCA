@@ -25,8 +25,6 @@ res <- do.call(
 res <- res |> 
   mutate(
     seed = as.integer(seed),
-    Ninit = as.integer(Ninit),
-    npc = as.integer(npc),
     nBatch = as.integer(nBatch)
   )
 
