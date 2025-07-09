@@ -77,11 +77,9 @@ res <- data.frame(
   RMSEphi1 = numeric(),
   RMSEphi2 = numeric(),
   RMSEphi3 = numeric(),
-  RMSEphi4 = numeric(),
   RMSEphi1.avg = numeric(),
   RMSEphi2.avg = numeric(),
-  RMSEphi3.avg = numeric(),
-  RMSEphi4.avg = numeric()
+  RMSEphi3.avg = numeric()
 )
 
 set.seed(seed)
@@ -329,11 +327,9 @@ for (optMethod in c("SGD", "Adam")) {
       RMSEphi1 = rmseAll[, 1],
       RMSEphi2 = rmseAll[, 2],
       RMSEphi3 = rmseAll[, 3],
-      RMSEphi4 = rmseAll[, 4],
       RMSEphi1.avg = rmseAll.avg[, 1],
       RMSEphi2.avg = rmseAll.avg[, 2],
-      RMSEphi3.avg = rmseAll.avg[, 3],
-      RMSEphi4.avg = rmseAll.avg[, 4]
+      RMSEphi3.avg = rmseAll.avg[, 3]
     )
   )
 }
@@ -377,11 +373,9 @@ res <- rbind(
     RMSEphi1 = rmseBatch[1],
     RMSEphi2 = rmseBatch[2],
     RMSEphi3 = rmseBatch[3],
-    RMSEphi4 = rmseBatch[4],
     RMSEphi1.avg = rmseBatch[1],
     RMSEphi2.avg = rmseBatch[2],
-    RMSEphi3.avg = rmseBatch[3],
-    RMSEphi4.avg = rmseBatch[4]
+    RMSEphi3.avg = rmseBatch[3]
   )
 )
 
