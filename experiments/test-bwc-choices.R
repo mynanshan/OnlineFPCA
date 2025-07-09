@@ -312,14 +312,13 @@ for (optMethod in c("SGD", "Adam")) {
     )
 
     tau_paths_mat <- rbind(tau_paths_mat, tau_path)
+    rownames(tau_paths_mat)[nrow(tau_paths_mat)] <- paste0(optMethod, "-B", bwcSet$B[i], "W", bwcSet$W[i])
   }
 }
 
 # End experiment ----------------------------------------------------------
 
 readr::write_csv(res, file.path(dirpath, paste0("simu_", basename, ".csv")))
-
-rownames(tau_paths_mat) <- paste0("B", bwcSet$B, "W", bwcSet$W)
 saveRDS(tau_paths_mat, file.path(dirpath, paste0("taupath_", basename, ".csv")))
 
 message("Finishing replication: ", seed)

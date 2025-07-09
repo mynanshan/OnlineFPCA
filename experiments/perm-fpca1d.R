@@ -1,4 +1,3 @@
-
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/r/4.5.0/bin/Rscript
 #SBATCH --job-name=perm-fpca1d
 #SBATCH --output=logs/perm-fpca1d_%j.out
@@ -104,7 +103,7 @@ muTrueEval <- rp$meanfun(evalGrid)
 PhiTrueEval <- rp$eigfun(evalGrid)
 lambdaTrue <- rp$eigval
 
-set.seed(seed)
+set.seed(1234)
 
 dat <- get_measurements(
   rp,
@@ -117,6 +116,16 @@ dat <- get_measurements(
   m_type = m_type,
   sigma = noise_sd
 )
+
+set.seed(seed)
+ord = sample(1:N, N)
+dat$Ly <- dat$Ly[ord]
+dat$Lt <- dat$Lt[ord]
+dat$Ltid <- dat$Ltid[ord]
+dat$Lmi <- dat$Lmi[ord]
+dat$score <- dat$score[ord,]
+
+
 fdata_generator <- function(n, total_count) {
   idx <- (total_count):(total_count + n - 1) %% N + 1
   return(list(
@@ -184,134 +193,129 @@ inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
 for (optMethod in c("SGD", "Adam")) {
   message("Method:", optMethod)
 
-  for (i in seq_len(nrow(bwcSet))) {
-    message(">>>", "B:", bwcSet$B[i], ", W:", bwcSet$W[i])
+  fit <- fpca.sgd(
+    fdata_generator,
+    tgrid,
+    inits = inits,
+    meanfun = FALSE,
+    tau = NULL,
+    tau.control = list(
+      ntau = nParams,
+      nselect = 2,
+      maxtau = 1e-1,
+      mintau = 1e-6
+    ),
+    nbatch = nBatch,
+    maxIter = nPass * nIter1pass,
+    stepsize = stepsize,
+    stepsize.decayrate = 0.6,
+    stepsize.min = stepsize.min,
+    nIter.slowerdecay = floor(0.8 * nIter1pass),
+    stepsize.decayrate.slow = 0.3,
+    nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
+    asgd.use = TRUE,
+    asgd.start = asgdIterStart,
+    coord.scaling = FALSE,
+    nIter.1stTune = nRoundNoTune * nBlockIter,
+    nIter.lastTune = nIter1pass,
+    nIter.tauNoIncrease = floor(0.7 * nIter1pass),
+    period.tune = nBlockIter,
+    period.record = nBlockIter,
+    verbose = FALSE
+  )
 
-    fit <- fpca.sgd(
-      fdata_generator,
-      tgrid,
-      inits = inits,
-      meanfun = FALSE,
-      tau = NULL,
-      tau.control = list(
-        ntau = bwcSet$B[i],
-        nselect = bwcSet$W[i],
-        maxtau = 1e-1,
-        mintau = 1e-6
-      ),
-      nbatch = nBatch,
-      maxIter = nPass * nIter1pass,
-      stepsize = stepsize,
-      stepsize.decayrate = 0.6,
-      stepsize.min = stepsize.min,
-      nIter.slowerdecay = floor(0.8 * nIter1pass),
-      stepsize.decayrate.slow = 0.3,
-      nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
-      asgd.use = TRUE,
-      asgd.start = asgdIterStart,
-      coord.scaling = FALSE,
-      nIter.1stTune = nRoundNoTune * nBlockIter,
-      nIter.lastTune = nIter1pass,
-      nIter.tauNoIncrease = floor(0.7 * nIter1pass),
-      period.tune = nBlockIter,
-      period.record = nBlockIter,
-      verbose = FALSE
+  tau.min <- fit$tau.min
+  l <- which(fit$tau == tau.min)[1]
+  Theta <- fit$Theta[,, l]
+  lambda <- fit$lambda[, l]
+  sigma2 <- fit$sigma2[l]
+  Theta.avg <- fit$Theta.avg[,, l]
+  lambda.avg <- fit$lambda.avg[, l]
+  sigma2.avg <- fit$sigma2.avg[l]
+
+  params <- fit$params.history$params
+  vcrits <- fit$vcrit.history
+
+  # check eigenfunctions
+  PhiEstEval <- eval_fd(evalGrid, FuncData(Theta, basis))
+  PhiEstEval <- match_fpc(PhiEstEval, PhiTrueEval[, 1:q, drop = F])
+  params$Theta <- params$Theta[, attributes(PhiEstEval)$match_id, , , drop = F]
+  params$Theta[, attributes(PhiEstEval)$flipped, , ] <-
+    -params$Theta[, attributes(PhiEstEval)$flipped, , ]
+  PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
+  PhiAvgEval <- match_fpc(PhiAvgEval, PhiTrueEval[, 1:q, drop = F])
+  params$Theta.avg <- params$Theta.avg[, attributes(PhiAvgEval)$match_id, , , drop = F]
+  params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ] <-
+    -params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ]
+
+  tau_path <- with(
+    fit$tau.select,
+    extract_tau_path(tau.history, tau.selectId, l)
+  )
+  tau_path_id <- c(
+    tau_path$tau_path_id,
+    rep(1, (nPass - 1) * round(N / nBlock))
+  )
+  tau_path_id_extend <- c(rep(tau_path_id[1], nRoundNoTune), tau_path_id)
+
+  ThetaAll <- sapply(
+    seq_along(fit$params.history$iter.params),
+    \(i) params$Theta[,, tau_path_id_extend[i], i],
+    simplify = "array"
+  )
+  rmseAll <- sapply(1:q, \(k) {
+    diffTheta <- sweep(ThetaAll[, k, ], 1, phiTrueFunc$coefs[, k], "-")
+    diffPhi <- B %*% diffTheta
+    sqrt(colMeans(diffPhi^2))
+  })
+  ThetaAll.avg <- sapply(
+    seq_along(fit$params.history$iter.params),
+    \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
+    simplify = "array"
+  )
+  rmseAll.avg <- sapply(1:q, \(k) {
+    diffTheta <- sweep(ThetaAll.avg[, k, ], 1, phiTrueFunc$coefs[, k], "-")
+    diffPhi <- B %*% diffTheta
+    sqrt(colMeans(diffPhi^2))
+  })
+
+  times <- c(
+    colSums(fit$time.history[, 1:nIter1pass]),
+    fit$time.history[1, (nIter1pass + 1):(nPass * nIter1pass)]
+  )
+  times <- colSums(matrix(times, nrow = nBlockIter))
+  times <- c(difftime(end_time.init, start_time.init, units = 'secs'), times)
+
+  res <- rbind(
+    res,
+    data.frame(
+      seed = rep(seed, nRecord + 1),
+      Method = rep(paste0("Pspline-", optMethod), nRecord + 1),
+      StepSize = rep(stepsize, nRecord + 1),
+      N = c(0, nIters),
+      Ninit = rep(Ninit, nRecord + 1),
+      initMethod = rep(initMethod, nRecord + 1),
+      npc = rep(q, nRecord + 1),
+      nBatch = rep(nBatch, nRecord + 1),
+      Time = times,
+      B = bwcSet$B[i],
+      W = bwcSet$W[i],
+      RMSEphi1 = rmseAll[, 1],
+      RMSEphi2 = rmseAll[, 2],
+      RMSEphi3 = rmseAll[, 3],
+      RMSEphi1.avg = rmseAll.avg[, 1],
+      RMSEphi2.avg = rmseAll.avg[, 2],
+      RMSEphi3.avg = rmseAll.avg[, 3]
     )
+  )
 
-    tau.min <- fit$tau.min
-    l <- which(fit$tau == tau.min)[1]
-    Theta <- fit$Theta[,, l]
-    lambda <- fit$lambda[, l]
-    sigma2 <- fit$sigma2[l]
-    Theta.avg <- fit$Theta.avg[,, l]
-    lambda.avg <- fit$lambda.avg[, l]
-    sigma2.avg <- fit$sigma2.avg[l]
-
-    params <- fit$params.history$params
-    vcrits <- fit$vcrit.history
-
-    # check eigenfunctions
-    PhiEstEval <- eval_fd(evalGrid, FuncData(Theta, basis))
-    PhiEstEval <- match_fpc(PhiEstEval, PhiTrueEval[, 1:q, drop = F])
-    params$Theta <- params$Theta[, attributes(PhiEstEval)$match_id, , , drop = F]
-    params$Theta[, attributes(PhiEstEval)$flipped, , ] <-
-      -params$Theta[, attributes(PhiEstEval)$flipped, , ]
-    PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
-    PhiAvgEval <- match_fpc(PhiAvgEval, PhiTrueEval[, 1:q, drop = F])
-    params$Theta.avg <- params$Theta.avg[, attributes(PhiAvgEval)$match_id, , , drop = F]
-    params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ] <-
-      -params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ]
-
-    tau_path <- with(
-      fit$tau.select,
-      extract_tau_path(tau.history, tau.selectId, l)
-    )
-    tau_path_id <- c(
-      tau_path$tau_path_id,
-      rep(1, (nPass - 1) * round(N / nBlock))
-    )
-    tau_path_id_extend <- c(rep(tau_path_id[1], nRoundNoTune), tau_path_id)
-
-    ThetaAll <- sapply(
-      seq_along(fit$params.history$iter.params),
-      \(i) params$Theta[,, tau_path_id_extend[i], i],
-      simplify = "array"
-    )
-    rmseAll <- sapply(1:q, \(k) {
-      diffTheta <- sweep(ThetaAll[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-      diffPhi <- B %*% diffTheta
-      sqrt(colMeans(diffPhi^2))
-    })
-    ThetaAll.avg <- sapply(
-      seq_along(fit$params.history$iter.params),
-      \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
-      simplify = "array"
-    )
-    rmseAll.avg <- sapply(1:q, \(k) {
-      diffTheta <- sweep(ThetaAll.avg[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-      diffPhi <- B %*% diffTheta
-      sqrt(colMeans(diffPhi^2))
-    })
-
-    times <- c(
-      colSums(fit$time.history[, 1:nIter1pass]),
-      fit$time.history[1, (nIter1pass + 1):(nPass * nIter1pass)]
-    )
-    times <- colSums(matrix(times, nrow = nBlockIter))
-    times <- c(difftime(end_time.init, start_time.init, units = 'secs'), times)
-
-    res <- rbind(
-      res,
-      data.frame(
-        seed = rep(seed, nRecord + 1),
-        Method = rep(paste0("Pspline-", optMethod), nRecord + 1),
-        StepSize = rep(stepsize, nRecord + 1),
-        N = c(0, nIters),
-        Ninit = rep(Ninit, nRecord + 1),
-        initMethod = rep(initMethod, nRecord + 1),
-        npc = rep(q, nRecord + 1),
-        nBatch = rep(nBatch, nRecord + 1),
-        Time = times,
-        B = bwcSet$B[i],
-        W = bwcSet$W[i],
-        RMSEphi1 = rmseAll[, 1],
-        RMSEphi2 = rmseAll[, 2],
-        RMSEphi3 = rmseAll[, 3],
-        RMSEphi1.avg = rmseAll.avg[, 1],
-        RMSEphi2.avg = rmseAll.avg[, 2],
-        RMSEphi3.avg = rmseAll.avg[, 3]
-      )
-    )
-
-    tau_paths_mat <- rbind(tau_paths_mat, tau_path)
-  }
+  tau_paths_mat <- cbind(tau_paths_mat, tau_path)
+  colnames(tau_paths_mat)[ncol(tau_paths_mat)] <- optMethod
 }
 
 # End experiment ----------------------------------------------------------
 
 readr::write_csv(res, file.path(dirpath, paste0("simu_", basename, ".csv")))
-
-rownames(tau_paths_mat) <- paste0("B", bwcSet$B, "W", bwcSet$W)
 saveRDS(tau_paths_mat, file.path(dirpath, paste0("taupath_", basename, ".csv")))
 
 message("Finishing replication: ", seed)

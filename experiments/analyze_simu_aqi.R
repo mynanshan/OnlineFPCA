@@ -1,6 +1,7 @@
 library(dplyr)
 library(tidyr)
 library(readr)
+library(stringr)
 
 pa <- par(no.readonly = TRUE)
 
