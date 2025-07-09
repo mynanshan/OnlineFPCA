@@ -30,7 +30,7 @@ res <- res |>
 
 sumres <- res %>% group_by(Method, N) %>%
   summarise_at(vars(
-    Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg, RMSEphi4.avg
+    Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg
   ), list(mean=mean, sd=sd))
 
 sumres[['SumTime']] <- NA
@@ -39,15 +39,15 @@ for (m in unique(sumres$Method)) {
   sumres$SumTime[sumres$Method==m] <- cumsum(times)
 }
 
-q <- 4
-N0 <- 5000 * (1:5)
+q <- 3
+N0 <- 5000 * (1:3)
 N1 = 5000
 
 # zoom-in version
 # setEPS()
 # postscript(file="text-onlineFPCA/figures/fpca1d_rmse-time_n5000epoch3alpha2.eps",
 #            width = 9, height=4)
-m <- matrix(c(1,2,3,4,5,5,5,5), nrow = 2, ncol = 4, byrow = TRUE)
+m <- matrix(c(1,2,3,4,4,4), nrow = 2, ncol = 3, byrow = TRUE)
 layout(mat = m, heights = c(0.85,0.15))
 par(mar=c(5,4,2,2))
 for (k in 1:q) {
