@@ -34,9 +34,6 @@ exprmt <- "fpca1d"
 if (!dir.exists(dirpath)) dir.create(dirpath)
 
 
-#%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
 library(fda)
 library(Matrix)
 

@@ -1,6 +1,7 @@
+
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/r/4.5.0/bin/Rscript
-#SBATCH --job-name=test-bwc
-#SBATCH --output=logs/test-bwc_%j.out
+#SBATCH --job-name=perm-fpca1d
+#SBATCH --output=logs/perm-fpca1d_%j.out
 #SBATCH --time=1:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -51,19 +52,10 @@ nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
 asgd.use <- TRUE
 
-bwcSet <- data.frame(
-  B = c(3, 6, 6, 6, 8, 8),
-  W = c(1, 1, 2, 3, 2, 4)
-)
-
-exprmt <- "bwc"
+exprmt <- "perm1d"
 dirpath <- file.path("experiments", exprmt)
 if (!dir.exists(dirpath)) {
   dir.create(dirpath, recursive = TRUE)
-}
-
-if (seed == 1) {
-  readr::write_csv(bwcSet, file.path(dirpath, "bwcSet_.csv"))
 }
 
 n_digit_seed = ceiling(log10(seed + 1))
