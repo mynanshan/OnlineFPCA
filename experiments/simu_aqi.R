@@ -13,7 +13,7 @@ parser <- argparse::ArgumentParser(
 parser$add_argument(
   "--seed",
   type = "integer",
-  default = 3,
+  default = 5,
   help = "Seed used for this experiment."
 )
 args <- parser$parse_args()
@@ -42,14 +42,14 @@ nBatch <- 5
 nParams <- 6
 nPass <- 3
 nBlock <- 100
-Ninit <- 400
+Ninit <- 500
 N <- 5000
 nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize <- 2e-1
-stepsize.min <- 1e-2
+stepsize <- 1e-1
+stepsize.min <- 1e-3
 sgd.step.scale <- 1 # when < 1, use a smaller step size for sgd
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
@@ -242,7 +242,7 @@ for (optMethod in c("SGD", "Adam")) {
     nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
     asgd.use = TRUE,
     asgd.start = asgdIterStart,
-    coord.scaling = FALSE,
+    coord.scaling = TRUE,
     nIter.1stTune = nRoundNoTune * nBlockIter,
     nIter.lastTune = nIter1pass,
     nIter.tauNoIncrease = floor(0.7 * nIter1pass),
