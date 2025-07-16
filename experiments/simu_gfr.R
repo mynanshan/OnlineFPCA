@@ -462,7 +462,7 @@ res <- rbind(
 # End experiment ----------------------------------------------------------
 
 readr::write_csv(res, file.path(dirpath, filename))
-saveRDS(ThetaRecord, file=file.path(dirpath, "ThetaEst.rds"))
+saveRDS(ThetaRecord, file=file.path(dirpath, paste0("Theta_",exprmt,"_sd",seedtext,".rds")))
 
 message("Finishing replication: ", seed)
 set.seed(NULL)
