@@ -325,8 +325,8 @@ time_range = range(tabres$SumTime)
 rmse_range = range(as.matrix(tabres[,paste0('RMSEphi', 1:3, '.avg_mean')]) |> c())
 
 
-setEPS()
-postscript("text-onlineFPCA/figures/fpca2d-sim.eps", width=11.4, height=4.2)
+# setEPS()
+# postscript("text-onlineFPCA/figures/fpca2d-sim.eps", width=11.4, height=4.2)
 layout(mat = matrix(c(1,2,3,4), nrow=1, byrow=TRUE),
   widths = c(0.28,0.28,0.28,0.16))
 par(mar=c(5,3,3,2), oma=c(0,3,0,0))
@@ -359,4 +359,4 @@ legend("left",
   col=unique(tabres$Color),
   cex=1.3, horiz=FALSE, bty="n")
 par(par.old)
-dev.off()
+# dev.off()

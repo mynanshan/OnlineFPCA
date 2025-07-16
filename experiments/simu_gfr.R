@@ -97,6 +97,8 @@ nbasis <- 7
 basis <- create.bspline.basis(c(t0,t1), nbasis = nbasis, norder = 4)
 p <- nbasis
 
+ThetaRecord <- rep(list(list(SGD = NULL, Adam = NULL)), nPass)
+
 muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
 phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
 rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
@@ -228,6 +230,11 @@ for (optMethod in c("SGD", "Adam")) {
       RMSEphi2.avg = rmseAll.avg[,2],
       RMSEphi3.avg = rmseAll.avg[,3])
   )
+
+  for (ip in seq_len(nPass)) {
+    ii <- ip * nRecord.1pass
+    ThetaRecord[[ip]][[optMethod]] <- ThetaAll.avg[,,ii + 1]
+  }
 }
 
 
@@ -455,6 +462,7 @@ res <- rbind(
 # End experiment ----------------------------------------------------------
 
 readr::write_csv(res, file.path(dirpath, filename))
+saveRDS(ThetaRecord, file=file.path(dirpath, "ThetaEst.rds"))
 
 message("Finishing replication: ", seed)
 set.seed(NULL)

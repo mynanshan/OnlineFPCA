@@ -110,6 +110,11 @@ basis <- TensorBasis(list(
 ))
 p <- attr(basis, "nbasis")
 
+ThetaRecord <- list(
+  SGD = matrix(0, nrow = p, ncol = npc),
+  Adam = matrix(0, nrow = p, ncol = npc)
+)
+
 # best possible basis approximations
 muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
 phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
@@ -332,6 +337,8 @@ for (optMethod in c("SGD", "Adam")) {
       RMSEphi3.avg = rmseAll.avg[, 3]
     )
   )
+
+  ThetaRecord[[optMethod]] <- Theta.avg
 }
 
 
@@ -382,6 +389,7 @@ res <- rbind(
 # End experiment ----------------------------------------------------------
 
 readr::write_csv(res, file.path(dirpath, filename))
+saveRDS(ThetaRecord, file=file.path(dirpath, "ThetaEst.rds"))
 
 message("Finishing replication: ", seed)
 set.seed(NULL)
