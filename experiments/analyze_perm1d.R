@@ -1,13 +1,14 @@
-
 library(tidyr)
 library(dplyr)
 library(ggplot2)
 library(stringr)
 
-pa <- par(no.readonly = TRUE)
-
 exprmt <- "perm1d"
 dirpath <- file.path("experiments", exprmt)
+
+
+# RMSE uncertainty -------------------------------------------------------
+
 
 res <- do.call(
   rbind,
@@ -32,12 +33,31 @@ q <- 3
 N0 <- 5000 * (1:3)
 N1 = 5000
 
+plotdat <- res |> 
+  mutate(n = N) |> 
+  # mutate(n = as.factor(N)) |> 
+  pivot_longer(
+    cols = paste0("RMSEphi", 1:q, ".avg"),
+    names_to = "phiId",
+    values_to = "RMSE"
+  ) |> 
+  mutate(
+    phiId = recode(
+      phiId,
+      RMSEphi1.avg = "phi[1](t)",
+      RMSEphi2.avg = "phi[2](t)",
+      RMSEphi3.avg = "phi[3](t)"
+    )
+  )
 
-ggplot(res |> mutate(N == as.factor(N))) +
-  geom_boxplot(aes(x = N, y = RMSEphi1.avg, group=N))
 
-ggplot(res |> mutate(N == as.factor(N))) +
-  geom_boxplot(aes(x = N, y = RMSEphi2.avg, group=N))
-
-ggplot(res |> mutate(N == as.factor(N))) +
-  geom_boxplot(aes(x = N, y = RMSEphi3.avg, group=N))
+ggplot(plotdat) +
+  geom_boxplot(aes(x = n, y = RMSE, group=n)) +
+  facet_wrap(
+    vars(phiId),
+    labeller = label_parsed,
+    nrow = 3,
+    scales = "free_y"
+  ) +
+  scale_y_log10() +
+  theme_bw()

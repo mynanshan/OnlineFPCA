@@ -2,13 +2,13 @@ library(dplyr)
 library(tidyr)
 library(readr)
 library(stringr)
-
-pa <- par(no.readonly = TRUE)
-
+library(ggplot2)
 
 exprmt <- "aqi"
 dirpath <- file.path("experiments", exprmt)
 
+
+# RMSE plot and table ----------------------------------------------------
 
 res <- do.call(
   rbind,
@@ -48,6 +48,7 @@ N1 = 5000
 # setEPS()
 # postscript(file="text-onlineFPCA/figures/fpca1d_rmse-time_n5000epoch3alpha2.eps",
 #            width = 9, height=4)
+pa <- par(no.readonly = TRUE)
 m <- matrix(c(1,2,3,4,4,4), nrow = 2, ncol = 3, byrow = TRUE)
 layout(mat = m, heights = c(0.85,0.15))
 par(mar=c(5,4,2,2))
@@ -139,224 +140,105 @@ tabres = tabres |> filter(Method != "Batch-PACE")
 # PACE is optimized by C codes. Performance too different
 
 
-meth_ord = c("Pspline-SGD", "Pspline-Adam", "LocLin",
-  "Batch-FACE", "Batch-REML", "Batch-SOAP")
-tabres = tabres |> 
-  mutate(Method = factor(Method, levels=meth_ord)) |> 
-  arrange(Method, N)
 
-meth_list = c("Batch-FACE", "Batch-REML", "Batch-SOAP",
-  "LocLin", "Pspline-Adam", "Pspline-SGD")
-col_list = c("#900B64", "#D77718", "#857F79", "#1A73A0", "#A21B2D", "#0F7323")
-pch_list = c(0, 3, 4, 5, 1, 2)
-lab_list = c("FACE", "REML", "SOAP", "onlineCov",
-  "onlineFPCA-RAdam", "onlineFPCA-RSGD")
-tabres[['Color']] = col_list[match(tabres$Method, meth_list)]
-tabres[['Shape']] = pch_list[match(tabres$Method, meth_list)]
-tabres[['Label']] = lab_list[match(tabres$Method, meth_list)]
-time_range = range(tabres$SumTime)
-rmse_range = range(as.matrix(tabres[,paste0('RMSEphi', 1:3, '.avg_mean')]) |> c())
+# FPC plots --------------------------------------------------------------
 
+source("./R/fdaMdim.R")
+source("./data_generation/generator.R")
 
-setEPS()
-postscript("text-onlineFPCA/figures/fpca1d-sim.eps", width=11.4, height=4.2)
-layout(mat = matrix(c(1,2,3,4), nrow=1, byrow=TRUE),
-  widths = c(0.28,0.28,0.28,0.16))
-par(mar=c(5,3,3,2), oma=c(0,3,0,0))
-for (k in 1:q) {
-  curr_var = paste0('RMSEphi', k, '.avg_mean')
-  # if (k==1) {
-  #   par(oma=c(4,0,0,0))
-  # } else {
-  #   par(oma=c(0,0,0,0))
-  # }
-  if (k==1) {
-    numtext = "1st"
-  } else if (k==2) {
-    numtext = "2nd"
-  } else {
-    numtext = "3rd"
+dat <- gendata.aqi(1)
+tgrid <- evalGrid <- dat$tgrid
+t0 <- dat$t0
+t1 <- dat$t1
+neval <- nrow(evalGrid)
+muTrueEval <- numeric(neval)
+PhiTrueEval <- dat$Phi
+lambdaTrue <- dat$lam
+q <- npc <- ncol(PhiTrueEval)
+
+basis <- TensorBasis(list(
+  create.bspline.basis(c(0, 1), nbasis = 6, norder = 4),
+  create.bspline.basis(c(0, 1), nbasis = 8, norder = 4)
+))
+p <- attr(basis, "nbasis")
+
+file_list = list.files(dirpath)
+fpc_files = file_list[startsWith(file_list, "Theta")]
+nrep = length(fpc_files)
+
+nPass <- 3
+ThetaSGD <- ThetaAdam <- rep(list(matrix(0, nrow = p, ncol = q)), 3)
+for (f in fpc_files) {
+  ThetaRecord <- readRDS(file.path(dirpath, f))  
+  for (ip in seq_len(nPass)) {
+    ThetaSGD[[ip]] <- ThetaSGD[[ip]] + ThetaRecord[[ip]][['SGD']] / nrep
+    ThetaAdam[[ip]] <- ThetaAdam[[ip]] + ThetaRecord[[ip]][['Adam']] / nrep
   }
-  plot(NULL, xlim=c(0, max(time_range)), ylim=rmse_range,
-    xlab="CPU Time (s)", ylab="", main=paste(numtext, "FPC"))
-  if (k==1) mtext("RMSE", side=2, line=3)
-  points(tabres |> pull(SumTime), tabres |> pull(curr_var), cex=2, lwd=2,
-    col = tabres |> pull(Color), pch = tabres |> pull(Shape))
 }
-par(mar=c(0,0,0,0))
-plot(1, type = "n", axes=FALSE, xlab="", ylab="")
-legend("left",
-  inset=0,
-  legend = unique(tabres$Label), lty=0,
-  lwd=2, pch=unique(tabres$Shape),
-  col=unique(tabres$Color),
-  cex=1.3, horiz=FALSE, bty="n")
-par(par.old)
-dev.off()
 
+PhiSGD <- lapply(ThetaSGD, \(Theta) eval_fd(evalGrid, FuncData(Theta, basis)))
+PhiAdam <- lapply(ThetaAdam, \(Theta) eval_fd(evalGrid, FuncData(Theta, basis)))
 
-# 2d #############
-
-dirpath <- "experiments/"
-all_files <- list.files(dirpath)
-
-a <- "2"
-sig <- "0p1"
-filenameprefix <- c(
-  paste0("fpca2d_alpha", a, "_noise", sig, "_"),
-  paste0("soap2d_alpha", a, "_noise", sig, "_")
+dat.true <- data.frame(
+  Method="Truth",
+  t1=evalGrid[,1],
+  t2=evalGrid[,2],
+  phi1=PhiTrueEval[,1],
+  phi2=PhiTrueEval[,2],
+  phi3=PhiTrueEval[,3]
 )
-# filenameprefix <- c(
-#   paste0("fpca2db_alpha", a, "_noise", sig, "_")
-# )
-
-filenames <- do.call(
-  c, lapply(filenameprefix, \(prefix) {
-    all_files[stringr::str_detect(all_files, paste0(prefix, ".{10}\\.csv"))]
-  })
+dat.sgd <- data.frame(
+  Method="OnlineFPCA-SGD",
+  t1=evalGrid[,1],
+  t2=evalGrid[,2],
+  phi1=PhiSGD[[nPass]][,1],
+  phi2=PhiSGD[[nPass]][,2],
+  phi3=PhiSGD[[nPass]][,3]
 )
-
-res <- read_experiments(file.path(dirpath, filenames))
-
-sumres <- res %>% group_by(Method, N) %>%
-  summarise_at(vars(Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg), list(mean=mean, sd=sd))
-
-sumres[['SumTime']] <- NA
-for (m in unique(sumres$Method)) {
-  times <- sumres$Time_mean[sumres$Method==m]
-  sumres$SumTime[sumres$Method==m] <- cumsum(times)
-}
-
-
-q <- 3
-N0 <- 5000 * (1:5)
-
-setEPS()
-postscript(file="text-onlineFPCA/figures/fpca2d_rmse-time_n5000epoch5alpha2.eps",
-  width = 9, height=4)
-m <- matrix(c(1,2,3,4,4,4), nrow = 2, ncol = 3, byrow = TRUE)
-layout(mat = m, heights = c(0.85,0.15))
-par(mar=c(5,4,2,2))
-for (k in 1:q) {  
-  # plot onlineFPCA-Adam
-  chart.pspladam <- list(
-    x = sumres |> filter(Method=="Pspline-Adam") |> pull("SumTime"),
-    y = sumres |> filter(Method=="Pspline-Adam") |> pull(paste0("RMSEphi",k,".avg_mean")),
-    xm = sumres |> filter(Method=="Pspline-Adam") |> filter(N %in% N0) |>
-      arrange(N) |> pull("SumTime"),
-    ym = sumres |> filter(Method=="Pspline-Adam") |> filter(N %in% N0) |>
-      arrange(N) |> pull(paste0("RMSEphi",k,".avg_mean"))
+dat.adam <- data.frame(
+  Method="OnlineFPCA-Adam",
+  t1=evalGrid[,1],
+  t2=evalGrid[,2],
+  phi1=PhiAdam[[nPass]][,1],
+  phi2=PhiAdam[[nPass]][,2],
+  phi3=PhiAdam[[nPass]][,3]
+)
+plotdat <- bind_rows(dat.true, dat.sgd, dat.adam) %>%
+  pivot_longer(
+    cols = starts_with("phi"),
+    names_to  = "phiId",
+    values_to = "phiVal"
+  ) %>%
+  mutate(
+    Method = factor(Method, levels = c("Truth", "OnlineFPCA-SGD", "OnlineFPCA-Adam")),
+    # map “phi1”→“phi[1]” etc so label_parsed knows to render φ₁, φ₂, φ₃
+    phiId = recode(phiId,
+      phi1 = "phi[1](t[1], t[2])",
+      phi2 = "phi[2](t[1], t[2])",
+      phi3 = "phi[3](t[1], t[2])"
+    )
   )
-  chart.psplsgd <- list(
-    x = sumres |> filter(Method=="Pspline-SGD") |> pull("SumTime"),
-    y = sumres |> filter(Method=="Pspline-SGD") |> pull(paste0("RMSEphi",k,".avg_mean")),
-    xm = sumres |> filter(Method=="Pspline-SGD") |> filter(N %in% N0) |>
-      arrange(N) |> pull("SumTime"),
-    ym = sumres |> filter(Method=="Pspline-SGD") |> filter(N %in% N0) |>
-      arrange(N) |> pull(paste0("RMSEphi",k,".avg_mean"))
-  )
-  # chart.batch <- list(
-  #   x = sumres |> filter(Method=="Batch") |> pull("SumTime"),
-  #   y = sumres |> filter(Method=="Batch") |> pull(paste0("RMSEphi",k,".avg_mean")),
-  #   xm = sumres |> filter(Method=="Batch") |> filter(N == N0[1]) |>
-  #     pull("SumTime"),
-  #   ym = sumres |> filter(Method=="Batch") |> filter(N == N0[1]) |>
-  #     pull(paste0("RMSEphi",k,".avg_mean"))
-  # )
-  pspl.starttime = sumres |>
-    filter(Method == "Pspline-SGD") |>
-    pull("SumTime") |>
-    min()
-  pspl.endtime = sumres |>
-    filter(Method == "Pspline-SGD") |>
-    pull("SumTime") |>
-    max(na.rm = TRUE)
-  if (k==1) {
-    numtext = "1st"
-  } else if (k==2) {
-    numtext = "2nd"
-  } else {
-    numtext = "3rd"
-  }
-  plot(NULL, xlim=c(pspl.starttime, pspl.endtime),
-    ylim=c(0,0.45) * c(0.8,1.05),
-    xlab="Time (s)", ylab="RMSE", main=paste(numtext, "FPC"))
-  # abline(h=chart.batch$ym, col="grey", lwd=1.5, lty=3)
-  lines(chart.pspladam$x, chart.pspladam$y, col="#A21B2D", lwd=2, lty=1)
-  points(chart.pspladam$xm, chart.pspladam$ym, col="#A21B2D", lwd=1, cex=2, pch=1)
-  lines(chart.psplsgd$x, chart.psplsgd$y, col="#0F7323", lwd=2, lty=2)
-  points(chart.psplsgd$xm, chart.psplsgd$ym, col="#0F7323", lwd=1, cex=2, pch=2)
-  # lines(chart.batch$x, chart.batch$y, col="#1A73A0", lwd=1.5, lty=2)
-  # points(chart.batch$xm, chart.batch$ym, col="#1A73A0", lwd=1.5, cex=1.5, pch=3)
-  # legend("topright", xjust=1, legend = c("onlineFPCA-RAdam", "onlineFPCA-RSGD"),
-  #        lty = 1:3, lwd=1.3, pch=1:3, col=c("#A21B2D", "#0F7323"), cex=0.8)
-}
-par(mar=c(1,1,0,1))
-plot(1, type = "n", axes=FALSE, xlab="", ylab="")
-legend("bottom", inset=c(0.1, 0.2), 
-  legend = c("onlineFPCA-RAdam    ", "onlineFPCA-RSGD    "),
-  lty = c(1,2), lwd=1.3, pch=1:2, col=c("#A21B2D", "#0F7323"),
-  cex=1.1, horiz=TRUE, bty="n")
-par(par.old)
-dev.off()
 
-tabres <- ungroup(sumres) |>
-  filter(str_detect(Method, "Batch") | N %in% N0) |>
-  dplyr::select(Method, N, SumTime, RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean)
-for (i in 1:nrow(tabres)) {
-  cat(paste(c(as.character(tabres[i,1:2]), round(as.numeric(tabres[i,3]),1),
-    round(as.numeric(tabres[i,4:6]),3)), collapse=" & "), "\\\\ \n")
-}
+# Modify the plots to remove legends
+ggplot(plotdat) +
+  geom_raster(aes(x = t1, y = t2, fill = phiVal), interpolate = TRUE) +
+  facet_grid(
+    rows     = vars(phiId),
+    cols     = vars(Method),
+    labeller = label_parsed     # interpret phi[1], phi[2], phi[3] as expressions
+  ) +
+  theme_bw() +
+  theme(
+    panel.grid    = element_blank()
+  ) +
+  labs(
+    x    = expression(t[1]),    # math axis labels
+    y    = expression(t[2]),
+    fill = NULL                 # drop legend title
+  ) +
+  scale_fill_viridis_c()        # continuous viridis palette
 
-
-meth_ord = c("Pspline-SGD", "Pspline-Adam", "Batch-SOAP")
-tabres = tabres |> 
-  mutate(Method = factor(Method, levels=meth_ord)) |> 
-  arrange(Method, N)
-
-meth_list = c("Batch-SOAP", "Pspline-Adam", "Pspline-SGD")
-col_list = c("#857F79", "#A21B2D", "#0F7323")
-pch_list = c(4, 1, 2)
-lab_list = c("SOAP", "onlineFPCA-RAdam", "onlineFPCA-RSGD")
-tabres[['Color']] = col_list[match(tabres$Method, meth_list)]
-tabres[['Shape']] = pch_list[match(tabres$Method, meth_list)]
-tabres[['Label']] = lab_list[match(tabres$Method, meth_list)]
-time_range = range(tabres$SumTime)
-rmse_range = range(as.matrix(tabres[,paste0('RMSEphi', 1:3, '.avg_mean')]) |> c())
-
-
-# setEPS()
-# postscript("text-onlineFPCA/figures/fpca2d-sim.eps", width=11.4, height=4.2)
-layout(mat = matrix(c(1,2,3,4), nrow=1, byrow=TRUE),
-  widths = c(0.28,0.28,0.28,0.16))
-par(mar=c(5,3,3,2), oma=c(0,3,0,0))
-for (k in 1:q) {
-  curr_var = paste0('RMSEphi', k, '.avg_mean')
-  # if (k==1) {
-  #   par(oma=c(4,0,0,0))
-  # } else {
-  #   par(oma=c(0,0,0,0))
-  # }
-  if (k==1) {
-    numtext = "1st"
-  } else if (k==2) {
-    numtext = "2nd"
-  } else {
-    numtext = "3rd"
-  }
-  plot(NULL, xlim=c(0, max(time_range)), ylim=rmse_range,
-    xlab="CPU Time (s)", ylab="", main=paste(numtext, "FPC"))
-  if (k==1) mtext("RMSE", side=2, line=3)
-  points(tabres |> pull(SumTime), tabres |> pull(curr_var), cex=2, lwd=2,
-    col = tabres |> pull(Color), pch = tabres |> pull(Shape))
-}
-par(mar=c(0,0,0,0))
-plot(1, type = "n", axes=FALSE, xlab="", ylab="")
-legend("left",
-  inset=0,
-  legend = unique(tabres$Label), lty=0,
-  lwd=2, pch=unique(tabres$Shape),
-  col=unique(tabres$Color),
-  cex=1.3, horiz=FALSE, bty="n")
-par(par.old)
-# dev.off()
+ggsave(
+  file.path(dirpath, "simu-aqi-fpc.pdf"), device = "pdf",
+  width = 6, height = 4.8
+)

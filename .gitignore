@@ -4,3 +4,4 @@ data/
 logs/
 
 *.csv
+Theta*.rds
