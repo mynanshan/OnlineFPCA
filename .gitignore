@@ -5,3 +5,4 @@ logs/
 
 *.csv
 Theta*.rds
+*.pdf
