@@ -42,8 +42,6 @@ exprmt <- "fpca2d"
 
 if (!dir.exists(dirpath)) dir.create(dirpath)
 
-#%%%%%%%%%%%%%%%%%%%%%%%%%
-
 
 library(fda)
 library(Matrix)
@@ -137,8 +135,6 @@ for (alpha in alphaList) {
       # some invariants: basis matrices
       B <- eval_basis(tgrid, basis)
       G <- get_basis_inprod_matrix(basis)
-      RG <- Matrix::chol(G) # t(RG) %*% RG == G
-      invRG <- Matrix::solve(RG)
       Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
       
       ## Initialization ---------------------------------------------------
