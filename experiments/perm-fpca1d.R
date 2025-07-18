@@ -37,7 +37,6 @@ alpha <- 2
 nParams <- 6
 nPass <- 3
 nBlock <- 100
-# Ninit <- 100
 Ninit <- 50
 initMethod <- "face"
 N <- 5000
@@ -142,8 +141,8 @@ nbasis <- 7
 basis <- create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
 p <- nbasis
 
-freqRecord <- 5
-ThetaRecord <- rep(list(list(SGD = NULL, Adam = NULL)), freqRecord * nPass)
+iRecord <- c(10, 30, 50, 100)
+ThetaRecord <- rep(list(list(SGD = NULL, Adam = NULL)), length(iRecord))
 
 muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
 phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
@@ -313,8 +312,8 @@ for (optMethod in c("SGD", "Adam")) {
   tau_paths_mat <- cbind(tau_paths_mat, tau_path)
   colnames(tau_paths_mat)[ncol(tau_paths_mat)] <- optMethod
 
-  for (ir in seq_len(freqRecord * nPass)) {
-    ii <- ir * nRecord.1pass / freqRecord
+  for (ir in seq_along(iRecord)) {
+    ii <- iRecord[ir]
     ThetaRecord[[ir]][[optMethod]] <- ThetaAll.avg[,,ii + 1]
   }
 }

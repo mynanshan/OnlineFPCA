@@ -52,7 +52,7 @@ nRoundTune <- nRecord.1pass - nRoundNoTune
 asgd.use <- TRUE
 
 bwcSet <- data.frame(
-  B = c(3, 6, 6, 6, 8, 8),
+  C = c(3, 6, 6, 6, 8, 8),
   W = c(1, 1, 2, 3, 2, 4)
 )
 
@@ -80,7 +80,7 @@ res <- data.frame(
   npc = numeric(),
   nBatch = numeric(),
   Time = numeric(),
-  B = integer(),
+  C = integer(),
   W = integer(),
   RMSEphi1 = numeric(),
   RMSEphi2 = numeric(),
@@ -193,7 +193,7 @@ for (optMethod in c("SGD", "Adam")) {
   message("Method:", optMethod)
 
   for (i in seq_len(nrow(bwcSet))) {
-    message(">>>", "B:", bwcSet$B[i], ", W:", bwcSet$W[i])
+    message(">>>", "C:", bwcSet$C[i], ", W:", bwcSet$W[i])
 
     fit <- fpca.sgd(
       fdata_generator,
@@ -202,7 +202,7 @@ for (optMethod in c("SGD", "Adam")) {
       meanfun = FALSE,
       tau = NULL,
       tau.control = list(
-        ntau = bwcSet$B[i],
+        ntau = bwcSet$C[i],
         nselect = bwcSet$W[i],
         maxtau = 1e-1,
         mintau = 1e-6
@@ -300,7 +300,7 @@ for (optMethod in c("SGD", "Adam")) {
         npc = rep(q, nRecord + 1),
         nBatch = rep(nBatch, nRecord + 1),
         Time = times,
-        B = bwcSet$B[i],
+        C = bwcSet$C[i],
         W = bwcSet$W[i],
         RMSEphi1 = rmseAll[, 1],
         RMSEphi2 = rmseAll[, 2],
@@ -312,7 +312,7 @@ for (optMethod in c("SGD", "Adam")) {
     )
 
     tau_paths_mat <- rbind(tau_paths_mat, tau_path)
-    rownames(tau_paths_mat)[nrow(tau_paths_mat)] <- paste0(optMethod, "-B", bwcSet$B[i], "W", bwcSet$W[i])
+    rownames(tau_paths_mat)[nrow(tau_paths_mat)] <- paste0(optMethod, "-C", bwcSet$C[i], "W", bwcSet$W[i])
   }
 }
 

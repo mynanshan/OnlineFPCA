@@ -2,6 +2,7 @@ library(tidyr)
 library(dplyr)
 library(ggplot2)
 library(stringr)
+library(scales)
 
 exprmt <- "perm1d"
 dirpath <- file.path("experiments", exprmt)
@@ -64,7 +65,7 @@ ggplot(plotdat) +
     scales = "free_y",
     strip.position = "right"
   ) +
-  # scale_y_log10() +
+  scale_y_log10() +
   theme_bw() +
   theme(
     strip.placement = "outside"     # put the strip outside the panel area
@@ -103,11 +104,12 @@ file_list = list.files(dirpath)
 fpc_files = file_list[startsWith(file_list, "Theta")]
 nrep = length(fpc_files)
 
-nPass <- 3
-ThetaSGD <- ThetaAdam <- rep(list(array(0, c(p, q, nrep))), 3)
+nrec <- 3 * 5
+ndata.1rec <- 5000 / 5
+ThetaSGD <- ThetaAdam <- rep(list(array(0, c(p, q, nrep))), nrec)
 for (irep in seq_along(fpc_files)) {
   ThetaRecord <- readRDS(file.path(dirpath, fpc_files[irep]))  
-  for (ip in seq_len(nPass)) {
+  for (ip in seq_len(nrec)) {
     ThetaSGD[[ip]][,,irep] <- ThetaRecord[[ip]][['SGD']]
     ThetaAdam[[ip]][,,irep] <- ThetaRecord[[ip]][['Adam']]
   }
@@ -131,50 +133,44 @@ PhiAdam <- lapply(ThetaAdam, \(Theta) {
 
 dat.true <- data.frame(
   irep=0,
+  n=0,
   Method="Truth",
   t=evalGrid,
   phi1=PhiTrueEval[,1],
   phi2=PhiTrueEval[,2],
   phi3=PhiTrueEval[,3]
 )
-dat.sgd <- do.call(
-  bind_rows,
-  lapply(
-    seq_len(nrep), \(irep) {
-      data.frame(
-        irep=irep,
-        Method="OnlineFPCA-SGD",
-        t=evalGrid,
-        phi1=PhiSGD[[nPass]][,1,irep],
-        phi2=PhiSGD[[nPass]][,2,irep],
-        phi3=PhiSGD[[nPass]][,3,irep]
-      )
-    }
-  )
-)
 dat.adam <- do.call(
   bind_rows,
   lapply(
-    seq_len(nrep), \(irep) {
-      data.frame(
-        irep=irep,
-        Method="OnlineFPCA-Adam",
-        t=evalGrid,
-        phi1=PhiAdam[[nPass]][,1,irep],
-        phi2=PhiAdam[[nPass]][,2,irep],
-        phi3=PhiAdam[[nPass]][,3,irep]
+    seq_len(nrec), \(irec) {
+      do.call(
+        bind_rows,
+        lapply(
+          seq_len(nrep), \(irep) {
+            data.frame(
+              irep=irep,
+              n=irec * ndata.1rec,
+              Method="OnlineFPCA-Adam",
+              t=evalGrid,
+              phi1=PhiAdam[[irec]][,1,irep],
+              phi2=PhiAdam[[irec]][,2,irep],
+              phi3=PhiAdam[[irec]][,3,irep]
+            )
+          }
+        )
       )
     }
   )
 )
-plotdat <- bind_rows(dat.true, dat.sgd, dat.adam) %>%
+plotdat <- bind_rows(dat.true, dat.adam) %>%
   pivot_longer(
     cols = starts_with("phi"),
     names_to  = "phiId",
     values_to = "phiVal"
   ) %>%
   mutate(
-    Method = factor(Method, levels = c("Truth", "OnlineFPCA-SGD", "OnlineFPCA-Adam")),
+    Method = factor(Method, levels = c("Truth", "OnlineFPCA-Adam")),
     # map “phi1”→“phi[1]” etc so label_parsed knows to render φ₁, φ₂, φ₃
     phiId = recode(phiId,
       phi1 = "phi[1](t)",
@@ -183,26 +179,33 @@ plotdat <- bind_rows(dat.true, dat.sgd, dat.adam) %>%
     )
   )
 
+# ndata.levels <- unique(plotdat$n)
+ndata.levels <- c(1000, 5000, 10000)
+
 
 # 1) pick off the truth curves
 truth_curve <- plotdat %>%
   filter(Method == "Truth") %>%
-  select(-Method)
+  dplyr::select(-Method, -n)
 
 # 2) replicate for each method‐row you want
-methods_to_show <- c("OnlineFPCA-SGD", "OnlineFPCA-Adam")
-truth_for_all <- crossing(truth_curve, Method = methods_to_show) |> 
-  mutate(Method = factor(Method, levels = c("OnlineFPCA-SGD", "OnlineFPCA-Adam")))
+truth_for_all <- crossing(truth_curve, n = ndata.levels)
+
+my_n_labeller <- function(x) {
+  # x comes in as character/factor; force it numeric
+  num_x <- as.numeric(as.character(x))
+  # format with commas and prefix “n=”
+  paste0("n=", comma(num_x))
+}
 
 # 3) build the plot
 ggplot() +
   # the cloud of replicates, only for the two methods
   geom_line(
-    data  = plotdat %>% filter(Method != "Truth") |> 
-      mutate(Method = factor(Method, levels = c("OnlineFPCA-SGD", "OnlineFPCA-Adam"))),
+    data  = plotdat %>% filter(Method != "Truth", n %in% ndata.levels),
     aes(x = t, y = phiVal, group = irep),
     alpha = 0.1, color = "#81a9d3",
-    linewidth = 2
+    linewidth = 1
   ) +
   # the red truth curve, now tagged onto each method level
   geom_line(
@@ -214,14 +217,20 @@ ggplot() +
     linewidth = 0.8
   ) +
   facet_grid(
-    rows     = vars(Method),
+    rows     = vars(n),
     cols     = vars(phiId),
-    labeller = label_parsed
+    labeller = labeller(
+      # for the n‑strips: format with commas and prefix “n=”
+      n      = my_n_labeller,
+      # for the phi‑strips: parse expressions like "phi[1]" → φ₁
+      phiId  = label_parsed
+    )
   ) +
   theme_bw() +
   theme(
     panel.grid    = element_blank(),
-    axis.text.x   = element_text(size = 8)
+    axis.text.x   = element_text(size = 8),
+    strip.background = element_blank()
   ) +
   labs(
     x = expression(t),

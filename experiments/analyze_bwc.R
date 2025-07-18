@@ -1,5 +1,6 @@
 library(tidyr)
 library(dplyr)
+library(readr)
 library(ggplot2)
 library(stringr)
 
@@ -27,7 +28,7 @@ res <- res |>
     nBatch = as.integer(nBatch)
   )
 
-sumres <- res %>% group_by(Method, N, B, W) %>%
+sumres <- res %>% group_by(Method, N, C, W) %>%
   summarise_at(vars(
     RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg
   ), list(mean=mean, sd=sd))
@@ -45,21 +46,49 @@ N1 = 5000
 
 sumres |> 
   filter(N == N1) |> 
-  group_by(Method, B, W) |> 
+  group_by(Method, C, W) |> 
   summarise_at(vars(
     RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
-  ), list(mean=mean, sd=sd))
+  ), list(mean=mean))
 
 sumres |> 
   filter(N == 2 * N1) |> 
-  group_by(Method, B, W) |> 
+  group_by(Method, C, W) |> 
   summarise_at(vars(
     RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
-  ), list(mean=mean, sd=sd))
+  ), list(mean=mean))
 
 sumres |> 
   filter(N == 3 * N1) |> 
-  group_by(Method, B, W) |> 
+  group_by(Method, C, W) |> 
   summarise_at(vars(
     RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
-  ), list(mean=mean, sd=sd))
+  ), list(mean=mean))
+
+
+tabres <- sumres |> 
+  filter(N %in% N0, Method == "Pspline-Adam") |> 
+  group_by(Method, N, C, W) |> 
+  summarise_at(vars(
+    RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
+  ), list(mean=mean)) |> 
+  ungroup() |> 
+  rename(
+    phi1 = RMSEphi1.avg_mean_mean,
+    phi2 = RMSEphi2.avg_mean_mean,
+    phi3 = RMSEphi3.avg_mean_mean
+  ) |> 
+  mutate(
+    Epoch = N / 5000,
+    B = C / W
+  ) |> 
+  relocate(B, .before = phi1) |> 
+  relocate(Epoch, .before = C) |> 
+  select(-N, -Method) |>
+  pivot_wider(
+    id_cols = c("C", "W", "B"),
+    names_from = "Epoch",
+    values_from = c("phi1", "phi2", "phi3")
+  )
+
+knitr::kable(tabres, format = "latex", digits = 3)
