@@ -38,7 +38,7 @@ nParams <- 6
 nPass <- 3
 nBlock <- 100
 # Ninit <- 100
-Ninit <- 40
+Ninit <- 50
 initMethod <- "face"
 N <- 5000
 nIters.1pass <- seq(nBlock, N, nBlock)
@@ -46,7 +46,8 @@ nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 stepsize <- 2e-1
-stepsize.min <- 1e-3
+# stepsize.min <- 5e-2
+stepsize.min <- 1e-2
 sgd.step.scale <- 1 # use a smaller step size for sgd
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
@@ -141,7 +142,8 @@ nbasis <- 7
 basis <- create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
 p <- nbasis
 
-ThetaRecord <- rep(list(list(SGD = NULL, Adam = NULL)), nPass)
+freqRecord <- 5
+ThetaRecord <- rep(list(list(SGD = NULL, Adam = NULL)), freqRecord * nPass)
 
 muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
 phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
@@ -311,9 +313,9 @@ for (optMethod in c("SGD", "Adam")) {
   tau_paths_mat <- cbind(tau_paths_mat, tau_path)
   colnames(tau_paths_mat)[ncol(tau_paths_mat)] <- optMethod
 
-  for (ip in seq_len(nPass)) {
-    ii <- ip * nRecord.1pass
-    ThetaRecord[[ip]][[optMethod]] <- ThetaAll.avg[,,ii + 1]
+  for (ir in seq_len(freqRecord * nPass)) {
+    ii <- ir * nRecord.1pass / freqRecord
+    ThetaRecord[[ir]][[optMethod]] <- ThetaAll.avg[,,ii + 1]
   }
 }
 

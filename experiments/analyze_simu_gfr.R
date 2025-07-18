@@ -235,11 +235,27 @@ PhiAdam <- lapply(ThetaAdam, \(Theta) eval_fd(evalGrid, FuncData(Theta, basis)))
 
 
 dat.true <- data.frame(
+  irep=0,
   Method="Truth",
   t=evalGrid,
   phi1=PhiTrueEval[,1],
   phi2=PhiTrueEval[,2],
   phi3=PhiTrueEval[,3]
+)
+dat.sgd <- do.call(
+  bind_rows,
+  lapply(
+    seq_along(PhiSGD), \(irep) {
+      data.frame(
+        irep=irep,
+        Method="OnlineFPCA-SGD",
+        t=evalGrid,
+        phi1=PhiSGD[[nPass]][,1,irep],
+        phi2=PhiSGD[[nPass]][,2,irep],
+        phi3=PhiSGD[[nPass]][,3,irep]
+      )
+    }
+  )
 )
 dat.sgd <- data.frame(
   Method="OnlineFPCA-SGD",
