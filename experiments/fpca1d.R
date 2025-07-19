@@ -113,6 +113,7 @@ for (noise_sd in noiseList) {
     m_type = m_type,
     sigma = noise_sd
   )
+  tgrid <- dat$tgrid
 
   fdata_generator <- function(n, total_count) {
     idx <- (total_count):(total_count + n - 1) %% N + 1

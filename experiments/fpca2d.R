@@ -131,6 +131,7 @@ for (noise_sd in noiseList) {
       Lmi = dat$Lmi[idx]
     )
   }
+  tgrid <- dat$tgrid
 
   # set B-spline basis
   nbasis1d <- 7

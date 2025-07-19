@@ -44,7 +44,7 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize <- 2e-1
+itepsize <- 2e-1
 # stepsize.min <- 5e-2
 stepsize.min <- 1e-2
 sgd.step.scale <- 1 # use a smaller step size for sgd
