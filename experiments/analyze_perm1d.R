@@ -13,7 +13,7 @@ dirpath <- file.path("experiments", exprmt)
 source("./R/fdaMdim.R")
 source("./data_generation/generator.R")
 
-alpha = 2
+alpha <- 2
 rp <- get_rp.yang2021(alpha = alpha, npc = 10)
 t0 <- rp$t0
 t1 <- rp$t1
@@ -36,8 +36,9 @@ file_list = list.files(dirpath)
 fpc_files = file_list[startsWith(file_list, "Theta")]
 nrep = length(fpc_files)
 
-nrec <- 3 * 5
-ndata.1rec <- 5000 / 5
+iRecord <- c(10, 30, 50, 100)
+nrec <- length(iRecord)
+ndata.1rec <- 100
 ThetaSGD <- ThetaAdam <- rep(list(array(0, c(p, q, nrep))), nrec)
 for (irep in seq_along(fpc_files)) {
   ThetaRecord <- readRDS(file.path(dirpath, fpc_files[irep]))  
@@ -82,7 +83,7 @@ dat.adam <- do.call(
           seq_len(nrep), \(irep) {
             data.frame(
               irep=irep,
-              n=irec * ndata.1rec,
+              n=iRecord[irec] * ndata.1rec,
               Method="OnlineFPCA-Adam",
               t=evalGrid,
               phi1=PhiAdam[[irec]][,1,irep],
@@ -111,8 +112,7 @@ plotdat <- bind_rows(dat.true, dat.adam) %>%
     )
   )
 
-# ndata.levels <- unique(plotdat$n)
-ndata.levels <- c(1000, 5000, 10000)
+ndata.levels <- iRecord * ndata.1rec
 
 
 # 1) pick off the truth curves

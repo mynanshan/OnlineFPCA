@@ -37,7 +37,7 @@ alpha <- 2
 nParams <- 6
 nPass <- 3
 nBlock <- 100
-Ninit <- 50
+Ninit <- 100
 initMethod <- "face"
 N <- 5000
 nIters.1pass <- seq(nBlock, N, nBlock)
