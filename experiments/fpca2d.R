@@ -35,7 +35,7 @@ mOpCov_path <- "external_codes/mOpCov/"
 source(paste0(mOpCov_path, "mOpCov_prep.R"))
 Rcpp::sourceCpp(paste0(mOpCov_path, "mOpCov_cpp.cpp"))
 
-noiseList <- c(0.1, 0.3, 0.5)
+noiseList <- c(0.1, 0.5, 1.0)
 nBatch <- 5
 nParams <- 6
 nPass <- 5
