@@ -52,8 +52,8 @@ nRoundTune <- nRecord.1pass - nRoundNoTune
 asgd.use <- TRUE
 
 bwcSet <- data.frame(
-  C = c(3, 6, 6, 6, 8, 8),
-  W = c(1, 1, 2, 3, 2, 4)
+  C = c(3, 6, 6, 6, 8, 8, 8),
+  W = c(1, 1, 2, 3, 1, 2, 4)
 )
 
 exprmt <- "bwc"
