@@ -326,13 +326,13 @@ gendata.aqi <- function(
   npc <- 3
   PhiMat <- readRDS(eigf.path)[,1:npc]  # (M, npc)
   # PhiMat <- readRDS(eigf.path)[,c(1,2,4)]  # (M, npc)
-  # lamvec <- readRDS(eigval.path)[1:npc]  # (M, npc)
+  lamvec <- readRDS(eigval.path)[1:npc]  # (M, npc)
   # lamvec <- readRDS(eigval.path)[c(1,2,4)]  # (M, npc)
   # lamvec <- lamvec / mean(lamvec)
   tgrid <- readRDS(tgrid.path)
-  alpha <- 2
+  # alpha <- 2
   # lamvec <- 4 * exp(-(0:(npc-1)) * log(alpha))
-  lamvec <- 4 * (1:npc)^(-alpha) 
+  # lamvec <- 4 * (1:npc)^(-alpha) 
   M <- nrow(PhiMat)
   stopifnot(length(lamvec) == npc)
   stopifnot(M == nrow(tgrid))
