@@ -1,6 +1,6 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v3/Compiler/gcccore/r/4.5.0/bin/Rscript
-#SBATCH --job-name=perm-fpca2d
-#SBATCH --output=logs/perm-fpca2d_%j.out
+#SBATCH --job-name=boot-fpca2d
+#SBATCH --output=logs/boot-fpca2d_%j.out
 #SBATCH --time=2:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -54,7 +54,7 @@ nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
 asgd.use <- TRUE
 
-exprmt <- "perm2d"
+exprmt <- "boot2d"
 dirpath <- file.path("experiments", exprmt)
 if (!dir.exists(dirpath)) {
   dir.create(dirpath, recursive = TRUE)
@@ -121,7 +121,7 @@ dat <- get_measurements(
 )
 
 set.seed(seed)
-ord = sample(1:N, N)
+ord = sample(1:N, N, replace = TRUE)
 dat$Ly <- dat$Ly[ord]
 dat$Lt <- dat$Lt[ord]
 dat$Ltid <- dat$Ltid[ord]
