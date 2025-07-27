@@ -106,6 +106,8 @@ par(
   xpd = TRUE
 )
 
+# TODO: subsample the grid to reduce figure size
+
 for (ri in seq_along(record_indices)) {
   idx <- record_indices[ri]
 
