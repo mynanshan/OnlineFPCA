@@ -291,7 +291,7 @@ res <-
     data.frame(
       seed = seed,
       Method = paste0("Pspline-", optMethod),
-      N = c(0, nIters),
+      epoch = seq_len(nPass),
       nBlock = nBlock,
       wBeta = ewmabv.beta,
       tau = tau.min,
