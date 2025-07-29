@@ -37,7 +37,7 @@ noise_sd <- 0.5
 nBatch <- 5
 nParams <- 6
 nPass <- 3
-nBlockList <- c(4, 10, 20, 50, 100)
+nBlockList <- c(10, 20, 50, 100)
 Ninit <- 100
 initMethod <- "face"
 N <- 5000
@@ -161,6 +161,8 @@ plan(multisession, workers = availableCores() - 1)
 res <-
   foreach(nBlock = nBlockList, .combine = "rbind") %:%
   foreach(ewmabv.beta = ewmabv.beta.list, .combine = "rbind") %dofuture% {
+
+    cat("Settings: ", "nBlock =", nBlock, " ewmabv.beta =", ewmabv.beta, "\n")
 
     nIters.1pass <- seq(nBlock, N, nBlock)
     nIters <- seq(nBlock, nPass * N, nBlock)
