@@ -4,7 +4,7 @@ library(ggplot2)
 library(stringr)
 library(scales)
 
-exprmt <- "perm2d"
+exprmt <- "boot2d"
 dirpath <- file.path("experiments", exprmt)
 
 
@@ -78,14 +78,30 @@ PhiAdam <- lapply(ThetaAdam, \(Theta) {
     array(c(neval, q, nrep))
 })
 
+get.ci <- function(x, method = c("quantile", "normal")) {
+  method = match.arg(method)
+  if (method == "quantile") {
+    return(quantile(x, probs = c(0.025, 0.975)))
+  }
+  if (method == "normal") {
+    z = qnorm(0.975)
+    return(mean(x) + c(-1, 1) * z * sd(x))
+  }
+}
+
 Phi.CI <- lapply(
   PhiAdam,
   \(Phi) {
-    apply(Phi, c(1, 2), quantile, probs = c(0.025, 0.975)) |>
+    apply(Phi, c(1, 2), get.ci, method="normal") |>
       array(dim = c(2, neval, q)) |>
       aperm(c(2, 3, 1))
   }
 )
+
+rm(ThetaSGD)
+rm(ThetaAdam)
+rm(PhiSGD)
+rm(PhiAdam)
 
 
 # install.packages("plot3D")
@@ -96,7 +112,7 @@ record_indices <- c(1, 3, 5)
 sample_sizes <- iRecord[record_indices] * ndata.1rec
 
 # set up a PDF (or PNG) device
-pdf(file = file.path(dirpath, "perm2d-ci.pdf"), width = 7, height = 6.2)
+pdf(file = file.path(dirpath, "boot2d-ci.pdf"), width = 7, height = 6.2)
 
 # 3×3 panels, with some outer margin for axis labels
 par(
@@ -106,23 +122,29 @@ par(
   xpd = TRUE
 )
 
-# TODO: subsample the grid to reduce figure size
+subId <- lapply(nevalList, \(N) {
+  tmp <- logical(N)
+  tmp[seq(1, N, 2)] <- TRUE
+  tmp
+})
+nevalSub <- sapply(subId, sum)
+subId2 <- c(outer(subId[[1]], subId[[2]], "&"))
 
 for (ri in seq_along(record_indices)) {
   idx <- record_indices[ri]
 
   for (k in seq_len(q)) {
     # reshape back to matrix
-    Z_true <- matrix(PhiTrueEval[, k], nevalList[1], nevalList[2])
-    Z_lower <- matrix(Phi.CI[[idx]][, k, 1], nevalList[1], nevalList[2])
-    Z_upper <- matrix(Phi.CI[[idx]][, k, 2], nevalList[1], nevalList[2])
+    Z_true <- matrix(PhiTrueEval[subId2, k], nevalSub[1], nevalSub[2])
+    Z_lower <- matrix(Phi.CI[[idx]][subId2, k, 1], nevalSub[1], nevalSub[2])
+    Z_upper <- matrix(Phi.CI[[idx]][subId2, k, 2], nevalSub[1], nevalSub[2])
 
     # draw the true FPC surface
     persp3D(
-      x = matrix(evalGrid[, 1], nevalList[1], nevalList[2]),
-      y = matrix(evalGrid[, 2], nevalList[1], nevalList[2]),
+      x = matrix(evalGrid[subId2, 1], nevalSub[1], nevalSub[2]),
+      y = matrix(evalGrid[subId2, 2], nevalSub[1], nevalSub[2]),
       z = Z_true,
-      col = rgb(1., 0.8, 0.3, alpha = 0.2),
+      col = rgb(1., 0.8, 0.3, alpha = 0.7),
       border = NA,
       xlab = "",
       ylab = "",
@@ -178,18 +200,19 @@ for (ri in seq_along(record_indices)) {
 
     # overlay the lower‐CI surface
     surf3D(
-      x = matrix(evalGrid[, 1], nevalList[1], nevalList[2]),
-      y = matrix(evalGrid[, 2], nevalList[1], nevalList[2]),
+      x = matrix(evalGrid[subId2, 1], nevalSub[1], nevalSub[2]),
+      y = matrix(evalGrid[subId2, 2], nevalSub[1], nevalSub[2]),
       z = Z_lower,
-      col = rgb(0.2, 0.3, 0.9, alpha = 0.2),
+      # col = rgb(0.2, 0.3, 0.9, alpha = 0.2),
+      col = rgb(0.9, 0.3, 0.2, alpha = 0.2),
       border = NA,
       add = TRUE
     )
 
     # overlay the upper‐CI surface
     surf3D(
-      x = matrix(evalGrid[, 1], nevalList[1], nevalList[2]),
-      y = matrix(evalGrid[, 2], nevalList[1], nevalList[2]),
+      x = matrix(evalGrid[subId2, 1], nevalSub[1], nevalSub[2]),
+      y = matrix(evalGrid[subId2, 2], nevalSub[1], nevalSub[2]),
       z = Z_upper,
       col = "blue",
       alpha = 0.2,

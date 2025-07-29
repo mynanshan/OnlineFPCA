@@ -4,7 +4,7 @@ library(ggplot2)
 library(stringr)
 library(scales)
 
-exprmt <- "perm1d"
+exprmt <- "boot1d"
 dirpath <- file.path("experiments", exprmt)
 
 
@@ -65,18 +65,28 @@ PhiAdam <- lapply(ThetaAdam, \(Theta) {
     array(c(neval, q, nrep))
 })
 
+get.ci <- function(x, method = c("quantile", "normal")) {
+  method = match.arg(method)
+  if (method == "quantile") {
+    return(quantile(x, probs = c(0.025, 0.975)))
+  }
+  if (method == "normal") {
+    z = qnorm(0.975)
+    return(mean(x) + c(-1, 1) * z * sd(x))
+  }
+}
 
 Phi.CI <- lapply(
   PhiAdam,
   \(Phi) {
-    apply(Phi, c(1, 2), quantile, probs = c(0.025, 0.975)) |>
+    apply(Phi, c(1, 2), get.ci, method="normal") |>
       array(dim = c(2, neval, npc)) |>
       aperm(c(2, 3, 1))
   }
 )
 
 
-pdf(file = file.path(dirpath, "perm1d-ci.pdf"), width = 7, height = 6.2)
+pdf(file = file.path(dirpath, "boot1d-ci.pdf"), width = 7, height = 6.2)
 pa <- par(no.readonly = TRUE)
 par(mfrow = c(3, 3), mar = c(3, 3, 2, 1), oma = c(2, 2, 1, 0))
 yranges <- do.call(
@@ -125,113 +135,3 @@ for (irec in seq_along(iRecord)) {
 }
 par(pa)
 dev.off()
-
-# dat.true <- data.frame(
-#   irep=0,
-#   n=0,
-#   Method="Truth",
-#   t=evalGrid,
-#   phi1=PhiTrueEval[,1],
-#   phi2=PhiTrueEval[,2],
-#   phi3=PhiTrueEval[,3]
-# )
-# dat.adam <- do.call(
-#   bind_rows,
-#   lapply(
-#     seq_len(nrec), \(irec) {
-#       do.call(
-#         bind_rows,
-#         lapply(
-#           seq_len(nrep), \(irep) {
-#             data.frame(
-#               irep=irep,
-#               n=iRecord[irec] * ndata.1rec,
-#               Method="OnlineFPCA-Adam",
-#               t=evalGrid,
-#               phi1=PhiAdam[[irec]][,1,irep],
-#               phi2=PhiAdam[[irec]][,2,irep],
-#               phi3=PhiAdam[[irec]][,3,irep]
-#             )
-#           }
-#         )
-#       )
-#     }
-#   )
-# )
-
-# plotdat <- bind_rows(dat.true, dat.adam) %>%
-#   pivot_longer(
-#     cols = starts_with("phi"),
-#     names_to  = "phiId",
-#     values_to = "phiVal"
-#   ) %>%
-#   mutate(
-#     Method = factor(Method, levels = c("Truth", "OnlineFPCA-Adam")),
-#     # map “phi1”→“phi[1]” etc so label_parsed knows to render φ₁, φ₂, φ₃
-#     phiId = recode(phiId,
-#       phi1 = "phi[1](t)",
-#       phi2 = "phi[2](t)",
-#       phi3 = "phi[3](t)"
-#     )
-#   )
-
-# ndata.levels <- iRecord * ndata.1rec
-
-# # 1) pick off the truth curves
-# truth_curve <- plotdat %>%
-#   filter(Method == "Truth") %>%
-#   dplyr::select(-Method, -n)
-
-# # 2) replicate for each method‐row you want
-# truth_for_all <- crossing(truth_curve, n = ndata.levels)
-
-# my_n_labeller <- function(x) {
-#   # x comes in as character/factor; force it numeric
-#   num_x <- as.numeric(as.character(x))
-#   # format with commas and prefix “n=”
-#   paste0("n=", comma(num_x))
-# }
-
-# # 3) build the plot
-# ggplot() +
-#   # the cloud of replicates, only for the two methods
-#   geom_line(
-#     data  = plotdat %>% filter(Method != "Truth", n %in% ndata.levels),
-#     aes(x = t, y = phiVal, group = irep),
-#     alpha = 0.1, color = "#81a9d3",
-#     linewidth = 1
-#   ) +
-#   # the red truth curve, now tagged onto each method level
-#   geom_line(
-#     data  = truth_for_all,
-#     aes(x = t, y = phiVal, group = irep),
-#     color = "#cb3064",
-#     # color = "black",
-#     # alpha = 0.8,
-#     linewidth = 0.8
-#   ) +
-#   facet_grid(
-#     rows     = vars(n),
-#     cols     = vars(phiId),
-#     labeller = labeller(
-#       # for the n‑strips: format with commas and prefix “n=”
-#       n      = my_n_labeller,
-#       # for the phi‑strips: parse expressions like "phi[1]" → φ₁
-#       phiId  = label_parsed
-#     )
-#   ) +
-#   theme_bw() +
-#   theme(
-#     panel.grid    = element_blank(),
-#     axis.text.x   = element_text(size = 8),
-#     strip.background = element_blank()
-#   ) +
-#   labs(
-#     x = expression(t),
-#     y = "FPC Value"
-#   )
-
-# ggsave(
-#   file.path(dirpath, "perm1d-fpc.pdf"), device = "pdf",
-#   width = 6, height = 4
-# )

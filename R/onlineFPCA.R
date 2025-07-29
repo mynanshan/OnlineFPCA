@@ -4,44 +4,6 @@
 
 library(Matrix)
 
-ofpca <- function(
-  data_generator,
-  obsGrid,
-  meanfun = FALSE,
-  tau = NULL,
-  tau.control = list(),
-  nbatch = 1,
-  sgd.control = list(),
-  stepsize = 1e-3,
-  maxIter = 1000,
-  nIter.constStepSize = 0,
-  nIter.adam = floor(maxIter),
-  stepsize.decayrate = 0.5,
-  stepsize.min = min(1e-3, stepsize / 8),
-  nIter.slowerdecay = floor(0.5 * maxIter),
-  stepsize.decayrate.slow = 0,
-  beta1 = 0.9,
-  beta2 = 0.99,
-  asgd.use = FALSE,
-  asgd.start = 1,
-  nIter.1stTune = floor(0.1 * maxIter),
-  nIter.lastTune = maxIter,
-  period.tune = 100,
-  vcrit.tune = c("ewmabv", "av"),
-  ewmabv.beta = NULL,
-  abv_aofv_w = 0.5,
-  nIter.tauNoIncrease = floor(0.6 * maxIter),
-  period.message = 100,
-  verbose = TRUE,
-  recordParams = TRUE,
-  period.record = 20,
-  period.time = period.record,
-  test.mode = FALSE
-) {
-  # TODO: put parameters into sgd.control
-  # TODO: write a wrapper function, including initializations, basis functions
-}
-
 fpca.sgd <- function(
   data_generator,
   obsGrid,
@@ -106,23 +68,27 @@ fpca.sgd <- function(
     tau.selectId <- NULL
   }
   ntune <- floor((maxIter - nIter.1stTune) / period.tune) + 1
-  if (ntune < 5) {
-    ewmabv.beta <- 0.5
-  } else {
-    ewmabv.beta.candidates <- seq(0.1, 0.95, 0.05)
-    valid.ewmabv.beta.id <- which(
-      ewmabv.beta.candidates^(ntune - 1) < 0.5 / ntune^1.2
-    )
-    if (length(valid.ewmabv.beta.id) == 0) {
-      idx <- 1
-      warning(
-        "Improper choice of ewmabv.beta. The tuning period is possibly too large."
+  if (is.null(ewmabv.beta)) {
+    if (ntune < 5) {
+      ewmabv.beta <- 0.5
+    } else {
+      ewmabv.beta.candidates <- seq(0.1, 0.95, 0.05)
+      valid.ewmabv.beta.id <- which(
+        ewmabv.beta.candidates^(ntune - 1) < 0.5 / ntune^1.2
       )
+      if (length(valid.ewmabv.beta.id) == 0) {
+        idx <- 1
+        warning(
+          "Improper choice of ewmabv.beta. The tuning period is possibly too large."
+        )
+      }
+      idx <- max(valid.ewmabv.beta.id)
+      if (is.null(ewmabv.beta) || ewmabv.beta > ewmabv.beta.candidates[idx]) {
+        ewmabv.beta <- ewmabv.beta.candidates[idx]
+      }
     }
-    idx <- max(valid.ewmabv.beta.id)
-    if (is.null(ewmabv.beta) || ewmabv.beta > ewmabv.beta.candidates[idx]) {
-      ewmabv.beta <- ewmabv.beta.candidates[idx]
-    }
+  } else {
+    stopifnot(ewmabv.beta <= 1 && ewmabv.beta >= 0)
   }
   vcrit.tune <- match.arg(vcrit.tune)
   vcrit.history <- list(
@@ -568,6 +534,7 @@ fpca.rasa <- function(
   period.time = period.record,
   test.mode = FALSE
 ) {
+  # FIXME: FUNCTION OUTDATED
   ## Inputs:
   # TODO: obsGrid should be an attribute of data_generator
   # nIter.constStepSize: Number of steps with constant step size. Diminishing step sizes after that

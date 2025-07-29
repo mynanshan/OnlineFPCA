@@ -29,14 +29,12 @@ res <- res |>
     nBatch = as.integer(nBatch)
   )
 
-sumres <- res %>% group_by(Method, noise, Ninit, npc, initMethod, N) %>%
-  summarise_at(vars(Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg), list(mean=mean, sd=sd))
-
-sumres[['SumTime']] <- NA
-for (m in unique(sumres$Method)) {
-  times <- sumres$Time_mean[sumres$Method==m]
-  sumres$SumTime[sumres$Method==m] <- cumsum(times)
-}
+sumres <- res |> 
+  group_by(Method, noise, Ninit, npc, initMethod, N) |> 
+  summarise_at(vars(Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg), list(mean=mean)) |> 
+  ungroup() |> 
+  group_by(Method, noise, Ninit, npc, initMethod) |> 
+  mutate(SumTime = cumsum(Time_mean))
 
 q <- 3
 N0 <- c(5000, 10000, 15000)

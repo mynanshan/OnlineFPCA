@@ -24,8 +24,6 @@ tau_paths = list(
   "2D" = list("RSGD" = NULL, "RAdam" = NULL)
 )
 
-#%%%%%%%%%%%%%%%%%%%%%%%%%
-
 
 ## Experiment settings
 noise_sd <- 0.5
