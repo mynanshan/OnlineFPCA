@@ -271,22 +271,6 @@ res <-
     times <- colSums(matrix(times, nrow = nBlockIter))
     times <- c(difftime(end_time.init, start_time.init, units = 'secs'), times)
 
-    # av <- fit$vcrit.history$av
-    # av[is.na(av)] <- fit$vcrit.history$av.avg[is.na(av)]
-    # ewmabv <- fit$vcrit.history$ewmabv
-    # ewmabv[is.na(ewmabv)] <- fit$vcrit.history$ewmabv.avg[is.na(ewmabv)]
-
-    # av.selected <- sapply(seq_len(nRecord.1pass), \(i) av[tau_path_id[i+1], i])
-    # ewmabv.selected <- sapply(seq_len(nRecord.1pass), \(i) ewmabv[tau_path_id[i+1], i])
-
-    saveRDS(
-      tau_path$tau_path,
-      file.path(dirpath, paste0(
-        "taupath_nBlock",nBlock,"_beta",
-        ewmabv.beta*10,"_",seedtext,".rds"
-      ))
-    )
-
     Nlist = c(0, nIters)
     idx = Nlist %in% (N * seq_len(nPass))
 
@@ -306,4 +290,6 @@ res <-
     )
   }
 
-readr::write_csv(res, file.path(dirpath, filename))
+if (!interactive()) {
+  readr::write_csv(res, file.path(dirpath, filename))
+}

@@ -1,7 +1,3 @@
-## external wrapper:
-# create basis, fix an observation grid, calculate B, G, Omega
-# initialize parameters
-
 library(Matrix)
 
 fpca.sgd <- function(
@@ -92,10 +88,12 @@ fpca.sgd <- function(
   }
   vcrit.tune <- match.arg(vcrit.tune)
   vcrit.history <- list(
+    bv = array(dim = c(ntau, ntune)),
     av = array(dim = c(ntau, ntune)),
     ewmabv = array(dim = c(ntau, ntune))
   )
   if (asgd.use) {
+    vcrit.history$bv.avg <- array(dim = c(ntau, ntune))
     vcrit.history$av.avg <- array(dim = c(ntau, ntune))
     vcrit.history$ewmabv.avg <- array(dim = c(ntau, ntune))
   }
@@ -261,12 +259,14 @@ fpca.sgd <- function(
         curr_bv <- curr_bv / (period.tune * nbatch)
       }
       if ((!asgd.use) || i < asgd.start) {
+        vcrit.history$bv[, itune] <- curr_bv
         ewmabv <- ewmabv * ewmabv.beta + curr_bv * (1 - ewmabv.beta)
         curr_bv <- numeric(ntau)
         vcrit.history$av[, itune] <- av
         vcrit.history$ewmabv[, itune] <- ewmabv
       } else {
         curr_bv.avg <- curr_bv.avg / (period.tune * nbatch)
+        vcrit.history$bv.avg[, itune] <- curr_bv.avg
         ewmabv.avg <- ewmabv.avg * ewmabv.beta + curr_bv.avg * (1 - ewmabv.beta)
         curr_bv.avg <- numeric(ntau)
         vcrit.history$av.avg[, itune] <- av.avg
@@ -332,6 +332,7 @@ fpca.sgd <- function(
         stats = "grad"
       )
       grad_Theta <- objective$grad_Theta
+      # grad_Theta <- as.matrix(solve(G, objective$grad_Theta))
       grad_Theta <- as.matrix(manifold.Stiefel.project(
         grad_Theta,
         asl(Theta, l),
@@ -501,420 +502,419 @@ fpca.sgd <- function(
   return(out)
 }
 
-fpca.rasa <- function(
-  data_generator,
-  obsGrid,
-  inits,
-  meanfun = FALSE,
-  tau = NULL,
-  tau.control = list(),
-  nbatch = 1,
-  stepsize = 1e-3,
-  maxIter = 1000,
-  conv.check = FALSE,
-  stepsize.decayrate = 0.5,
-  stepsize.min = 0,
-  nIter.slowerdecay = floor(0.5 * maxIter),
-  stepsize.decayrate.slow = 0,
-  asgd.start = 1,
-  beta0 = 0.9,
-  beta1 = 0.9,
-  beta2 = 0.99,
-  nIter.1stTune = floor(0.1 * maxIter),
-  nIter.lastTune = maxIter,
-  period.tune = 100,
-  vcrit.tune = c("ewmabv", "av"),
-  ewmabv.beta = NULL,
-  abv_aofv_w = 0.5,
-  nIter.tauNoIncrease = floor(0.6 * maxIter),
-  period.message = 100,
-  verbose = TRUE,
-  recordParams = TRUE,
-  period.record = 20,
-  period.time = period.record,
-  test.mode = FALSE
-) {
-  # FIXME: FUNCTION OUTDATED
-  ## Inputs:
-  # TODO: obsGrid should be an attribute of data_generator
-  # nIter.constStepSize: Number of steps with constant step size. Diminishing step sizes after that
-  # nIter.adam: Number of Adam steps. Regular SGD after that
+# fpca.rasa <- function(
+#   data_generator,
+#   obsGrid,
+#   inits,
+#   meanfun = FALSE,
+#   tau = NULL,
+#   tau.control = list(),
+#   nbatch = 1,
+#   stepsize = 1e-3,
+#   maxIter = 1000,
+#   conv.check = FALSE,
+#   stepsize.decayrate = 0.5,
+#   stepsize.min = 0,
+#   nIter.slowerdecay = floor(0.5 * maxIter),
+#   stepsize.decayrate.slow = 0,
+#   asgd.start = 1,
+#   beta0 = 0.9,
+#   beta1 = 0.9,
+#   beta2 = 0.99,
+#   nIter.1stTune = floor(0.1 * maxIter),
+#   nIter.lastTune = maxIter,
+#   period.tune = 100,
+#   vcrit.tune = c("ewmabv", "av"),
+#   ewmabv.beta = NULL,
+#   abv_aofv_w = 0.5,
+#   nIter.tauNoIncrease = floor(0.6 * maxIter),
+#   period.message = 100,
+#   verbose = TRUE,
+#   recordParams = TRUE,
+#   period.record = 20,
+#   period.time = period.record,
+#   test.mode = FALSE
+# ) {
+#   # FIXME: FUNCTION OUTDATED
+#   ## Inputs:
+#   # TODO: obsGrid should be an attribute of data_generator
+#   # nIter.constStepSize: Number of steps with constant step size. Diminishing step sizes after that
+#   # nIter.adam: Number of Adam steps. Regular SGD after that
 
-  ## Set params and initializations
-  inits <- setParams.inits(inits, meanfun)
-  optns.tau <- setParams.tau(tau, tau.control)
-  tau <- sort(optns.tau$tau, decreasing = TRUE)
-  taurange0 <- ifelse(length(tau) > 1, diff(range(log(tau))), 1)
-  tau.control <- optns.tau$tau.control
-  ntau <- tau.control$ntau
-  adatau <- tau.control$adatau
-  nselect <- tau.control$nselect
-  nchild <- allocate_nchild(ntau, nselect)
-  if (adatau) {
-    tau.history <- tau
-    tau.selectId <- c()
-  } else {
-    tau.history <- NULL
-    tau.selectId <- NULL
-  }
-  ntune <- floor((maxIter - nIter.1stTune) / period.tune) + 1
-  if (ntune < 5) {
-    ewmabv.beta <- 0.5
-  } else {
-    ewmabv.beta.candidates <- seq(0.1, 0.95, 0.05)
-    valid.ewmabv.beta.id <- which(
-      ewmabv.beta.candidates^(ntune - 1) < 0.5 / ntune^1.2
-    )
-    if (length(valid.ewmabv.beta.id) == 0) {
-      idx <- 1
-      warning(
-        "Improper choice of ewmabv.beta. The tuning period is possibly too large."
-      )
-    }
-    idx <- max(valid.ewmabv.beta.id)
-    if (is.null(ewmabv.beta) || ewmabv.beta > ewmabv.beta.candidates[idx]) {
-      ewmabv.beta <- ewmabv.beta.candidates[idx]
-    }
-  }
-  vcrit.tune <- match.arg(vcrit.tune)
-  vcrit.history <- list(
-    av = array(dim = c(ntau, ntune)),
-    ewmabv = array(dim = c(ntau, ntune))
-  )
-  vcrit.history$av.avg <- array(dim = c(ntau, ntune))
-  vcrit.history$ewmabv.avg <- array(dim = c(ntau, ntune))
-  iter.select <- 1
-  stopifnot(stepsize > 0)
-  stopifnot(stepsize.decayrate > 0 && stepsize.decayrate <= 1)
-  stopifnot(stepsize.decayrate.slow >= 0 && stepsize.decayrate.slow <= 1)
+#   ## Set params and initializations
+#   inits <- setParams.inits(inits, meanfun)
+#   optns.tau <- setParams.tau(tau, tau.control)
+#   tau <- sort(optns.tau$tau, decreasing = TRUE)
+#   taurange0 <- ifelse(length(tau) > 1, diff(range(log(tau))), 1)
+#   tau.control <- optns.tau$tau.control
+#   ntau <- tau.control$ntau
+#   adatau <- tau.control$adatau
+#   nselect <- tau.control$nselect
+#   nchild <- allocate_nchild(ntau, nselect)
+#   if (adatau) {
+#     tau.history <- tau
+#     tau.selectId <- c()
+#   } else {
+#     tau.history <- NULL
+#     tau.selectId <- NULL
+#   }
+#   ntune <- floor((maxIter - nIter.1stTune) / period.tune) + 1
+#   if (ntune < 5) {
+#     ewmabv.beta <- 0.5
+#   } else {
+#     ewmabv.beta.candidates <- seq(0.1, 0.95, 0.05)
+#     valid.ewmabv.beta.id <- which(
+#       ewmabv.beta.candidates^(ntune - 1) < 0.5 / ntune^1.2
+#     )
+#     if (length(valid.ewmabv.beta.id) == 0) {
+#       idx <- 1
+#       warning(
+#         "Improper choice of ewmabv.beta. The tuning period is possibly too large."
+#       )
+#     }
+#     idx <- max(valid.ewmabv.beta.id)
+#     if (is.null(ewmabv.beta) || ewmabv.beta > ewmabv.beta.candidates[idx]) {
+#       ewmabv.beta <- ewmabv.beta.candidates[idx]
+#     }
+#   }
+#   vcrit.tune <- match.arg(vcrit.tune)
+#   vcrit.history <- list(
+#     av = array(dim = c(ntau, ntune)),
+#     ewmabv = array(dim = c(ntau, ntune))
+#   )
+#   vcrit.history$av.avg <- array(dim = c(ntau, ntune))
+#   vcrit.history$ewmabv.avg <- array(dim = c(ntau, ntune))
+#   iter.select <- 1
+#   stopifnot(stepsize > 0)
+#   stopifnot(stepsize.decayrate > 0 && stepsize.decayrate <= 1)
+#   stopifnot(stepsize.decayrate.slow >= 0 && stepsize.decayrate.slow <= 1)
 
-  p <- nrow(inits$Theta)
-  q <- ncol(inits$Theta)
-  Theta <- array(inits$Theta, dim = c(p, q, ntau))
-  lambda <- array(inits$lambda, dim = c(q, ntau))
-  sigma2 <- array(inits$sigma2, dim = c(ntau))
-  theta_mu <- inits$theta_mu
+#   p <- nrow(inits$Theta)
+#   q <- ncol(inits$Theta)
+#   Theta <- array(inits$Theta, dim = c(p, q, ntau))
+#   lambda <- array(inits$lambda, dim = c(q, ntau))
+#   sigma2 <- array(inits$sigma2, dim = c(ntau))
+#   theta_mu <- inits$theta_mu
 
-  if (recordParams) {
-    nrecord <- floor(maxIter / period.record) + 1
-    params.history <- list(
-      Theta = array(dim = c(p, q, ntau, nrecord)),
-      lambda = array(dim = c(q, ntau, nrecord)),
-      sigma2 = array(dim = c(ntau, nrecord))
-    )
-    params.history$Theta[,,, 1] <- Theta
-    params.history$lambda[,, 1] <- lambda
-    params.history$sigma2[, 1] <- sigma2
-    params.history$Theta.avg <- params.history$Theta
-    params.history$lambda.avg <- params.history$lambda
-    params.history$sigma2.avg <- params.history$sigma2
-  } else {
-    params.history <- NULL
-  }
-  iter.params <- 1
+#   if (recordParams) {
+#     nrecord <- floor(maxIter / period.record) + 1
+#     params.history <- list(
+#       Theta = array(dim = c(p, q, ntau, nrecord)),
+#       lambda = array(dim = c(q, ntau, nrecord)),
+#       sigma2 = array(dim = c(ntau, nrecord))
+#     )
+#     params.history$Theta[,,, 1] <- Theta
+#     params.history$lambda[,, 1] <- lambda
+#     params.history$sigma2[, 1] <- sigma2
+#     params.history$Theta.avg <- params.history$Theta
+#     params.history$lambda.avg <- params.history$lambda
+#     params.history$sigma2.avg <- params.history$sigma2
+#   } else {
+#     params.history <- NULL
+#   }
+#   iter.params <- 1
 
-  # TODO: implement online mean estimation
-  if (!is.null(theta_mu)) {
-    stop("NOT IMPLEMENTED")
-  }
+#   # TODO: implement online mean estimation
+#   if (!is.null(theta_mu)) {
+#     stop("NOT IMPLEMENTED")
+#   }
 
-  # matrix part: RASA algorithm
-  m.Theta <- matrix(0, nrow = p * q, ncol = ntau)
-  rasa.l <- matrix(0, nrow = p, ncol = ntau)
-  rasa.r <- matrix(0, nrow = q, ncol = ntau)
-  # vector part: regular Adam
-  m.lamsig <- matrix(0, nrow = q + 1, ncol = ntau)
-  v.lamsig <- matrix(0, nrow = q + 1, ncol = ntau)
+#   # matrix part: RASA algorithm
+#   m.Theta <- matrix(0, nrow = p * q, ncol = ntau)
+#   rasa.l <- matrix(0, nrow = p, ncol = ntau)
+#   rasa.r <- matrix(0, nrow = q, ncol = ntau)
+#   # vector part: regular Adam
+#   m.lamsig <- matrix(0, nrow = q + 1, ncol = ntau)
+#   v.lamsig <- matrix(0, nrow = q + 1, ncol = ntau)
 
-  av <- numeric(ntau) # averaged one-function validation score
-  ewmabv <- numeric(ntau) # averaged block validation score
-  curr_bv <- numeric(ntau) # current block validation score
-  Theta.avg <- array(0, dim = c(p, q, ntau))
-  lambda.avg <- array(0, dim = c(q, ntau))
-  sigma2.avg <- array(0, dim = c(ntau))
-  av.avg <- numeric(ntau)
-  ewmabv.avg <- numeric(ntau)
-  curr_bv.avg <- numeric(ntau)
+#   av <- numeric(ntau) # averaged one-function validation score
+#   ewmabv <- numeric(ntau) # averaged block validation score
+#   curr_bv <- numeric(ntau) # current block validation score
+#   Theta.avg <- array(0, dim = c(p, q, ntau))
+#   lambda.avg <- array(0, dim = c(q, ntau))
+#   sigma2.avg <- array(0, dim = c(ntau))
+#   av.avg <- numeric(ntau)
+#   ewmabv.avg <- numeric(ntau)
+#   curr_bv.avg <- numeric(ntau)
 
-  total_count <- 0
-  time <- c()
-  time.start <- Sys.time()
+#   total_count <- 0
+#   time <- c()
+#   time.start <- Sys.time()
 
-  conv_flag <- rep(FALSE, ntune)
-  for (i in 1:maxIter) {
-    if (verbose && (i %% period.message == 0)) {
-      message("Iter ", i)
-    }
-    if (i <= nIter.slowerdecay) {
-      if (stepsize.decayrate.slow == 0) {
-        decay <- 1 / (1 + log(i))
-      } else {
-        decay <- 1 / (i^stepsize.decayrate.slow)
-      }
-    } else {
-      if (i == nIter.slowerdecay + 1) {
-        iter0 <- ceiling(1 / decay^(1 / stepsize.decayrate))
-      }
-      decay <- 1 / (iter0 + i - nIter.slowerdecay)^stepsize.decayrate
-    }
+#   conv_flag <- rep(FALSE, ntune)
+#   for (i in 1:maxIter) {
+#     if (verbose && (i %% period.message == 0)) {
+#       message("Iter ", i)
+#     }
+#     if (i <= nIter.slowerdecay) {
+#       if (stepsize.decayrate.slow == 0) {
+#         decay <- 1 / (1 + log(i))
+#       } else {
+#         decay <- 1 / (i^stepsize.decayrate.slow)
+#       }
+#     } else {
+#       if (i == nIter.slowerdecay + 1) {
+#         iter0 <- ceiling(1 / decay^(1 / stepsize.decayrate))
+#       }
+#       decay <- 1 / (iter0 + i - nIter.slowerdecay)^stepsize.decayrate
+#     }
 
-    if (i == asgd.start) {
-      asgd.count <- 1
-      Theta.avg <- Theta
-      lambda.avg <- lambda
-      sigma2.avg <- sigma2
-    }
+#     if (i == asgd.start) {
+#       asgd.count <- 1
+#       Theta.avg <- Theta
+#       lambda.avg <- lambda
+#       sigma2.avg <- sigma2
+#     }
 
-    # receive new data
-    obs <- data_generator(nbatch, total_count)
-    Ltid <- obs$Ltid
-    Ly <- obs$Ly
-    total_count <- total_count + nbatch
+#     # receive new data
+#     obs <- data_generator(nbatch, total_count)
+#     Ltid <- obs$Ltid
+#     Ly <- obs$Ly
+#     total_count <- total_count + nbatch
 
-    # calculate validation score
-    for (l in 1:ntau) {
-      # if (i > nIter.lastTune && l > 1) break
-      if (i < asgd.start) {
-        lik <- objfun(
-          Ly,
-          Ltid,
-          asl(Theta, l),
-          lambda[, l],
-          sigma2[l],
-          theta_mu,
-          tau[l],
-          stats = "loss"
-        )$lik
-        av[l] <- av[l] * (i - 1) / i + lik * 1 / i
-        curr_bv[l] <- curr_bv[l] + lik
-      } else {
-        lik.avg <- objfun(
-          Ly,
-          Ltid,
-          asl(Theta.avg, l),
-          lambda.avg[, l],
-          sigma2.avg[l],
-          theta_mu,
-          tau[l],
-          stats = "loss"
-        )$lik
-        av.avg[l] <- av.avg[l] * (i - 1) / i + lik.avg * 1 / i
-        curr_bv.avg[l] <- curr_bv.avg[l] + lik.avg
-      }
-    }
+#     # calculate validation score
+#     for (l in 1:ntau) {
+#       # if (i > nIter.lastTune && l > 1) break
+#       if (i < asgd.start) {
+#         lik <- objfun(
+#           Ly,
+#           Ltid,
+#           asl(Theta, l),
+#           lambda[, l],
+#           sigma2[l],
+#           theta_mu,
+#           tau[l],
+#           stats = "loss"
+#         )$lik
+#         av[l] <- av[l] * (i - 1) / i + lik * 1 / i
+#         curr_bv[l] <- curr_bv[l] + lik
+#       } else {
+#         lik.avg <- objfun(
+#           Ly,
+#           Ltid,
+#           asl(Theta.avg, l),
+#           lambda.avg[, l],
+#           sigma2.avg[l],
+#           theta_mu,
+#           tau[l],
+#           stats = "loss"
+#         )$lik
+#         av.avg[l] <- av.avg[l] * (i - 1) / i + lik.avg * 1 / i
+#         curr_bv.avg[l] <- curr_bv.avg[l] + lik.avg
+#       }
+#     }
 
-    if (
-      i > 1 && i >= nIter.1stTune && (i - nIter.1stTune) %% period.tune == 0
-    ) {
-      itune <- floor((i - nIter.1stTune) / period.tune) + 1
-      if (itune == 1) {
-        curr_bv <- curr_bv / (i * nbatch)
-      } else {
-        curr_bv <- curr_bv / (period.tune * nbatch)
-      }
-      if (i < asgd.start) {
-        ewmabv <- ewmabv * ewmabv.beta + curr_bv * (1 - ewmabv.beta)
-        curr_bv <- numeric(ntau)
-        vcrit.history$av[, itune] <- av
-        vcrit.history$ewmabv[, itune] <- ewmabv
-      } else {
-        curr_bv.avg <- curr_bv.avg / (period.tune * nbatch)
-        ewmabv.avg <- ewmabv.avg * ewmabv.beta + curr_bv.avg * (1 - ewmabv.beta)
-        curr_bv.avg <- numeric(ntau)
-        vcrit.history$av.avg[, itune] <- av.avg
-        vcrit.history$ewmabv.avg[, itune] <- ewmabv.avg
-      }
+#     if (
+#       i > 1 && i >= nIter.1stTune && (i - nIter.1stTune) %% period.tune == 0
+#     ) {
+#       itune <- floor((i - nIter.1stTune) / period.tune) + 1
+#       if (itune == 1) {
+#         curr_bv <- curr_bv / (i * nbatch)
+#       } else {
+#         curr_bv <- curr_bv / (period.tune * nbatch)
+#       }
+#       if (i < asgd.start) {
+#         ewmabv <- ewmabv * ewmabv.beta + curr_bv * (1 - ewmabv.beta)
+#         curr_bv <- numeric(ntau)
+#         vcrit.history$av[, itune] <- av
+#         vcrit.history$ewmabv[, itune] <- ewmabv
+#       } else {
+#         curr_bv.avg <- curr_bv.avg / (period.tune * nbatch)
+#         ewmabv.avg <- ewmabv.avg * ewmabv.beta + curr_bv.avg * (1 - ewmabv.beta)
+#         curr_bv.avg <- numeric(ntau)
+#         vcrit.history$av.avg[, itune] <- av.avg
+#         vcrit.history$ewmabv.avg[, itune] <- ewmabv.avg
+#       }
 
-      # online selection of tau
-      if (adatau && i <= nIter.lastTune) {
-        iter.select <- c(iter.select, i)
-        if (i <= asgd.start) {
-          vscore <- eval(parse(text = vcrit.tune))
-        } else {
-          vscore <- eval(parse(text = paste0(vcrit.tune, ".avg")))
-        }
-        lstar <- order(vscore)[1:nselect]
-        parentId <- rep(lstar, nchild)
-        tau.selectId <- unname(cbind(tau.selectId, parentId))
-        rasa.l <- rasa.l[, parentId, drop = F]
-        rasa.r <- rasa.r[, parentId, drop = F]
-        m <- m[, parentId, drop = F]
-        v <- v[, parentId, drop = F]
-        av <- av[parentId]
-        ewmabv <- ewmabv[parentId]
-        Theta <- Theta[,, parentId, drop = F]
-        lambda <- lambda[, parentId, drop = F]
-        sigma2 <- sigma2[parentId]
-        tau.control <- setParams.tau(
-          tau,
-          tau.control,
-          delta.min = taurange0 / max(1, ntau - 2) / (itune^0.7)
-        )$tau.control
-        tau <- explore_newtau(
-          tau[lstar],
-          nchild,
-          tau.control$delta,
-          i > nIter.tauNoIncrease
-        )
-        tau.history <- unname(cbind(tau.history, tau))
-        if (i >= asgd.start) {
-          Theta.avg <- Theta.avg[,, parentId, drop = F]
-          lambda.avg <- lambda.avg[, parentId, drop = F]
-          sigma2.avg <- sigma2.avg[parentId]
-          av.avg <- av.avg[parentId]
-          ewmabv.avg <- ewmabv.avg[parentId]
-        }
-      }
-    }
+#       # online selection of tau
+#       if (adatau && i <= nIter.lastTune) {
+#         iter.select <- c(iter.select, i)
+#         if (i <= asgd.start) {
+#           vscore <- eval(parse(text = vcrit.tune))
+#         } else {
+#           vscore <- eval(parse(text = paste0(vcrit.tune, ".avg")))
+#         }
+#         lstar <- order(vscore)[1:nselect]
+#         parentId <- rep(lstar, nchild)
+#         tau.selectId <- unname(cbind(tau.selectId, parentId))
+#         rasa.l <- rasa.l[, parentId, drop = F]
+#         rasa.r <- rasa.r[, parentId, drop = F]
+#         m <- m[, parentId, drop = F]
+#         v <- v[, parentId, drop = F]
+#         av <- av[parentId]
+#         ewmabv <- ewmabv[parentId]
+#         Theta <- Theta[,, parentId, drop = F]
+#         lambda <- lambda[, parentId, drop = F]
+#         sigma2 <- sigma2[parentId]
+#         tau.control <- setParams.tau(
+#           tau,
+#           tau.control,
+#           delta.min = taurange0 / max(1, ntau - 2) / (itune^0.7)
+#         )$tau.control
+#         tau <- explore_newtau(
+#           tau[lstar],
+#           nchild,
+#           tau.control$delta,
+#           i > nIter.tauNoIncrease
+#         )
+#         tau.history <- unname(cbind(tau.history, tau))
+#         if (i >= asgd.start) {
+#           Theta.avg <- Theta.avg[,, parentId, drop = F]
+#           lambda.avg <- lambda.avg[, parentId, drop = F]
+#           sigma2.avg <- sigma2.avg[parentId]
+#           av.avg <- av.avg[parentId]
+#           ewmabv.avg <- ewmabv.avg[parentId]
+#         }
+#       }
+#     }
 
-    if (i >= asgd.start) {
-      asgd.count <- asgd.count + 1
-    }
+#     if (i >= asgd.start) {
+#       asgd.count <- asgd.count + 1
+#     }
 
-    for (l in 1:ntau) {
-      # if (i > nIter.lastTune && l > 1) break
-      objective <- objfun(
-        Ly,
-        Ltid,
-        asl(Theta, l),
-        lambda[, l],
-        sigma2[l],
-        theta_mu,
-        tau[l],
-        stats = "grad"
-      )
-      grad_Theta <- objective$grad_Theta
-      grad_Theta <- as.matrix(manifold.Stiefel.project(
-        grad_Theta,
-        asl(Theta, l),
-        G
-      ))
-      grad_eta <- objective$grad_eta
-      grad_zeta <- objective$grad_zeta
-      grad_all <- c(grad_Theta, grad_eta, grad_zeta)
+#     for (l in 1:ntau) {
+#       # if (i > nIter.lastTune && l > 1) break
+#       objective <- objfun(
+#         Ly,
+#         Ltid,
+#         asl(Theta, l),
+#         lambda[, l],
+#         sigma2[l],
+#         theta_mu,
+#         tau[l],
+#         stats = "grad"
+#       )
+#       grad_Theta <- objective$grad_Theta
+#       grad_Theta <- as.matrix(manifold.Stiefel.project(
+#         grad_Theta,
+#         asl(Theta, l),
+#         G
+#       ))
+#       grad_eta <- objective$grad_eta
+#       grad_zeta <- objective$grad_zeta
+#       grad_all <- c(grad_Theta, grad_eta, grad_zeta)
 
-      m.Theta[, l] <- m.Theta[, l] * beta1 + grad_Theta * (1 - beta1)
-      rasa.l[, l] <- rasa.l[, l] *
-        beta2 +
-        c(diag(grad_Theta %*% t(grad_Theta))) * (1 - beta2) / q
-      rasa.r[, l] <- rasa.r[, l] *
-        beta2 +
-        c(diag(t(grad_Theta) %*% grad_Theta)) * (1 - beta2) / p
-      m.lamsig[, l] <- m.lamsig[, l] *
-        beta1 +
-        c(grad_eta, grad_zeta) * (1 - beta1)
-      v.lamsig[, l] <- v.lamsig[, l] *
-        beta2 +
-        c(grad_eta, grad_zeta)^2 * (1 - beta2)
-      direc.Theta <- outer(
-        (rasa.l[, l] + 1e-8)^(-1 / 4),
-        (rasa.r[, l] + 1e-8)^(-1 / 4)
-      ) *
-        matrix(m.Theta[, l], p, q)
-      direc.Theta <- as.matrix(manifold.Stiefel.project(
-        direc.Theta,
-        asl(Theta, l),
-        G
-      ))
-      direc.lamsig <- m.lamsig[, l] / (sqrt(v.lamsig[, l]) + 1e-8)
-      direc <- c(direc.Theta, direc.lamsig)
+#       m.Theta[, l] <- m.Theta[, l] * beta1 + grad_Theta * (1 - beta1)
+#       rasa.l[, l] <- rasa.l[, l] *
+#         beta2 +
+#         c(diag(grad_Theta %*% t(grad_Theta))) * (1 - beta2) / q
+#       rasa.r[, l] <- rasa.r[, l] *
+#         beta2 +
+#         c(diag(t(grad_Theta) %*% grad_Theta)) * (1 - beta2) / p
+#       m.lamsig[, l] <- m.lamsig[, l] *
+#         beta1 +
+#         c(grad_eta, grad_zeta) * (1 - beta1)
+#       v.lamsig[, l] <- v.lamsig[, l] *
+#         beta2 +
+#         c(grad_eta, grad_zeta)^2 * (1 - beta2)
+#       direc.Theta <- outer(
+#         (rasa.l[, l] + 1e-8)^(-1 / 4),
+#         (rasa.r[, l] + 1e-8)^(-1 / 4)
+#       ) *
+#         matrix(m.Theta[, l], p, q)
+#       direc.Theta <- as.matrix(manifold.Stiefel.project(
+#         direc.Theta,
+#         asl(Theta, l),
+#         G
+#       ))
+#       direc.lamsig <- m.lamsig[, l] / (sqrt(v.lamsig[, l]) + 1e-8)
+#       direc <- c(direc.Theta, direc.lamsig)
 
-      # TODO: multiple stepsize?
-      # update
-      curr_stepsize <- stepsize * decay
-      if (curr_stepsize < stepsize.min) {
-        curr_stepsize <- stepsize.min
-      }
-      Theta[,, l] <- Theta[,, l] - curr_stepsize * direc[1:(p * q)]
-      lambda[, l] <- lambda[, l] *
-        exp(-curr_stepsize * direc[(p * q + 1):(p * q + q)])
-      sigma2[l] <- sigma2[l] * exp(-curr_stepsize * direc[p * q + q + 1])
+#       # TODO: multiple stepsize?
+#       # update
+#       curr_stepsize <- stepsize * decay
+#       if (curr_stepsize < stepsize.min) {
+#         curr_stepsize <- stepsize.min
+#       }
+#       Theta[,, l] <- Theta[,, l] - curr_stepsize * direc[1:(p * q)]
+#       lambda[, l] <- lambda[, l] *
+#         exp(-curr_stepsize * direc[(p * q + 1):(p * q + q)])
+#       sigma2[l] <- sigma2[l] * exp(-curr_stepsize * direc[p * q + q + 1])
 
-      if (
-        all(
-          curr_stepsize * abs(direc) <
-            1e-8 * abs(c(Theta[,, l], log(lambda[, l]), log(sigma2[l])))
-        )
-      ) {
-        conv_flag[l] <- TRUE
-      }
+#       if (
+#         all(
+#           curr_stepsize * abs(direc) <
+#             1e-8 * abs(c(Theta[,, l], log(lambda[, l]), log(sigma2[l])))
+#         )
+#       ) {
+#         conv_flag[l] <- TRUE
+#       }
 
-      if (i >= asgd.start) {
-        Theta.avg[,, l] <- Theta.avg[,, l] *
-          ((asgd.count - 1) / asgd.count) +
-          Theta[,, l] / asgd.count
-        lambda.avg[, l] <- lambda.avg[, l]^((asgd.count - 1) / asgd.count) *
-          lambda[, l]^(1 / asgd.count)
-        sigma2.avg[l] <- sigma2.avg[l]^((asgd.count - 1) / asgd.count) *
-          sigma2[l]^(1 / asgd.count)
-      }
+#       if (i >= asgd.start) {
+#         Theta.avg[,, l] <- Theta.avg[,, l] *
+#           ((asgd.count - 1) / asgd.count) +
+#           Theta[,, l] / asgd.count
+#         lambda.avg[, l] <- lambda.avg[, l]^((asgd.count - 1) / asgd.count) *
+#           lambda[, l]^(1 / asgd.count)
+#         sigma2.avg[l] <- sigma2.avg[l]^((asgd.count - 1) / asgd.count) *
+#           sigma2[l]^(1 / asgd.count)
+#       }
 
-      # retraction
-      Theta[,, l] <- manifold.Stiefel.retract(asl(Theta, l), G)
-      if (i >= asgd.start) {
-        Theta.avg[,, l] <- manifold.Stiefel.retract(asl(Theta.avg, l), G)
-      } else {
-        Theta.avg[,, l] <- Theta[,, l]
-        lambda.avg[, l] <- lambda[, l]
-        sigma2.avg[l] <- sigma2[l]
-      }
-    }
+#       # retraction
+#       Theta[,, l] <- manifold.Stiefel.retract(asl(Theta, l), G)
+#       if (i >= asgd.start) {
+#         Theta.avg[,, l] <- manifold.Stiefel.retract(asl(Theta.avg, l), G)
+#       } else {
+#         Theta.avg[,, l] <- Theta[,, l]
+#         lambda.avg[, l] <- lambda[, l]
+#         sigma2.avg[l] <- sigma2[l]
+#       }
+#     }
 
-    if (i %% period.time == 0) {
-      time.end <- Sys.time()
-      time <- c(time, difftime(time.end, time.start, units = 'secs'))
-      time.start <- Sys.time()
-    }
+#     if (i %% period.time == 0) {
+#       time.end <- Sys.time()
+#       time <- c(time, difftime(time.end, time.start, units = 'secs'))
+#       time.start <- Sys.time()
+#     }
 
-    # record parameters
-    if (recordParams && (i %% period.record == 0)) {
-      iter.params <- c(iter.params, i)
-      idx <- i %/% period.record + 1
-      params.history$Theta[,,, idx] <- Theta
-      params.history$lambda[,, idx] <- lambda
-      params.history$sigma2[, idx] <- sigma2
-      params.history$Theta.avg[,,, idx] <- Theta.avg
-      params.history$lambda.avg[,, idx] <- lambda.avg
-      params.history$sigma2.avg[, idx] <- sigma2.avg
-    }
+#     # record parameters
+#     if (recordParams && (i %% period.record == 0)) {
+#       iter.params <- c(iter.params, i)
+#       idx <- i %/% period.record + 1
+#       params.history$Theta[,,, idx] <- Theta
+#       params.history$lambda[,, idx] <- lambda
+#       params.history$sigma2[, idx] <- sigma2
+#       params.history$Theta.avg[,,, idx] <- Theta.avg
+#       params.history$lambda.avg[,, idx] <- lambda.avg
+#       params.history$sigma2.avg[, idx] <- sigma2.avg
+#     }
 
-    if (conv.check && all(conv_flag)) break
-  }
+#     if (conv.check && all(conv_flag)) break
+#   }
 
-  # Final selection
-  minId <- which.min(ewmabv.avg)
-  tau.min <- tau[minId]
+#   # Final selection
+#   minId <- which.min(ewmabv.avg)
+#   tau.min <- tau[minId]
 
-  out <- list(
-    Theta = Theta,
-    lambda = lambda,
-    sigma2 = sigma2,
-    theta_mu = theta_mu,
-    tau = tau,
-    tau.min = tau.min,
-    av = av,
-    ewmabv = ewmabv,
-    tau.select = list(
-      tau.history = tau.history,
-      tau.selectId = tau.selectId,
-      iter.select = iter.select
-    ),
-    params.history = list(params = params.history, iter.params = iter.params),
-    vcrit.history = vcrit.history,
-    time = time,
-    stepsize = stepsize,
-    stepsize.final = stepsize * decay,
-    ewmabv.beta = ewmabv.beta,
-    Theta.avg = Theta.avg,
-    lambda.avg = lambda.avg,
-    sigma2.avg = sigma2.avg,
-    av.avg = av.avg,
-    ewmabv.avg = ewmabv.avg
-  )
+#   out <- list(
+#     Theta = Theta,
+#     lambda = lambda,
+#     sigma2 = sigma2,
+#     theta_mu = theta_mu,
+#     tau = tau,
+#     tau.min = tau.min,
+#     av = av,
+#     ewmabv = ewmabv,
+#     tau.select = list(
+#       tau.history = tau.history,
+#       tau.selectId = tau.selectId,
+#       iter.select = iter.select
+#     ),
+#     params.history = list(params = params.history, iter.params = iter.params),
+#     vcrit.history = vcrit.history,
+#     time = time,
+#     stepsize = stepsize,
+#     stepsize.final = stepsize * decay,
+#     ewmabv.beta = ewmabv.beta,
+#     Theta.avg = Theta.avg,
+#     lambda.avg = lambda.avg,
+#     sigma2.avg = sigma2.avg,
+#     av.avg = av.avg,
+#     ewmabv.avg = ewmabv.avg
+#   )
 
-  return(out)
-}
-
+#   return(out)
+# }
 
 objfun <- function(
   Ly,
@@ -975,29 +975,46 @@ objfun <- function(
       Phit_Phi <- crossprod(Phi)
       invQ_PhiT_Yi <- invQ %*% PhiT_Yi
       grad_Theta <- grad_Theta +
-        2 /
-          n *
+        2 / n *
           as.matrix(
-            crossprod(Bi, Phi) %*%
-              (1 / sigma2 * invQ_PhiT_Yi %*% t(invQ_PhiT_Yi) + invQ) -
-              1 / sigma2 * crossprod(Bi, Yi) %*% t(invQ_PhiT_Yi)
+            crossprod(Bi, Phi) %*% (
+              1 / sigma2 * invQ_PhiT_Yi %*% t(invQ_PhiT_Yi)
+                + invQ
+            )
+              - 1 / sigma2 * crossprod(Bi, Yi) %*% t(invQ_PhiT_Yi)
           )
+
+      # grad_eta <- grad_eta +
+      #   lambda / n *
+      #     (-(1 / sigma2 * (PhiT_Yi - Phit_Phi %*% invQ_PhiT_Yi))^2 +
+      #       1 /
+      #         sigma2 *
+      #         (diag(Phit_Phi) - colSums(Phit_Phi * invQ %*% Phit_Phi)))
       grad_eta <- grad_eta +
-        lambda /
-          n *
-          (-(1 / sigma2 * (PhiT_Yi - Phit_Phi %*% invQ_PhiT_Yi))^2 +
-            1 /
-              sigma2 *
-              (diag(Phit_Phi) - colSums(Phit_Phi * invQ %*% Phit_Phi)))
+        1 / n * (
+          -invQ_PhiT_Yi^2 / lambda + rep(1, q)
+            - sigma2 * diag(invQ) / lambda
+        )
+
+      # grad_zeta <- grad_zeta +
+      #   1 /
+      #     n *
+      #     (-1 /
+      #       sigma2 *
+      #       (sum(Yi^2) -
+      #         2 * sum(PhiT_Yi * invQ_PhiT_Yi) +
+      #         sum(invQ_PhiT_Yi * Phit_Phi %*% invQ_PhiT_Yi)) +
+      #       (mi - sum(invQ * Phit_Phi)))
       grad_zeta <- grad_zeta +
         1 /
           n *
-          (-1 /
-            sigma2 *
-            (sum(Yi^2) -
-              2 * sum(PhiT_Yi * invQ_PhiT_Yi) +
-              sum(invQ_PhiT_Yi * Phit_Phi %*% invQ_PhiT_Yi)) +
-            (mi - sum(invQ * Phit_Phi)))
+          (-sum(Yi^2) /
+            sigma2 +
+            sum(invQ_PhiT_Yi * PhiT_Yi) / sigma2 +
+            sum(invQ_PhiT_Yi^2 / lambda) +
+            mi -
+            q +
+            sigma2 * sum(diag(invQ) / lambda))
     }
   }
   out <- list()
@@ -1013,6 +1030,8 @@ objfun <- function(
   }
   return(out)
 }
+
+
 
 get.sample.mean <- function(Ly, Ltid) {
   m <- length(unique(unlist(Ltid)))
@@ -1092,13 +1111,16 @@ setParams.tau <- function(tau = NULL, tau.control = list(), delta.min = NULL) {
         "nselect > ntau/2 is not effective to explore the parameter space."
       )
     }
-    tau.control$delta <- mean(diff(sort(log(tau)))) / 3
     if (is.null(delta.min)) {
       delta.min <- 0.3
     } else {
       delta.min <- max(delta.min, 0.3)
     }
-    if (tau.control$delta < delta.min) tau.control$delta <- delta.min
+    if (length(tau) > 1) {
+      tau.control$delta <- max(delta.min, mean(diff(sort(log(tau)))) / 3)
+    } else {
+      tau.control$delta <- 0
+    }
   }
   return(list(tau = tau, tau.control = tau.control))
 }
