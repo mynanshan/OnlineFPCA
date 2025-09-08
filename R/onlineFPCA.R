@@ -962,14 +962,13 @@ objfun <- function(
     if (stats == "all" || stats == "loss") {
       logdetQ <- as.numeric(determinant(Q, logarithm = TRUE)$modulus)
       fval <- fval +
-        1 /
-          n *
-          (1 /
-            sigma2 *
+        1 / n * (
+          1 / sigma2 *
             (sum(Yi^2) - sum(PhiT_Yi * invQ %*% PhiT_Yi)) +
             (mi - q) * log(sigma2) +
             sum(log(lambda)) +
-            logdetQ)
+            logdetQ
+        )
     }
     if (stats == "all" || stats == "grad") {
       Phit_Phi <- crossprod(Phi)
@@ -1006,15 +1005,13 @@ objfun <- function(
       #         sum(invQ_PhiT_Yi * Phit_Phi %*% invQ_PhiT_Yi)) +
       #       (mi - sum(invQ * Phit_Phi)))
       grad_zeta <- grad_zeta +
-        1 /
-          n *
-          (-sum(Yi^2) /
-            sigma2 +
-            sum(invQ_PhiT_Yi * PhiT_Yi) / sigma2 +
-            sum(invQ_PhiT_Yi^2 / lambda) +
-            mi -
-            q +
-            sigma2 * sum(diag(invQ) / lambda))
+        1 / n * (
+          -sum(Yi^2) / sigma2
+            + sum(invQ_PhiT_Yi * PhiT_Yi) / sigma2
+            + sum(invQ_PhiT_Yi^2 / lambda)
+            + mi - q
+            + sigma2 * sum(diag(invQ) / lambda)
+        )
     }
   }
   out <- list()

@@ -163,7 +163,7 @@ optMethod <- "Adam"
 # )
 
 
-# Check Derivatives ------------------------------------------------------
+# Check Gradients ------------------------------------------------------
 
 Theta = ThetaInit
 lambda = lambdaInit
@@ -224,6 +224,8 @@ check_grad_zeta <- check.derivatives(
 )
 
 
+# Check Hessian Theta ----------------------------------------------------
+
 Hess_x_Theta_apply <- function(
   Delta,
   Ly,
@@ -270,19 +272,24 @@ Hess_x_Theta_apply <- function(
 
     ### H_Theta_Theta
 
-    term1 <- 2 / sigma2 * BtB %*% {
+    term1 <- 2 / sigma2 * BtB %*% (
       Delta_invQ %*% t(Theta) + Theta_invQ %*% t(Delta)
       - Theta_invQ %*% (Phit_BDel + t(Phit_BDel)) %*% t(Theta_invQ) 
-    } %*% Bt_Yi %*% (t(PhiT_Yi) %*% invQ)
+    ) %*% Bt_Yi %*% t(invQ_PhiT_Yi)
     term2 <- 2 / sigma2 * (BtB %*% Theta_invQ %*% t(Theta) - diag(1,p,p)) %*%
-      Bt_Yi %*% (t(Bt_Yi) %*% {
+      Bt_Yi %*% (t(Bt_Yi) %*% (
         Delta_invQ - Theta_invQ %*% (Phit_BDel + t(Phit_BDel)) %*% invQ
-      })
+      ))
     term3 <- 2 * BtB %*% {
       Delta - Theta_invQ %*% (Phit_BDel + t(Phit_BDel))
     } %*% invQ
     term4 <- 2 * tau * as.matrix(Omega) %*% Delta
+    # term1 <- 0
+    # term2 <- 0
+    # term3 <- 0
+    # term4 <- 0
 
+    # FIXME: deriv check failed
     H_Theta_Theta <- H_Theta_Theta +
       1 / n * (term1 + term2 + term3 + term4)
 
@@ -326,7 +333,6 @@ Hess_x_Theta_apply <- function(
     H_zeta_Theta = as.numeric(H_zeta_Theta)
   )
 }
-
 
 Delta <- matrix(rnorm(p*q), p, q)
 Delta <- manifold.Stiefel.project(Delta, Theta, G)
@@ -374,6 +380,8 @@ check_H_zeta_Theta <- check.derivatives(
   }
 )
 
+
+# Check Hessian eta ------------------------------------------------------
 
 Hess_x_eta_apply <- function(
   delta,
@@ -449,9 +457,9 @@ Hess_x_eta_apply <- function(
   }
 
   list(
-    H_Theta_eta = H_Theta_eta,
-    H_eta_eta = H_eta_eta,
-    H_zeta_eta = H_zeta_eta
+    H_Theta_eta = as.matrix(H_Theta_eta),
+    H_eta_eta = as.vector(H_eta_eta),
+    H_zeta_eta = as.numeric(H_zeta_eta)
   )
 }
 
@@ -497,6 +505,136 @@ check_H_zeta_eta <- check.derivatives(
     Hess_x_eta_apply(
       delta_eta, dat$Ly[1:N], dat$Ltid[1:N], Theta, lambda, sigma2
     )[["H_zeta_eta"]] |> as.vector()
+  }
+)
+
+
+# Check Hessian zeta -----------------------------------------------------
+
+Hess_x_zeta_apply <- function(
+  delta,
+  Ly,
+  Ltid,
+  Theta,
+  lambda,
+  sigma2,
+  theta_mu = NULL,
+  tau = 1e-3
+) {
+  p <- ncol(B)
+  q <- length(lambda)
+  n <- length(Ly)
+  stopifnot(ncol(Theta) == q)
+  stopifnot(nrow(Theta) == p)
+  stopifnot(length(delta) == 1)
+  stopifnot(length(Ltid) == n)
+  H_Theta_zeta <- matrix(0, p, q)
+  H_eta_zeta <- numeric(q)
+  H_zeta_zeta <- 0
+
+  for (i in seq_len(n)) {
+    mi <- length(Ltid[[i]])
+    Bi <- B[Ltid[[i]], , drop = F]
+    Yi <- Ly[[i]]
+    if (!is.null(theta_mu)) {
+      Yi <- Yi - Bi %*% theta_mu
+    }
+    BtB <- as.matrix(crossprod(Bi))
+    Phi <- as.matrix(Bi %*% Theta)
+    Bt_Yi <- as.matrix(crossprod(Bi, Yi))
+    PhiT_Yi <- crossprod(Phi, Yi)
+    Phit_Phi <- crossprod(Phi)
+    Q <- crossprod(Phi, Phi) + sigma2 * diag(1 / lambda, q, q)
+    invQ <- solve(Q)
+    Theta_invQ <- Theta %*% invQ
+    invQ_PhiT_Yi <- invQ %*% PhiT_Yi
+
+    ### H_Theta_zeta
+
+    term1 <- -2 * delta / sigma2 * (
+      (BtB %*% Theta_invQ %*% t(Theta) - diag(1, p, p)) %*%
+        Bt_Yi %*% t(invQ_PhiT_Yi)
+    )
+    term2 <- -2 * delta * BtB %*% Theta_invQ %*% diag(1/lambda, q, q) %*%
+      invQ_PhiT_Yi %*% t(invQ_PhiT_Yi)
+    term3 <- -2 * delta * (BtB %*% Theta_invQ %*% t(Theta) - diag(1, p, p)) %*%
+      Bt_Yi %*% (t(invQ_PhiT_Yi) %*% diag(1/lambda, q, q) %*% invQ)
+    term4 <- -2 * sigma2 * delta * BtB %*% Theta_invQ %*%
+      diag(1/lambda, q, q) %*% invQ
+
+    H_Theta_zeta <- H_Theta_zeta + 1 / n * (term1 + term2 + term3 + term4)
+
+    ### H_eta_zeta
+
+    term1 <- 2 * delta * sigma2 * (invQ_PhiT_Yi / lambda) * (invQ %*% (invQ_PhiT_Yi / lambda))
+    term2 <- -sigma2 * delta * diag(invQ) / lambda
+    term3 <- sigma2^2 * delta * diag(invQ %*% diag(1/lambda,q,q) %*% invQ) / lambda
+
+    H_eta_zeta <- H_eta_zeta + 1 / n * (term1 + term2 + term3)
+
+    ### H_zeta_zeta
+
+    term1 <- delta / sigma2 * sum(Yi^2)
+    term2 <- -delta / sigma2 * sum(PhiT_Yi * invQ_PhiT_Yi)
+    term3 <- -delta * sum(invQ_PhiT_Yi^2 / lambda)
+    term4 <- -2 * delta * sigma2 *
+      sum(invQ_PhiT_Yi / lambda * invQ %*% (invQ_PhiT_Yi / lambda))
+    term5 <- sigma2 * delta * sum(diag(invQ) / lambda)
+    term6 <- -sigma2^2 * delta * sum(diag(invQ %*% diag(1/lambda,q,q) %*% invQ) / lambda)
+
+    H_zeta_zeta <- H_zeta_zeta + 1 / n *
+      sum(term1 + term2 + term3 + term4 + term5 + term6)
+  }
+
+  list(
+    H_Theta_zeta = as.matrix(H_Theta_zeta),
+    H_eta_zeta = as.vector(H_eta_zeta),
+    H_zeta_zeta = as.numeric(H_zeta_zeta)
+  )
+}
+
+delta_zeta <- rnorm(1)
+Hess_x_zeta_apply(delta_zeta, dat$Ly[1:N], dat$Ltid[1:N], Theta, lambda, sigma2)
+
+check_H_Theta_zeta <- check.derivatives(
+  0,
+  \(h) {
+    objfun(
+      dat$Ly[1:N], dat$Ltid[1:N], Theta, lambda, sigma2 * exp(h * delta_zeta)
+    )[["grad_Theta"]] |> as.vector()
+  },
+  \(h) {
+    Hess_x_zeta_apply(
+      delta_zeta, dat$Ly[1:N], dat$Ltid[1:N], Theta, lambda, sigma2
+    )[["H_Theta_zeta"]] |> as.vector()
+  }
+)
+
+check_H_eta_zeta <- check.derivatives(
+  0,
+  \(h) {
+    objfun(
+      dat$Ly[1:N], dat$Ltid[1:N], Theta, lambda, sigma2 * exp(h * delta_zeta)
+    )[["grad_eta"]] |> as.vector()
+  },
+  \(h) {
+    Hess_x_zeta_apply(
+      delta_zeta, dat$Ly[1:N], dat$Ltid[1:N], Theta, lambda, sigma2
+    )[["H_eta_zeta"]] |> as.vector()
+  }
+)
+
+check_H_zeta_zeta <- check.derivatives(
+  0,
+  \(h) {
+    objfun(
+      dat$Ly[1:N], dat$Ltid[1:N], Theta, lambda, sigma2 * exp(h * delta_zeta)
+    )[["grad_zeta"]] |> as.vector()
+  },
+  \(h) {
+    Hess_x_zeta_apply(
+      delta_zeta, dat$Ly[1:N], dat$Ltid[1:N], Theta, lambda, sigma2
+    )[["H_zeta_zeta"]] |> as.vector()
   }
 )
 
