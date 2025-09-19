@@ -162,9 +162,14 @@ fpca.sgd <- function(
     grad_all <- c(inits$grad_Theta, inits$grad_eta, inits$grad_zeta)
     m <- matrix(grad_all, nrow = p * q + q + 1, ncol = ntau)
     v <- matrix(grad_all^2, nrow = p * q + q + 1, ncol = ntau)
+    v2 <- c(
+      colSums(inits$grad_Theta * G %*% inits$grad_Theta),
+      inits$grad_eta^2, inits$grad_zeta^2
+    )
   } else {
     m <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
     v <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
+    v2 <- matrix(0, nrow = q + q + 1, ncol = ntau)
   }
   av <- numeric(ntau) # averaged one-function validation score
   ewmabv <- numeric(ntau) # averaged block validation score
@@ -286,6 +291,7 @@ fpca.sgd <- function(
         tau.selectId <- unname(cbind(tau.selectId, parentId))
         m <- m[, parentId, drop = F]
         v <- v[, parentId, drop = F]
+        v2 <- v2[, parentId, drop = F]
         av <- av[parentId]
         ewmabv <- ewmabv[parentId]
         Theta <- Theta[,, parentId, drop = F]
@@ -332,7 +338,6 @@ fpca.sgd <- function(
         stats = "grad"
       )
       grad_Theta <- objective$grad_Theta
-      # grad_Theta <- as.matrix(solve(G, objective$grad_Theta))
       grad_Theta <- as.matrix(manifold.Stiefel.project(
         grad_Theta,
         asl(Theta, l),
@@ -344,12 +349,23 @@ fpca.sgd <- function(
 
       m[, l] <- m[, l] * beta1 + grad_all * (1 - beta1)
       v[, l] <- v[, l] * beta2 + grad_all^2 * (1 - beta2)
+      v2[, l] <- v2[, l] * i / (i + 1) + 1 / (i + 1) * c(
+        colSums(grad_Theta * G %*% grad_Theta),
+        grad_eta^2, grad_zeta^2
+      )
       if (i <= nIter.adam) {
         # adaptive gradients
         direc <- m[, l] / (sqrt(v[, l]) + 1e-8)
       } else {
         # switch back to regular sgd
-        direc <- grad_all / (sqrt(mean(grad_all^2)) + 1e-8)
+        # TODO: modified the weighting rule
+        # (1) usual normalized SGD
+        # direc <- grad_all / (sqrt(mean(grad_all^2)) + 1e-8)
+        # (2) an intuitive AdaGrad
+        direc <- c(
+          sweep(grad_Theta, 2, sqrt(v2[1:q,l]), "/"),
+          c(grad_eta, grad_zeta) / sqrt(tail(v2[,l], q+1))
+        )
         if (adam.correction) {
           direc <- direc * (sqrt(1 - beta2_2i) / (1 - beta1_2i))
         }
@@ -377,7 +393,6 @@ fpca.sgd <- function(
         direc <- direc * coord.scales
       }
 
-      # TODO: multiple stepsize?
       # update
       curr_stepsize <- stepsize * decay
       if (curr_stepsize < stepsize.min) {
@@ -433,6 +448,14 @@ fpca.sgd <- function(
       time.history[l, i] <- time.history[l, i] +
         difftime(time.end, time.start, units = 'secs')
     }
+
+    # aggregate average params
+    # if (recordParams && (i %% period.record == 0)) {
+    #   idx <- i %/% period.record + 1
+    #   grad_Theta_avg <- grad_Theta_avg * (idx - 1) / idx + grad_Theta * 1 / idx
+    #   grad_eta_avg <- grad_eta_avg * (idx - 1) / idx + grad_eta * 1 / idx
+    #   grad_zeta_avg <- grad_zeta_avg * (idx - 1) / idx + grad_zeta * 1 / idx
+    # }
 
     # record parameters
     if (recordParams && (i %% period.record == 0)) {
@@ -537,7 +560,6 @@ fpca.sgd <- function(
 # ) {
 #   # FIXME: FUNCTION OUTDATED
 #   ## Inputs:
-#   # TODO: obsGrid should be an attribute of data_generator
 #   # nIter.constStepSize: Number of steps with constant step size. Diminishing step sizes after that
 #   # nIter.adam: Number of Adam steps. Regular SGD after that
 
@@ -820,7 +842,6 @@ fpca.sgd <- function(
 #       direc.lamsig <- m.lamsig[, l] / (sqrt(v.lamsig[, l]) + 1e-8)
 #       direc <- c(direc.Theta, direc.lamsig)
 
-#       # TODO: multiple stepsize?
 #       # update
 #       curr_stepsize <- stepsize * decay
 #       if (curr_stepsize < stepsize.min) {
@@ -983,27 +1004,12 @@ objfun <- function(
               - 1 / sigma2 * crossprod(Bi, Yi) %*% t(invQ_PhiT_Yi)
           )
 
-      # grad_eta <- grad_eta +
-      #   lambda / n *
-      #     (-(1 / sigma2 * (PhiT_Yi - Phit_Phi %*% invQ_PhiT_Yi))^2 +
-      #       1 /
-      #         sigma2 *
-      #         (diag(Phit_Phi) - colSums(Phit_Phi * invQ %*% Phit_Phi)))
       grad_eta <- grad_eta +
         1 / n * (
           -invQ_PhiT_Yi^2 / lambda + rep(1, q)
             - sigma2 * diag(invQ) / lambda
         )
 
-      # grad_zeta <- grad_zeta +
-      #   1 /
-      #     n *
-      #     (-1 /
-      #       sigma2 *
-      #       (sum(Yi^2) -
-      #         2 * sum(PhiT_Yi * invQ_PhiT_Yi) +
-      #         sum(invQ_PhiT_Yi * Phit_Phi %*% invQ_PhiT_Yi)) +
-      #       (mi - sum(invQ * Phit_Phi)))
       grad_zeta <- grad_zeta +
         1 / n * (
           -sum(Yi^2) / sigma2
@@ -1020,8 +1026,13 @@ objfun <- function(
     out[["lik"]] <- fval # unpenalized likelihood
   }
   if (stats == "all" || stats == "grad") {
-    out[["grad_Theta"]] <- grad_Theta +
-      2 * matrix(rep(tau, each = p), nrow = p) * as.matrix(Omega %*% Theta)
+    # TODO: calculation changed. Check performance
+    out[["grad_Theta"]] <- solve(
+      G, grad_Theta +
+        2 * matrix(rep(tau, each = p), nrow = p) * as.matrix(Omega %*% Theta)
+    )
+    # out[["grad_Theta"]] <- grad_Theta +
+    #     2 * matrix(rep(tau, each = p), nrow = p) * as.matrix(Omega %*% Theta)
     out[["grad_eta"]] <- as.numeric(grad_eta)
     out[["grad_zeta"]] <- as.numeric(grad_zeta)
   }

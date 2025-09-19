@@ -1,13 +1,26 @@
-manifold.Stiefel.project <- function(Z, X, G = NULL) {
-  # project Z onto the tangent space at X
+sym <- function(Z, X, G = NULL) {
   p <- nrow(Z); q <- ncol(Z)
   stopifnot(p == nrow(X) && q ==ncol(X))
   if (is.null(G)) {
     Zt_X <- Matrix::crossprod(Z, X)
   } else {
-    Zt_X <- Matrix::crossprod(Z, G) %*% X
+    Zt_X <- Matrix::crossprod(Z, G %*% X)
   }
-  Z <- Z - 0.5 * X %*% (Zt_X + Matrix::t(Zt_X))
+  0.5 * as.matrix(Zt_X + Matrix::t(Zt_X))
+}
+
+manifold.Stiefel.inprod <- function(X, Y, G = NULL) {
+  if (is.null(G)) {
+    return(sum(X * Y))
+  } else {
+    return(sum(X * G %*% Y))
+  }
+}
+
+manifold.Stiefel.project <- function(Z, X, G = NULL) {
+  # project Z onto the tangent space at X
+  symZGX <- sym(Z, X, G)
+  Z <- Z - X %*% symZGX
   return(as.matrix(Z))
 }
 
