@@ -162,14 +162,23 @@ fpca.sgd <- function(
     grad_all <- c(inits$grad_Theta, inits$grad_eta, inits$grad_zeta)
     m <- matrix(grad_all, nrow = p * q + q + 1, ncol = ntau)
     v <- matrix(grad_all^2, nrow = p * q + q + 1, ncol = ntau)
-    v2 <- c(
-      colSums(inits$grad_Theta * G %*% inits$grad_Theta),
-      inits$grad_eta^2, inits$grad_zeta^2
-    )
+    # TODO: not finished. consider the case with initial grads
+    # v2 <- c(
+    #   colSums(inits$grad_Theta * G %*% inits$grad_Theta),
+    #   inits$grad_eta^2, inits$grad_zeta^2
+    # )
+    # covg <- list(
+    #   phi = as.matrix(t(inits$grad_Theta) %*% G %*% inits$grad_Theta),
+    #   other = outer(c(inits$grad_eta, inits$grad_zeta), c(inits$grad_eta, inits$grad_zeta))
+    # )
   } else {
     m <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
     v <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
     v2 <- matrix(0, nrow = q + q + 1, ncol = ntau)
+    covg <- list(
+      phi = array(0, dim = c(q, q, ntau)),
+      other = array(0, dim = c(q + 1, q + 1, ntau))
+    )
   }
   av <- numeric(ntau) # averaged one-function validation score
   ewmabv <- numeric(ntau) # averaged block validation score
@@ -292,6 +301,8 @@ fpca.sgd <- function(
         m <- m[, parentId, drop = F]
         v <- v[, parentId, drop = F]
         v2 <- v2[, parentId, drop = F]
+        covg[['phi']] <- covg[['phi']][, , parentId, drop = F]
+        covg[['other']] <- covg[['other']][, , parentId, drop = F]
         av <- av[parentId]
         ewmabv <- ewmabv[parentId]
         Theta <- Theta[,, parentId, drop = F]
@@ -349,10 +360,14 @@ fpca.sgd <- function(
 
       m[, l] <- m[, l] * beta1 + grad_all * (1 - beta1)
       v[, l] <- v[, l] * beta2 + grad_all^2 * (1 - beta2)
-      v2[, l] <- v2[, l] * i / (i + 1) + 1 / (i + 1) * c(
+      v2[, l] <- v2[, l] * (i - 1) / i + 1 / i * c(
         colSums(grad_Theta * G %*% grad_Theta),
         grad_eta^2, grad_zeta^2
       )
+      covg[['phi']][,,l] <- covg[['phi']][,,l] * (i - 1) / i +
+        1 / i * as.matrix(t(grad_Theta) %*% G %*% grad_Theta)
+      covg[['other']][,,l] <- covg[['other']][,,l] * (i - 1) / i +
+        1 / i * outer(c(grad_eta, grad_zeta), c(grad_eta, grad_zeta))
       if (i <= nIter.adam) {
         # adaptive gradients
         direc <- m[, l] / (sqrt(v[, l]) + 1e-8)
@@ -362,9 +377,17 @@ fpca.sgd <- function(
         # (1) usual normalized SGD
         # direc <- grad_all / (sqrt(mean(grad_all^2)) + 1e-8)
         # (2) an intuitive AdaGrad
+        # direc <- c(
+        #   sweep(grad_Theta, 2, sqrt(v2[1:q,l]), "/"),
+        #   c(grad_eta, grad_zeta) / sqrt(tail(v2[,l], q+1))
+        # )
+        # (3) another intuitive AdaGrad
+        nugget <- ifelse(i < q+1, 1, 0)
+        covginv_phi <- solve(covg[['phi']][,,l] + diag(1e-6+nugget,q,q))
+        covginv_other <- solve(covg[['other']][,,l] + diag(1e-6+nugget,q+1,q+1))
         direc <- c(
-          sweep(grad_Theta, 2, sqrt(v2[1:q,l]), "/"),
-          c(grad_eta, grad_zeta) / sqrt(tail(v2[,l], q+1))
+          grad_Theta %*% covginv_phi,
+          covginv_other %*% c(grad_eta, grad_zeta)
         )
         if (adam.correction) {
           direc <- direc * (sqrt(1 - beta2_2i) / (1 - beta1_2i))
@@ -1070,6 +1093,7 @@ setParams.inits <- function(inits, meanfun = FALSE) {
   if (!("Theta" %in% names(inits))) {
     stop("Lack an initialization for Theta")
   }
+  inits$Theta <- manifold.Stiefel.retract(inits$Theta, G)
   if (!("lambda" %in% names(inits))) {
     stop("Lack an initialization for lambda")
   }

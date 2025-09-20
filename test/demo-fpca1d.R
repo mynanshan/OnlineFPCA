@@ -10,6 +10,9 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
+# TODO: run the new AdaGrad algo
+# Are there closed-form solutions for lambda and sigma2?
+
 noise_sd <- 0.5
 nBatch <- 5
 nParams <- 6
