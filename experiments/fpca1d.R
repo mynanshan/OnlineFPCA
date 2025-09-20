@@ -31,7 +31,8 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
-noiseList <- c(0.1, 0.5, 1.)
+# noiseList <- c(0.1, 0.5, 1.)
+noiseList <- c(0.5)
 nBatch <- 5
 nParams <- 6
 nPass <- 3
