@@ -16,7 +16,10 @@ res <- do.call(
       n_digit_seed = ceiling(log10(seed + 1))
       seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
       filename <- paste0("simu_",exprmt,"_sd",seedtext,".csv")
-      read_csv(file.path(dirpath, filename), show_col_types = FALSE)
+      tryCatch(
+        {read_csv(file.path(dirpath, filename), show_col_types = FALSE)},
+        error = function(e) NULL
+      )
     }
   )
 )
