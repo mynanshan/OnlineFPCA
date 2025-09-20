@@ -26,14 +26,14 @@ nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 stepsize <- 1e-1
-stepsize.min <- 1e-3
+stepsize.min <- 1e-2
 sgd.step.scale <- 1 # use a smaller step size for sgd
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
 asgd.use <- TRUE
 
-seed <- 2501
-set.seed(seed)
+# seed <- 2501
+# set.seed(seed)
 
 rp <- get_rp.yang2021(alpha = 2, npc = 10)
 m_min <- NULL
@@ -218,3 +218,4 @@ rmseAll.avg <- sapply(1:q, \(k) {
   diffPhi <- B %*% diffTheta
   sqrt(colMeans(diffPhi^2))
 })
+
