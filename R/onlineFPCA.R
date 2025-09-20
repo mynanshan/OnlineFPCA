@@ -23,6 +23,7 @@ fpca.sgd <- function(
   adam.correction = TRUE,
   asgd.use = FALSE,
   asgd.start = 1,
+  humblestart = 10,
   coord.scaling = FALSE,
   coord.scaling.start = 1,
   scales.cap.factor = 5,
@@ -417,7 +418,8 @@ fpca.sgd <- function(
       }
 
       # update
-      curr_stepsize <- stepsize * decay
+      humble_factor <- ifelse(i <= humblestart, 0.1, 1)
+      curr_stepsize <- humble_factor * stepsize * decay
       if (curr_stepsize < stepsize.min) {
         curr_stepsize <- stepsize.min
       }
