@@ -10,13 +10,14 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
-# TODO: run the new AdaGrad algo
+# TODO:
+# run the new AdaGrad algo
 # Are there closed-form solutions for lambda and sigma2?
 
 noise_sd <- 0.5
 nBatch <- 5
 nParams <- 6
-nPass <- 1
+nPass <- 5
 nBlock <- 100
 Ninit <- 100
 initMethod <- "face"
@@ -85,11 +86,14 @@ p <- nbasis
 muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
 phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
 rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
-rmsePhiBest <- Metrics::rmse(PhiTrueEval[,1:q], eval_fd(evalGrid, phiTrueFunc)[,1:q])
+rmsePhiBest <- sqrt(colMeans(PhiTrueEval[,1:q] - eval_fd(evalGrid, phiTrueFunc)[,1:q])^2)
 
 B <- eval_basis(tgrid, basis)
 G <- get_basis_inprod_matrix(basis)
 Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
+sqrtmObj <- pracma::sqrtm(as.matrix(G))
+sqrtG <- sqrtmObj$B
+sqrtGinv <- sqrtmObj$Binv
 
 
 tmpdat <- data.frame(
@@ -146,7 +150,7 @@ fit <- fpca.sgd(
   nbatch = nBatch,
   maxIter = nPass * nIter1pass,
   stepsize = stepsize,
-  stepsize.decayrate = 0.6,
+  stepsize.decayrate = 0.5,
   stepsize.min = stepsize.min,
   nIter.slowerdecay = floor(0.8 * nIter1pass),
   stepsize.decayrate.slow = 0.3,
@@ -219,3 +223,84 @@ rmseAll.avg <- sapply(1:q, \(k) {
   sqrt(colMeans(diffPhi^2))
 })
 
+matplot(evalGrid, PhiTrueEval[,1:q], type="l", lty=1)
+matplot(tgrid, eval_fd(tgrid, FuncData(Theta.avg, basis)), type="l", add=T, lty=2)
+matplot(rmseAll, type="l")
+matplot(rmseAll.avg, type="l")
+
+# check opt landscape
+objfun(
+  dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg,
+  tau = tau.min, stats = "loss"
+)
+objfun(
+  dat$Ly, dat$Ltid, ThetaBatch, lambda.avg, sigma2.avg,
+  tau = tau.min, stats = "loss"
+)
+objfun(
+  dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg,
+  tau = tau.min, stats = "grad"
+)
+
+tmp <- mapply(
+  \(h) objfun(
+    dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg * exp(h),
+    tau = tau.min, stats = "loss"
+  )$fval,
+  h = seq(-0.2,0.2,0.02)
+)
+
+
+
+library(rstiefel)
+
+sol <- optStiefel(
+  F = \(X) {
+    ThetaTmp <- sqrtGinv %*% X
+    objfun(
+      dat$Ly, dat$Ltid, ThetaTmp, lambda.avg, sigma2.avg,
+      tau = tau.min, stats = "loss"
+    )$fval
+  },
+  dF = \(X) {
+    ThetaTmp <- sqrtGinv %*% X
+    gradObj <- objfun(
+      dat$Ly, dat$Ltid, ThetaTmp, lambda.avg, sigma2.avg,
+      tau = tau.min, stats = "grad"
+    )
+    as.matrix(sqrtG %*% gradObj$grad_Theta)
+  },
+  Vinit = sqrtG %*% ThetaInit,
+  verbose = TRUE
+)
+
+ThetaBatch <- sqrtGinv %*% sol
+matplot(evalGrid, PhiTrueEval[,1:q], type="l", lty=1)
+matplot(tgrid, eval_fd(tgrid, FuncData(ThetaBatch, basis)), type="l", add=T, lty=2)
+sqrt(colMeans((PhiTrueEval[,1:q] - eval_fd(evalGrid, FuncData(ThetaBatch, basis)))^2))
+
+
+sol0 <- optStiefel(
+  F = \(X) {
+    ThetaTmp <- sqrtGinv %*% X
+    objfun(
+      dat$Ly, dat$Ltid, ThetaTmp, lambdaTrue[1:q], noise_sd^2,
+      tau = tau.min, stats = "loss"
+    )$fval
+  },
+  dF = \(X) {
+    ThetaTmp <- sqrtGinv %*% X
+    gradObj <- objfun(
+      dat$Ly, dat$Ltid, ThetaTmp, lambdaTrue[1:q], noise_sd^2,
+      tau = tau.min, stats = "grad"
+    )
+    as.matrix(sqrtG %*% gradObj$grad_Theta)
+  },
+  Vinit = sqrtG %*% ThetaInit,
+  verbose = TRUE
+)
+
+ThetaBatch0 <- sqrtGinv %*% sol0
+matplot(evalGrid, PhiTrueEval[,1:q], type="l", lty=1)
+matplot(tgrid, eval_fd(tgrid, FuncData(ThetaBatch0, basis)), type="l", add=T, lty=2)
+sqrt(colMeans((PhiTrueEval[,1:q] - eval_fd(evalGrid, FuncData(ThetaBatch0, basis)))^2))

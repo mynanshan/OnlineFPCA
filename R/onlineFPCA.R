@@ -176,7 +176,12 @@ fpca.sgd <- function(
     m <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
     v <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
     v2 <- matrix(0, nrow = q + q + 1, ncol = ntau)
+    momt <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
     covg <- list(
+      phi = array(0, dim = c(q, q, ntau)),
+      other = array(0, dim = c(q + 1, q + 1, ntau))
+    )
+    covg2 <- list(
       phi = array(0, dim = c(q, q, ntau)),
       other = array(0, dim = c(q + 1, q + 1, ntau))
     )
@@ -302,8 +307,11 @@ fpca.sgd <- function(
         m <- m[, parentId, drop = F]
         v <- v[, parentId, drop = F]
         v2 <- v2[, parentId, drop = F]
+        momt <- momt[, parentId, drop = F]
         covg[['phi']] <- covg[['phi']][, , parentId, drop = F]
         covg[['other']] <- covg[['other']][, , parentId, drop = F]
+        covg2[['phi']] <- covg2[['phi']][, , parentId, drop = F]
+        covg2[['other']] <- covg2[['other']][, , parentId, drop = F]
         av <- av[parentId]
         ewmabv <- ewmabv[parentId]
         Theta <- Theta[,, parentId, drop = F]
@@ -358,8 +366,24 @@ fpca.sgd <- function(
       grad_eta <- objective$grad_eta
       grad_zeta <- objective$grad_zeta
       grad_all <- c(grad_Theta, grad_eta, grad_zeta)
+      if (verbose && l == 1 && (i %% period.message == 0)) {
+        grad_norms <- sqrt(c(
+          Theta = colSums(grad_Theta * G %*% grad_Theta),
+          eta = sum(grad_eta^2), zeta = grad_zeta^2
+        ))
+        print(grad_norms)
+      }
 
       m[, l] <- m[, l] * beta1 + grad_all * (1 - beta1)
+      momt[1:(p*q), l] <- if (i == 1) {
+        grad_Theta
+      } else {
+        beta1 * matrix(momt[1:(p*q), l], p, q) |>
+          manifold.Stiefel.project(asl(Theta, l), G) +
+          (1 - beta1) * grad_Theta
+      }
+      momt[(p*q+1):(p*q+q+1), l] <- momt[(p*q+1):(p*q+q+1), l] * beta1 +
+        (1 - beta1) * c(grad_eta, grad_zeta)
       v[, l] <- v[, l] * beta2 + grad_all^2 * (1 - beta2)
       v2[, l] <- v2[, l] * (i - 1) / i + 1 / i * c(
         colSums(grad_Theta * G %*% grad_Theta),
@@ -369,6 +393,10 @@ fpca.sgd <- function(
         1 / i * as.matrix(t(grad_Theta) %*% G %*% grad_Theta)
       covg[['other']][,,l] <- covg[['other']][,,l] * (i - 1) / i +
         1 / i * outer(c(grad_eta, grad_zeta), c(grad_eta, grad_zeta))
+      covg2[['phi']][,,l] <- covg2[['phi']][,,l] * (i - 1) / i +
+        1 / i * as.matrix(t(grad_Theta) %*% G %*% grad_Theta)
+      covg2[['other']][,,l] <- covg2[['other']][,,l] * beta2 +
+        (1 - beta2) * outer(c(grad_eta, grad_zeta), c(grad_eta, grad_zeta))
       if (i <= nIter.adam) {
         # adaptive gradients
         direc <- m[, l] / (sqrt(v[, l]) + 1e-8)
@@ -384,15 +412,32 @@ fpca.sgd <- function(
         # )
         # (3) another intuitive AdaGrad
         nugget <- ifelse(i < q+1, 1, 0)
-        covginv_phi <- solve(covg[['phi']][,,l] + diag(1e-6+nugget,q,q))
-        covginv_other <- solve(covg[['other']][,,l] + diag(1e-6+nugget,q+1,q+1))
+        covg_sqinv_phi <- pracma::sqrtm(covg2[['phi']][,,l] + diag(1e-6+nugget,q,q))$Binv
+        covg_sqinv_other <- pracma::sqrtm(covg2[['other']][,,l] + diag(1e-6+nugget,q+1,q+1))$Binv
         direc <- c(
-          grad_Theta %*% covginv_phi,
-          covginv_other %*% c(grad_eta, grad_zeta)
+          grad_Theta %*% covg_sqinv_phi,
+          covg_sqinv_other %*% c(grad_eta, grad_zeta)
         )
+        # (4) an intuitive Adam
+        # nugget <- ifelse(i < q+1, 1, 0)
+        # covg_sqinv_phi <- pracma::sqrtm(covg2[['phi']][,,l] + diag(1e-6+nugget,q,q))$Binv
+        # covg_sqinv_other <- pracma::sqrtm(covg2[['other']][,,l] + diag(1e-6+nugget,q+1,q+1))$Binv
+        # direc <- c(
+        #   grad_Theta %*% covg_sqinv_phi,
+        #   covg_sqinv_other %*% c(grad_eta, grad_zeta)
+        # )
         if (adam.correction) {
           direc <- direc * (sqrt(1 - beta2_2i) / (1 - beta1_2i))
         }
+      }
+
+      if (verbose && l == 1 && (i %% period.message == 0)) {
+        direc_norms <- sqrt(c(
+          Theta = colSums(matrix(direc[1:(p*q)],p,q) * G %*% matrix(direc[1:(p*q)],p,q)),
+          eta = sum(direc[(p*q+1):(p*q+q)]^2),
+          zeta = tail(direc,1)^2
+        ))
+        print(direc_norms)
       }
 
       if (coord.scaling && i > coord.scaling.start) {
@@ -473,14 +518,6 @@ fpca.sgd <- function(
       time.history[l, i] <- time.history[l, i] +
         difftime(time.end, time.start, units = 'secs')
     }
-
-    # aggregate average params
-    # if (recordParams && (i %% period.record == 0)) {
-    #   idx <- i %/% period.record + 1
-    #   grad_Theta_avg <- grad_Theta_avg * (idx - 1) / idx + grad_Theta * 1 / idx
-    #   grad_eta_avg <- grad_eta_avg * (idx - 1) / idx + grad_eta * 1 / idx
-    #   grad_zeta_avg <- grad_zeta_avg * (idx - 1) / idx + grad_zeta * 1 / idx
-    # }
 
     # record parameters
     if (recordParams && (i %% period.record == 0)) {
@@ -1055,7 +1092,7 @@ objfun <- function(
     out[["grad_Theta"]] <- solve(
       G, grad_Theta +
         2 * matrix(rep(tau, each = p), nrow = p) * as.matrix(Omega %*% Theta)
-    )
+    ) |> as.matrix()
     # out[["grad_Theta"]] <- grad_Theta +
     #     2 * matrix(rep(tau, each = p), nrow = p) * as.matrix(Omega %*% Theta)
     out[["grad_eta"]] <- as.numeric(grad_eta)
