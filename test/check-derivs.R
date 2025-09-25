@@ -92,6 +92,7 @@ sqrtmObj <- pracma::sqrtm(as.matrix(G))
 sqrtG <- sqrtmObj$B
 sqrtGinv <- sqrtmObj$Binv
 invG <- Matrix::solve(G)
+GR <- Matrix::chol(G)
 
 tmpdat <- data.frame(
   argvals = unlist(dat$Lt[1:Ninit]),

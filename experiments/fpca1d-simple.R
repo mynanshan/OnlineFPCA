@@ -33,7 +33,7 @@ source("./data_generation/generator.R")
 
 noiseList <- 0.5
 nBatch <- 5
-nParams <- 6
+nParams <- 3
 nPass <- 3
 nBlock <- 100
 Ninit <- 100
@@ -44,7 +44,7 @@ nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 stepsize <- 1e-1
-stepsize.min <- 1e-1
+stepsize.min <- 1e-3
 sgd.step.scale <- 1 # use a smaller step size for sgd
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
@@ -199,10 +199,11 @@ for (noise_sd in noiseList) {
       nbatch = nBatch,
       maxIter = nPass * nIter1pass,
       stepsize = stepsize,
-      stepsize.decayrate = 0.6,
+      stepsize.decayrate = 0.5,
       stepsize.min = stepsize.min,
       nIter.slowerdecay = floor(0.8 * nIter1pass),
       stepsize.decayrate.slow = 0.3,
+      sgdtype = "sgd",
       nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
       asgd.use = TRUE,
       asgd.start = asgdIterStart,

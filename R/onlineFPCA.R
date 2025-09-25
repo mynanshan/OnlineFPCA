@@ -18,6 +18,12 @@ fpca.sgd <- function(
   stepsize.min = 0,
   nIter.slowerdecay = floor(0.5 * maxIter),
   stepsize.decayrate.slow = 0,
+  sgdtype = c(
+    "sgd", "sgdm",
+    "adagrad", "adagrad2",
+    "adam", "adam2",
+    "rasa"
+  ),
   beta1 = 0.9,
   beta2 = 0.99,
   adam.correction = TRUE,
@@ -42,12 +48,9 @@ fpca.sgd <- function(
   period.time = period.record,
   test.mode = FALSE
 ) {
-  ## Inputs:
-  # TODO: obsGrid should be an attribute of data_generator
-  # nIter.constStepSize: Number of steps with constant step size. Diminishing step sizes after that
-  # nIter.adam: Number of Adam steps. Regular SGD after that
 
-  ## Set params and initializations
+  # Set params and initializations -----------------------------------------
+
   inits <- setParams.inits(inits, meanfun)
   optns.tau <- setParams.tau(tau, tau.control)
   tau <- sort(optns.tau$tau, decreasing = TRUE)
@@ -153,39 +156,52 @@ fpca.sgd <- function(
     stop("NOT IMPLEMENTED")
   }
 
-  # stored stats for adaptive stochastic gradient
+  sgdtype <- match.arg(sgdtype)
+  ada_stats <- init_ada_stats(p, q, ntau, sgdtype)
+  init_grad <- FALSE
   if (all(c("grad_Theta", "grad_eta", "grad_zeta") %in% names(inits))) {
-    inits$grad_Theta <- as.matrix(manifold.Stiefel.project(
-      inits$grad_Theta,
-      inits$Theta,
-      G
-    ))
-    grad_all <- c(inits$grad_Theta, inits$grad_eta, inits$grad_zeta)
-    m <- matrix(grad_all, nrow = p * q + q + 1, ncol = ntau)
-    v <- matrix(grad_all^2, nrow = p * q + q + 1, ncol = ntau)
-    # TODO: not finished. consider the case with initial grads
-    # v2 <- c(
-    #   colSums(inits$grad_Theta * G %*% inits$grad_Theta),
-    #   inits$grad_eta^2, inits$grad_zeta^2
-    # )
-    # covg <- list(
-    #   phi = as.matrix(t(inits$grad_Theta) %*% G %*% inits$grad_Theta),
-    #   other = outer(c(inits$grad_eta, inits$grad_zeta), c(inits$grad_eta, inits$grad_zeta))
-    # )
-  } else {
-    m <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
-    v <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
-    v2 <- matrix(0, nrow = q + q + 1, ncol = ntau)
-    momt <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
-    covg <- list(
-      phi = array(0, dim = c(q, q, ntau)),
-      other = array(0, dim = c(q + 1, q + 1, ntau))
-    )
-    covg2 <- list(
-      phi = array(0, dim = c(q, q, ntau)),
-      other = array(0, dim = c(q + 1, q + 1, ntau))
-    )
+    init_grad <- TRUE
+    for (itau in seq_len(itau)) {
+      ada_stats <- update_ada_stats(
+        ada_stats, inits$grad_Theta, inits$grad_eta, inits$grad_zeta,
+        itau, i = 0, sgdtype
+      )
+    }
   }
+
+  # # stored stats for adaptive stochastic gradient
+  # if (all(c("grad_Theta", "grad_eta", "grad_zeta") %in% names(inits))) {
+  #   inits$grad_Theta <- as.matrix(manifold.Stiefel.project(
+  #     inits$grad_Theta,
+  #     inits$Theta,
+  #     G
+  #   ))
+  #   grad_all <- c(inits$grad_Theta, inits$grad_eta, inits$grad_zeta)
+  #   m <- matrix(grad_all, nrow = p * q + q + 1, ncol = ntau)
+  #   v <- matrix(grad_all^2, nrow = p * q + q + 1, ncol = ntau)
+  #   # TODO: not finished. consider the case with initial grads
+  #   # v2 <- c(
+  #   #   colSums(inits$grad_Theta * G %*% inits$grad_Theta),
+  #   #   inits$grad_eta^2, inits$grad_zeta^2
+  #   # )
+  #   # covg <- list(
+  #   #   phi = as.matrix(t(inits$grad_Theta) %*% G %*% inits$grad_Theta),
+  #   #   other = outer(c(inits$grad_eta, inits$grad_zeta), c(inits$grad_eta, inits$grad_zeta))
+  #   # )
+  # } else {
+  #   m <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
+  #   v <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
+  #   v2 <- matrix(0, nrow = q + q + 1, ncol = ntau)
+  #   momt <- matrix(0, nrow = p * q + q + 1, ncol = ntau)
+  #   covg <- list(
+  #     phi = array(0, dim = c(q, q, ntau)),
+  #     other = array(0, dim = c(q + 1, q + 1, ntau))
+  #   )
+  #   covg2 <- list(
+  #     phi = array(0, dim = c(q, q, ntau)),
+  #     other = array(0, dim = c(q + 1, q + 1, ntau))
+  #   )
+  # }
   av <- numeric(ntau) # averaged one-function validation score
   ewmabv <- numeric(ntau) # averaged block validation score
   curr_bv <- numeric(ntau) # current block validation score
@@ -202,7 +218,6 @@ fpca.sgd <- function(
   beta1_2i = beta1
   beta2_2i = beta2
 
-  conv_flag <- rep(FALSE, ntune)
   for (i in 1:maxIter) {
     if (verbose && (i %% period.message == 0)) {
       message("Iter ", i)
@@ -304,14 +319,15 @@ fpca.sgd <- function(
         lstar <- order(vscore)[1:nselect]
         parentId <- rep(lstar, nchild)
         tau.selectId <- unname(cbind(tau.selectId, parentId))
-        m <- m[, parentId, drop = F]
-        v <- v[, parentId, drop = F]
-        v2 <- v2[, parentId, drop = F]
-        momt <- momt[, parentId, drop = F]
-        covg[['phi']] <- covg[['phi']][, , parentId, drop = F]
-        covg[['other']] <- covg[['other']][, , parentId, drop = F]
-        covg2[['phi']] <- covg2[['phi']][, , parentId, drop = F]
-        covg2[['other']] <- covg2[['other']][, , parentId, drop = F]
+        ada_stats <- select_ada_stats(ada_stats, parentId)
+        # m <- m[, parentId, drop = F]
+        # v <- v[, parentId, drop = F]
+        # v2 <- v2[, parentId, drop = F]
+        # momt <- momt[, parentId, drop = F]
+        # covg[['phi']] <- covg[['phi']][, , parentId, drop = F]
+        # covg[['other']] <- covg[['other']][, , parentId, drop = F]
+        # covg2[['phi']] <- covg2[['phi']][, , parentId, drop = F]
+        # covg2[['other']] <- covg2[['other']][, , parentId, drop = F]
         av <- av[parentId]
         ewmabv <- ewmabv[parentId]
         Theta <- Theta[,, parentId, drop = F]
@@ -365,77 +381,88 @@ fpca.sgd <- function(
       ))
       grad_eta <- objective$grad_eta
       grad_zeta <- objective$grad_zeta
-      grad_all <- c(grad_Theta, grad_eta, grad_zeta)
-      if (verbose && l == 1 && (i %% period.message == 0)) {
-        grad_norms <- sqrt(c(
-          Theta = colSums(grad_Theta * G %*% grad_Theta),
-          eta = sum(grad_eta^2), zeta = grad_zeta^2
-        ))
-        print(grad_norms)
-      }
 
-      m[, l] <- m[, l] * beta1 + grad_all * (1 - beta1)
-      momt[1:(p*q), l] <- if (i == 1) {
-        grad_Theta
-      } else {
-        beta1 * matrix(momt[1:(p*q), l], p, q) |>
-          manifold.Stiefel.project(asl(Theta, l), G) +
-          (1 - beta1) * grad_Theta
-      }
-      momt[(p*q+1):(p*q+q+1), l] <- momt[(p*q+1):(p*q+q+1), l] * beta1 +
-        (1 - beta1) * c(grad_eta, grad_zeta)
-      v[, l] <- v[, l] * beta2 + grad_all^2 * (1 - beta2)
-      v2[, l] <- v2[, l] * (i - 1) / i + 1 / i * c(
-        colSums(grad_Theta * G %*% grad_Theta),
-        grad_eta^2, grad_zeta^2
+      ada_stats <- update_ada_stats(
+        ada_stats, grad_Theta, grad_eta, grad_zeta,
+        itau = l, i = i + init_grad - 1, sgdtype = sgdtype
       )
-      covg[['phi']][,,l] <- covg[['phi']][,,l] * (i - 1) / i +
-        1 / i * as.matrix(t(grad_Theta) %*% G %*% grad_Theta)
-      covg[['other']][,,l] <- covg[['other']][,,l] * (i - 1) / i +
-        1 / i * outer(c(grad_eta, grad_zeta), c(grad_eta, grad_zeta))
-      covg2[['phi']][,,l] <- covg2[['phi']][,,l] * (i - 1) / i +
-        1 / i * as.matrix(t(grad_Theta) %*% G %*% grad_Theta)
-      covg2[['other']][,,l] <- covg2[['other']][,,l] * beta2 +
-        (1 - beta2) * outer(c(grad_eta, grad_zeta), c(grad_eta, grad_zeta))
-      if (i <= nIter.adam) {
-        # adaptive gradients
-        direc <- m[, l] / (sqrt(v[, l]) + 1e-8)
-      } else {
-        # switch back to regular sgd
-        # TODO: modified the weighting rule
-        # (1) usual normalized SGD
-        # direc <- grad_all / (sqrt(mean(grad_all^2)) + 1e-8)
-        # (2) an intuitive AdaGrad
-        # direc <- c(
-        #   sweep(grad_Theta, 2, sqrt(v2[1:q,l]), "/"),
-        #   c(grad_eta, grad_zeta) / sqrt(tail(v2[,l], q+1))
-        # )
-        # (3) another intuitive AdaGrad
-        nugget <- ifelse(i < q+1, 1, 0)
-        covg_sqinv_phi <- pracma::sqrtm(covg2[['phi']][,,l] + diag(1e-6+nugget,q,q))$Binv
-        covg_sqinv_other <- pracma::sqrtm(covg2[['other']][,,l] + diag(1e-6+nugget,q+1,q+1))$Binv
-        direc <- c(
-          grad_Theta %*% covg_sqinv_phi,
-          covg_sqinv_other %*% c(grad_eta, grad_zeta)
-        )
-        # (4) an intuitive Adam
-        # nugget <- ifelse(i < q+1, 1, 0)
-        # covg_sqinv_phi <- pracma::sqrtm(covg2[['phi']][,,l] + diag(1e-6+nugget,q,q))$Binv
-        # covg_sqinv_other <- pracma::sqrtm(covg2[['other']][,,l] + diag(1e-6+nugget,q+1,q+1))$Binv
-        # direc <- c(
-        #   grad_Theta %*% covg_sqinv_phi,
-        #   covg_sqinv_other %*% c(grad_eta, grad_zeta)
-        # )
-        if (adam.correction) {
-          direc <- direc * (sqrt(1 - beta2_2i) / (1 - beta1_2i))
-        }
-      }
+
+      direc <- get_ada_direc(
+        grad_Theta, grad_eta, grad_zeta,
+        ada_stats, l, sgdtype
+      )
+
+      # grad_all <- c(grad_Theta, grad_eta, grad_zeta)
+      # if (verbose && l == 1 && (i %% period.message == 0)) {
+      #   grad_norms <- sqrt(c(
+      #     Theta = colSums(grad_Theta * G %*% grad_Theta),
+      #     eta = sum(grad_eta^2), zeta = grad_zeta^2
+      #   ))
+      #   print(grad_norms)
+      # }
+
+      # m[, l] <- m[, l] * beta1 + grad_all * (1 - beta1)
+      # momt[1:(p*q), l] <- if (i == 1) {
+      #   grad_Theta
+      # } else {
+      #   beta1 * matrix(momt[1:(p*q), l], p, q) |>
+      #     manifold.Stiefel.project(asl(Theta, l), G) +
+      #     (1 - beta1) * grad_Theta
+      # }
+      # momt[(p*q+1):(p*q+q+1), l] <- momt[(p*q+1):(p*q+q+1), l] * beta1 +
+      #   (1 - beta1) * c(grad_eta, grad_zeta)
+      # v[, l] <- v[, l] * beta2 + grad_all^2 * (1 - beta2)
+      # v2[, l] <- v2[, l] * (i - 1) / i + 1 / i * c(
+      #   colSums(grad_Theta * G %*% grad_Theta),
+      #   grad_eta^2, grad_zeta^2
+      # )
+      # covg[['phi']][,,l] <- covg[['phi']][,,l] * (i - 1) / i +
+      #   1 / i * as.matrix(t(grad_Theta) %*% G %*% grad_Theta)
+      # covg[['other']][,,l] <- covg[['other']][,,l] * (i - 1) / i +
+      #   1 / i * outer(c(grad_eta, grad_zeta), c(grad_eta, grad_zeta))
+      # covg2[['phi']][,,l] <- covg2[['phi']][,,l] * (i - 1) / i +
+      #   1 / i * as.matrix(t(grad_Theta) %*% G %*% grad_Theta)
+      # covg2[['other']][,,l] <- covg2[['other']][,,l] * beta2 +
+      #   (1 - beta2) * outer(c(grad_eta, grad_zeta), c(grad_eta, grad_zeta))
+      # if (i <= nIter.adam) {
+      #   # adaptive gradients
+      #   direc <- m[, l] / (sqrt(v[, l]) + 1e-8)
+      # } else {
+      #   # switch back to regular sgd
+      #   # TODO: modified the weighting rule
+      #   # (1) usual normalized SGD
+      #   # direc <- grad_all / (sqrt(mean(grad_all^2)) + 1e-8)
+      #   # (2) an intuitive AdaGrad
+      #   # direc <- c(
+      #   #   sweep(grad_Theta, 2, sqrt(v2[1:q,l]), "/"),
+      #   #   c(grad_eta, grad_zeta) / sqrt(tail(v2[,l], q+1))
+      #   # )
+      #   # (3) another intuitive AdaGrad
+      #   nugget <- ifelse(i < q+1, 1, 0)
+      #   covg_sqinv_phi <- pracma::sqrtm(covg2[['phi']][,,l] + diag(1e-6+nugget,q,q))$Binv
+      #   covg_sqinv_other <- pracma::sqrtm(covg2[['other']][,,l] + diag(1e-6+nugget,q+1,q+1))$Binv
+      #   direc <- c(
+      #     grad_Theta %*% covg_sqinv_phi,
+      #     covg_sqinv_other %*% c(grad_eta, grad_zeta)
+      #   )
+      #   # (4) an intuitive Adam
+      #   # nugget <- ifelse(i < q+1, 1, 0)
+      #   # covg_sqinv_phi <- pracma::sqrtm(covg2[['phi']][,,l] + diag(1e-6+nugget,q,q))$Binv
+      #   # covg_sqinv_other <- pracma::sqrtm(covg2[['other']][,,l] + diag(1e-6+nugget,q+1,q+1))$Binv
+      #   # direc <- c(
+      #   #   grad_Theta %*% covg_sqinv_phi,
+      #   #   covg_sqinv_other %*% c(grad_eta, grad_zeta)
+      #   # )
+      #   if (adam.correction) {
+      #     direc <- direc * (sqrt(1 - beta2_2i) / (1 - beta1_2i))
+      #   }
+      # }
 
       if (verbose && l == 1 && (i %% period.message == 0)) {
         direc_norms <- sqrt(c(
-          Theta = colSums(matrix(direc[1:(p*q)],p,q) * G %*% matrix(direc[1:(p*q)],p,q)),
-          eta = sum(direc[(p*q+1):(p*q+q)]^2),
-          zeta = tail(direc,1)^2
+          Theta = colSums(direc[['Theta']] * G %*% direc[['Theta']]),
+          eta = sum(direc[['other']][1:q]^2),
+          zeta = direc[['other']][q+1]^2
         ))
         print(direc_norms)
       }
@@ -463,24 +490,19 @@ fpca.sgd <- function(
       }
 
       # update
-      humble_factor <- ifelse(i <= humblestart, 0.1, 1)
-      curr_stepsize <- humble_factor * stepsize * decay
+      # humble_factor <- ifelse(i <= humblestart, 0.1, 1)
+      # curr_stepsize <- humble_factor * stepsize * decay
+      curr_stepsize <- stepsize * decay
       if (curr_stepsize < stepsize.min) {
         curr_stepsize <- stepsize.min
       }
-      Theta[,, l] <- Theta[,, l] - curr_stepsize * direc[1:(p * q)]
-      lambda[, l] <- lambda[, l] *
-        exp(-curr_stepsize * direc[(p * q + 1):(p * q + q)])
-      sigma2[l] <- sigma2[l] * exp(-curr_stepsize * direc[p * q + q + 1])
-
-      if (
-        all(
-          curr_stepsize * abs(direc) <
-            1e-8 * abs(c(Theta[,, l], log(lambda[, l]), log(sigma2[l])))
-        )
-      ) {
-        conv_flag[l] <- TRUE
-      }
+      # Theta[,, l] <- Theta[,, l] - curr_stepsize * direc[1:(p * q)]
+      Theta[,, l] <- Theta[,, l] - curr_stepsize * direc[['Theta']]
+      # lambda[, l] <- lambda[, l] *
+      #   exp(-curr_stepsize * direc[(p * q + 1):(p * q + q)])
+      lambda[, l] <- lambda[, l] * exp(-curr_stepsize * direc[['other']][1:q])
+      # sigma2[l] <- sigma2[l] * exp(-curr_stepsize * direc[p * q + q + 1])
+      sigma2[l] <- sigma2[l] * exp(-curr_stepsize * direc[['other']][q+1])
 
       if (asgd.use && i >= asgd.start) {
         Theta.avg[,, l] <- Theta.avg[,, l] *
@@ -504,14 +526,15 @@ fpca.sgd <- function(
         }
       }
 
-      # parallel transport of the adam m
-      m[1:(p * q), l] <- as.matrix(
-        manifold.Stiefel.project(
-          matrix(m[1:(p * q), l], p, q),
-          asl(Theta, l),
-          G
-        )
-      )
+      # vector transport of the adam m
+      # FIXME: need an isometric vector transport
+      # m[1:(p * q), l] <- as.matrix(
+      #   manifold.Stiefel.project(
+      #     matrix(m[1:(p * q), l], p, q),
+      #     asl(Theta, l),
+      #     G
+      #   )
+      # )
 
       # record time
       time.end <- Sys.time()
@@ -536,7 +559,6 @@ fpca.sgd <- function(
     beta1_2i = beta1_2i * beta1
     beta2_2i = beta2_2i * beta2
 
-    if (conv.check && all(conv_flag)) break
   }
 
   # Final selection
@@ -586,418 +608,6 @@ fpca.sgd <- function(
 
   return(out)
 }
-
-# fpca.rasa <- function(
-#   data_generator,
-#   obsGrid,
-#   inits,
-#   meanfun = FALSE,
-#   tau = NULL,
-#   tau.control = list(),
-#   nbatch = 1,
-#   stepsize = 1e-3,
-#   maxIter = 1000,
-#   conv.check = FALSE,
-#   stepsize.decayrate = 0.5,
-#   stepsize.min = 0,
-#   nIter.slowerdecay = floor(0.5 * maxIter),
-#   stepsize.decayrate.slow = 0,
-#   asgd.start = 1,
-#   beta0 = 0.9,
-#   beta1 = 0.9,
-#   beta2 = 0.99,
-#   nIter.1stTune = floor(0.1 * maxIter),
-#   nIter.lastTune = maxIter,
-#   period.tune = 100,
-#   vcrit.tune = c("ewmabv", "av"),
-#   ewmabv.beta = NULL,
-#   abv_aofv_w = 0.5,
-#   nIter.tauNoIncrease = floor(0.6 * maxIter),
-#   period.message = 100,
-#   verbose = TRUE,
-#   recordParams = TRUE,
-#   period.record = 20,
-#   period.time = period.record,
-#   test.mode = FALSE
-# ) {
-#   # FIXME: FUNCTION OUTDATED
-#   ## Inputs:
-#   # nIter.constStepSize: Number of steps with constant step size. Diminishing step sizes after that
-#   # nIter.adam: Number of Adam steps. Regular SGD after that
-
-#   ## Set params and initializations
-#   inits <- setParams.inits(inits, meanfun)
-#   optns.tau <- setParams.tau(tau, tau.control)
-#   tau <- sort(optns.tau$tau, decreasing = TRUE)
-#   taurange0 <- ifelse(length(tau) > 1, diff(range(log(tau))), 1)
-#   tau.control <- optns.tau$tau.control
-#   ntau <- tau.control$ntau
-#   adatau <- tau.control$adatau
-#   nselect <- tau.control$nselect
-#   nchild <- allocate_nchild(ntau, nselect)
-#   if (adatau) {
-#     tau.history <- tau
-#     tau.selectId <- c()
-#   } else {
-#     tau.history <- NULL
-#     tau.selectId <- NULL
-#   }
-#   ntune <- floor((maxIter - nIter.1stTune) / period.tune) + 1
-#   if (ntune < 5) {
-#     ewmabv.beta <- 0.5
-#   } else {
-#     ewmabv.beta.candidates <- seq(0.1, 0.95, 0.05)
-#     valid.ewmabv.beta.id <- which(
-#       ewmabv.beta.candidates^(ntune - 1) < 0.5 / ntune^1.2
-#     )
-#     if (length(valid.ewmabv.beta.id) == 0) {
-#       idx <- 1
-#       warning(
-#         "Improper choice of ewmabv.beta. The tuning period is possibly too large."
-#       )
-#     }
-#     idx <- max(valid.ewmabv.beta.id)
-#     if (is.null(ewmabv.beta) || ewmabv.beta > ewmabv.beta.candidates[idx]) {
-#       ewmabv.beta <- ewmabv.beta.candidates[idx]
-#     }
-#   }
-#   vcrit.tune <- match.arg(vcrit.tune)
-#   vcrit.history <- list(
-#     av = array(dim = c(ntau, ntune)),
-#     ewmabv = array(dim = c(ntau, ntune))
-#   )
-#   vcrit.history$av.avg <- array(dim = c(ntau, ntune))
-#   vcrit.history$ewmabv.avg <- array(dim = c(ntau, ntune))
-#   iter.select <- 1
-#   stopifnot(stepsize > 0)
-#   stopifnot(stepsize.decayrate > 0 && stepsize.decayrate <= 1)
-#   stopifnot(stepsize.decayrate.slow >= 0 && stepsize.decayrate.slow <= 1)
-
-#   p <- nrow(inits$Theta)
-#   q <- ncol(inits$Theta)
-#   Theta <- array(inits$Theta, dim = c(p, q, ntau))
-#   lambda <- array(inits$lambda, dim = c(q, ntau))
-#   sigma2 <- array(inits$sigma2, dim = c(ntau))
-#   theta_mu <- inits$theta_mu
-
-#   if (recordParams) {
-#     nrecord <- floor(maxIter / period.record) + 1
-#     params.history <- list(
-#       Theta = array(dim = c(p, q, ntau, nrecord)),
-#       lambda = array(dim = c(q, ntau, nrecord)),
-#       sigma2 = array(dim = c(ntau, nrecord))
-#     )
-#     params.history$Theta[,,, 1] <- Theta
-#     params.history$lambda[,, 1] <- lambda
-#     params.history$sigma2[, 1] <- sigma2
-#     params.history$Theta.avg <- params.history$Theta
-#     params.history$lambda.avg <- params.history$lambda
-#     params.history$sigma2.avg <- params.history$sigma2
-#   } else {
-#     params.history <- NULL
-#   }
-#   iter.params <- 1
-
-#   # TODO: implement online mean estimation
-#   if (!is.null(theta_mu)) {
-#     stop("NOT IMPLEMENTED")
-#   }
-
-#   # matrix part: RASA algorithm
-#   m.Theta <- matrix(0, nrow = p * q, ncol = ntau)
-#   rasa.l <- matrix(0, nrow = p, ncol = ntau)
-#   rasa.r <- matrix(0, nrow = q, ncol = ntau)
-#   # vector part: regular Adam
-#   m.lamsig <- matrix(0, nrow = q + 1, ncol = ntau)
-#   v.lamsig <- matrix(0, nrow = q + 1, ncol = ntau)
-
-#   av <- numeric(ntau) # averaged one-function validation score
-#   ewmabv <- numeric(ntau) # averaged block validation score
-#   curr_bv <- numeric(ntau) # current block validation score
-#   Theta.avg <- array(0, dim = c(p, q, ntau))
-#   lambda.avg <- array(0, dim = c(q, ntau))
-#   sigma2.avg <- array(0, dim = c(ntau))
-#   av.avg <- numeric(ntau)
-#   ewmabv.avg <- numeric(ntau)
-#   curr_bv.avg <- numeric(ntau)
-
-#   total_count <- 0
-#   time <- c()
-#   time.start <- Sys.time()
-
-#   conv_flag <- rep(FALSE, ntune)
-#   for (i in 1:maxIter) {
-#     if (verbose && (i %% period.message == 0)) {
-#       message("Iter ", i)
-#     }
-#     if (i <= nIter.slowerdecay) {
-#       if (stepsize.decayrate.slow == 0) {
-#         decay <- 1 / (1 + log(i))
-#       } else {
-#         decay <- 1 / (i^stepsize.decayrate.slow)
-#       }
-#     } else {
-#       if (i == nIter.slowerdecay + 1) {
-#         iter0 <- ceiling(1 / decay^(1 / stepsize.decayrate))
-#       }
-#       decay <- 1 / (iter0 + i - nIter.slowerdecay)^stepsize.decayrate
-#     }
-
-#     if (i == asgd.start) {
-#       asgd.count <- 1
-#       Theta.avg <- Theta
-#       lambda.avg <- lambda
-#       sigma2.avg <- sigma2
-#     }
-
-#     # receive new data
-#     obs <- data_generator(nbatch, total_count)
-#     Ltid <- obs$Ltid
-#     Ly <- obs$Ly
-#     total_count <- total_count + nbatch
-
-#     # calculate validation score
-#     for (l in 1:ntau) {
-#       # if (i > nIter.lastTune && l > 1) break
-#       if (i < asgd.start) {
-#         lik <- objfun(
-#           Ly,
-#           Ltid,
-#           asl(Theta, l),
-#           lambda[, l],
-#           sigma2[l],
-#           theta_mu,
-#           tau[l],
-#           stats = "loss"
-#         )$lik
-#         av[l] <- av[l] * (i - 1) / i + lik * 1 / i
-#         curr_bv[l] <- curr_bv[l] + lik
-#       } else {
-#         lik.avg <- objfun(
-#           Ly,
-#           Ltid,
-#           asl(Theta.avg, l),
-#           lambda.avg[, l],
-#           sigma2.avg[l],
-#           theta_mu,
-#           tau[l],
-#           stats = "loss"
-#         )$lik
-#         av.avg[l] <- av.avg[l] * (i - 1) / i + lik.avg * 1 / i
-#         curr_bv.avg[l] <- curr_bv.avg[l] + lik.avg
-#       }
-#     }
-
-#     if (
-#       i > 1 && i >= nIter.1stTune && (i - nIter.1stTune) %% period.tune == 0
-#     ) {
-#       itune <- floor((i - nIter.1stTune) / period.tune) + 1
-#       if (itune == 1) {
-#         curr_bv <- curr_bv / (i * nbatch)
-#       } else {
-#         curr_bv <- curr_bv / (period.tune * nbatch)
-#       }
-#       if (i < asgd.start) {
-#         ewmabv <- ewmabv * ewmabv.beta + curr_bv * (1 - ewmabv.beta)
-#         curr_bv <- numeric(ntau)
-#         vcrit.history$av[, itune] <- av
-#         vcrit.history$ewmabv[, itune] <- ewmabv
-#       } else {
-#         curr_bv.avg <- curr_bv.avg / (period.tune * nbatch)
-#         ewmabv.avg <- ewmabv.avg * ewmabv.beta + curr_bv.avg * (1 - ewmabv.beta)
-#         curr_bv.avg <- numeric(ntau)
-#         vcrit.history$av.avg[, itune] <- av.avg
-#         vcrit.history$ewmabv.avg[, itune] <- ewmabv.avg
-#       }
-
-#       # online selection of tau
-#       if (adatau && i <= nIter.lastTune) {
-#         iter.select <- c(iter.select, i)
-#         if (i <= asgd.start) {
-#           vscore <- eval(parse(text = vcrit.tune))
-#         } else {
-#           vscore <- eval(parse(text = paste0(vcrit.tune, ".avg")))
-#         }
-#         lstar <- order(vscore)[1:nselect]
-#         parentId <- rep(lstar, nchild)
-#         tau.selectId <- unname(cbind(tau.selectId, parentId))
-#         rasa.l <- rasa.l[, parentId, drop = F]
-#         rasa.r <- rasa.r[, parentId, drop = F]
-#         m <- m[, parentId, drop = F]
-#         v <- v[, parentId, drop = F]
-#         av <- av[parentId]
-#         ewmabv <- ewmabv[parentId]
-#         Theta <- Theta[,, parentId, drop = F]
-#         lambda <- lambda[, parentId, drop = F]
-#         sigma2 <- sigma2[parentId]
-#         tau.control <- setParams.tau(
-#           tau,
-#           tau.control,
-#           delta.min = taurange0 / max(1, ntau - 2) / (itune^0.7)
-#         )$tau.control
-#         tau <- explore_newtau(
-#           tau[lstar],
-#           nchild,
-#           tau.control$delta,
-#           i > nIter.tauNoIncrease
-#         )
-#         tau.history <- unname(cbind(tau.history, tau))
-#         if (i >= asgd.start) {
-#           Theta.avg <- Theta.avg[,, parentId, drop = F]
-#           lambda.avg <- lambda.avg[, parentId, drop = F]
-#           sigma2.avg <- sigma2.avg[parentId]
-#           av.avg <- av.avg[parentId]
-#           ewmabv.avg <- ewmabv.avg[parentId]
-#         }
-#       }
-#     }
-
-#     if (i >= asgd.start) {
-#       asgd.count <- asgd.count + 1
-#     }
-
-#     for (l in 1:ntau) {
-#       # if (i > nIter.lastTune && l > 1) break
-#       objective <- objfun(
-#         Ly,
-#         Ltid,
-#         asl(Theta, l),
-#         lambda[, l],
-#         sigma2[l],
-#         theta_mu,
-#         tau[l],
-#         stats = "grad"
-#       )
-#       grad_Theta <- objective$grad_Theta
-#       grad_Theta <- as.matrix(manifold.Stiefel.project(
-#         grad_Theta,
-#         asl(Theta, l),
-#         G
-#       ))
-#       grad_eta <- objective$grad_eta
-#       grad_zeta <- objective$grad_zeta
-#       grad_all <- c(grad_Theta, grad_eta, grad_zeta)
-
-#       m.Theta[, l] <- m.Theta[, l] * beta1 + grad_Theta * (1 - beta1)
-#       rasa.l[, l] <- rasa.l[, l] *
-#         beta2 +
-#         c(diag(grad_Theta %*% t(grad_Theta))) * (1 - beta2) / q
-#       rasa.r[, l] <- rasa.r[, l] *
-#         beta2 +
-#         c(diag(t(grad_Theta) %*% grad_Theta)) * (1 - beta2) / p
-#       m.lamsig[, l] <- m.lamsig[, l] *
-#         beta1 +
-#         c(grad_eta, grad_zeta) * (1 - beta1)
-#       v.lamsig[, l] <- v.lamsig[, l] *
-#         beta2 +
-#         c(grad_eta, grad_zeta)^2 * (1 - beta2)
-#       direc.Theta <- outer(
-#         (rasa.l[, l] + 1e-8)^(-1 / 4),
-#         (rasa.r[, l] + 1e-8)^(-1 / 4)
-#       ) *
-#         matrix(m.Theta[, l], p, q)
-#       direc.Theta <- as.matrix(manifold.Stiefel.project(
-#         direc.Theta,
-#         asl(Theta, l),
-#         G
-#       ))
-#       direc.lamsig <- m.lamsig[, l] / (sqrt(v.lamsig[, l]) + 1e-8)
-#       direc <- c(direc.Theta, direc.lamsig)
-
-#       # update
-#       curr_stepsize <- stepsize * decay
-#       if (curr_stepsize < stepsize.min) {
-#         curr_stepsize <- stepsize.min
-#       }
-#       Theta[,, l] <- Theta[,, l] - curr_stepsize * direc[1:(p * q)]
-#       lambda[, l] <- lambda[, l] *
-#         exp(-curr_stepsize * direc[(p * q + 1):(p * q + q)])
-#       sigma2[l] <- sigma2[l] * exp(-curr_stepsize * direc[p * q + q + 1])
-
-#       if (
-#         all(
-#           curr_stepsize * abs(direc) <
-#             1e-8 * abs(c(Theta[,, l], log(lambda[, l]), log(sigma2[l])))
-#         )
-#       ) {
-#         conv_flag[l] <- TRUE
-#       }
-
-#       if (i >= asgd.start) {
-#         Theta.avg[,, l] <- Theta.avg[,, l] *
-#           ((asgd.count - 1) / asgd.count) +
-#           Theta[,, l] / asgd.count
-#         lambda.avg[, l] <- lambda.avg[, l]^((asgd.count - 1) / asgd.count) *
-#           lambda[, l]^(1 / asgd.count)
-#         sigma2.avg[l] <- sigma2.avg[l]^((asgd.count - 1) / asgd.count) *
-#           sigma2[l]^(1 / asgd.count)
-#       }
-
-#       # retraction
-#       Theta[,, l] <- manifold.Stiefel.retract(asl(Theta, l), G)
-#       if (i >= asgd.start) {
-#         Theta.avg[,, l] <- manifold.Stiefel.retract(asl(Theta.avg, l), G)
-#       } else {
-#         Theta.avg[,, l] <- Theta[,, l]
-#         lambda.avg[, l] <- lambda[, l]
-#         sigma2.avg[l] <- sigma2[l]
-#       }
-#     }
-
-#     if (i %% period.time == 0) {
-#       time.end <- Sys.time()
-#       time <- c(time, difftime(time.end, time.start, units = 'secs'))
-#       time.start <- Sys.time()
-#     }
-
-#     # record parameters
-#     if (recordParams && (i %% period.record == 0)) {
-#       iter.params <- c(iter.params, i)
-#       idx <- i %/% period.record + 1
-#       params.history$Theta[,,, idx] <- Theta
-#       params.history$lambda[,, idx] <- lambda
-#       params.history$sigma2[, idx] <- sigma2
-#       params.history$Theta.avg[,,, idx] <- Theta.avg
-#       params.history$lambda.avg[,, idx] <- lambda.avg
-#       params.history$sigma2.avg[, idx] <- sigma2.avg
-#     }
-
-#     if (conv.check && all(conv_flag)) break
-#   }
-
-#   # Final selection
-#   minId <- which.min(ewmabv.avg)
-#   tau.min <- tau[minId]
-
-#   out <- list(
-#     Theta = Theta,
-#     lambda = lambda,
-#     sigma2 = sigma2,
-#     theta_mu = theta_mu,
-#     tau = tau,
-#     tau.min = tau.min,
-#     av = av,
-#     ewmabv = ewmabv,
-#     tau.select = list(
-#       tau.history = tau.history,
-#       tau.selectId = tau.selectId,
-#       iter.select = iter.select
-#     ),
-#     params.history = list(params = params.history, iter.params = iter.params),
-#     vcrit.history = vcrit.history,
-#     time = time,
-#     stepsize = stepsize,
-#     stepsize.final = stepsize * decay,
-#     ewmabv.beta = ewmabv.beta,
-#     Theta.avg = Theta.avg,
-#     lambda.avg = lambda.avg,
-#     sigma2.avg = sigma2.avg,
-#     av.avg = av.avg,
-#     ewmabv.avg = ewmabv.avg
-#   )
-
-#   return(out)
-# }
 
 objfun <- function(
   Ly,
@@ -1089,12 +699,12 @@ objfun <- function(
   }
   if (stats == "all" || stats == "grad") {
     # TODO: calculation changed. Check performance
-    out[["grad_Theta"]] <- solve(
-      G, grad_Theta +
-        2 * matrix(rep(tau, each = p), nrow = p) * as.matrix(Omega %*% Theta)
-    ) |> as.matrix()
-    # out[["grad_Theta"]] <- grad_Theta +
+    # out[["grad_Theta"]] <- solve(
+    #   G, grad_Theta +
     #     2 * matrix(rep(tau, each = p), nrow = p) * as.matrix(Omega %*% Theta)
+    # ) |> as.matrix()
+    out[["grad_Theta"]] <- grad_Theta +
+        2 * matrix(rep(tau, each = p), nrow = p) * as.matrix(Omega %*% Theta)
     out[["grad_eta"]] <- as.numeric(grad_eta)
     out[["grad_zeta"]] <- as.numeric(grad_zeta)
   }
@@ -1102,6 +712,8 @@ objfun <- function(
 }
 
 
+
+# Helper function --------------------------------------------------------
 
 get.sample.mean <- function(Ly, Ltid) {
   m <- length(unique(unlist(Ltid)))
@@ -1126,6 +738,204 @@ get.sample.cov <- function(Ly, Ltid) {
   }
   cov.hat = cov.hat / cov.count
   cov.hat
+}
+
+init_ada_stats <- function(
+  p, q, ntau, sgdtype = c(
+    "sgd", "sgdm",
+    "adagrad", "adagrad2",
+    "adam", "adam2", "adam0",
+    "rasa"
+  )
+) {
+  sgdtype <- match.arg(sgdtype)
+  ada_stats <- NULL
+  if (sgdtype %in% c("sgdm", "adam", "adam2", "adam0")) {
+    ada_stats[['m']] <- list(
+      Theta = array(0, dim = c(p, q, ntau)),
+      other = matrix(0, nrow = q + 1, ncol = ntau)
+    )
+  }
+  if (sgdtype %in% c("adagrad", "adam")) {
+    ada_stats[['v']] <- list(
+      Theta = array(0, dim = c(q, q, ntau)),
+      other = array(0, dim = c(q + 1, q + 1, ntau))
+    )
+  } else if (sgdtype %in% c("adagrad2", "adam2")) {
+    ada_stats[['v']] <- list(
+      Theta = array(0, dim = c(ntau)),
+      other = array(0, dim = c(q + 1, q + 1, ntau))
+    )
+  } else if (sgdtype == "rasa") {
+    ada_stats[['v']] <- list(
+      Theta.l = array(0, dim = c(p, ntau)),
+      Theta.r = array(0, dim = c(q, q, ntau)),
+      other = array(0, dim = c(q + 1, q + 1, ntau))
+    )
+  } else if (sgdtype == "adam0") {
+    ada_stats[['v']] <- list(
+      Theta = array(0, dim = c(p, q, ntau)),
+      other = matrix(0, nrow = q + 1, ncol = ntau)
+    )
+  }
+  return(ada_stats)
+}
+
+update_ada_stats <- function(
+  ada_stats,
+  grad_Theta, grad_eta, grad_zeta,
+  itau, i = 0,
+  sgdtype = c(
+    "sgd", "sgdm",
+    "adagrad", "adagrad2",
+    "adam", "adam2", "adam0",
+    "rasa"
+  ),
+  beta1 = 0.9,
+  beta2 = 0.99
+) {
+  sgdtype <- match.arg(sgdtype)
+  p <- nrow(grad_Theta)
+  q <- ncol(grad_Theta)
+  stopifnot(length(grad_eta) == q)
+  stopifnot(length(grad_zeta) == 1)
+
+  beta1c <- ifelse(i == 0, 0, beta1)
+  beta2c <- ifelse(i == 0, 0, beta2)
+
+  if (sgdtype %in% c("sgdm", "adam", "adam2")) {
+    # FIXME: implement vector transport
+    stop("vector transport not implemented")
+    ada_stats[['m']][['Theta']][,,itau] <-
+      ada_stats[['m']][['Theta']][,,itau] * beta1c +
+      grad_Theta * (1 - beta1c)
+    ada_stats[['m']][['other']][,itau] <-
+      ada_stats[['m']][['other']][,itau] * beta1c +
+      c(grad_eta, grad_zeta) * (1 - beta1c)
+  }
+
+  if (sgdtype == "adam0") {
+    v_Theta <- ada_stats[['v']][['Theta']][,,itau]
+    v_other <- ada_stats[['v']][['other']][,itau]
+    v_Theta_new <- grad_Theta^2
+    v_other_new <- c(grad_eta, grad_zeta)^2
+    ada_stats[['v']][['Theta']][,,itau] <-
+      v_Theta * beta2c + v_Theta_new * (1 - beta2c)
+    ada_stats[['v']][['other']][,itau] <-
+      v_other * beta2c + v_other_new * (1 - beta2c)
+  }
+  if (sgdtype %in% c("adagrad", "adam")) {
+    v_Theta <- ada_stats[['v']][['Theta']][,,itau]
+    v_other <- ada_stats[['v']][['other']][,,itau]
+    v_Theta_new <- as.matrix(t(grad_Theta) %*% G %*% grad_Theta)
+    v_other_new <- outer(c(grad_eta, grad_zeta), c(grad_eta, grad_zeta))
+    if (sgdtype == "adagrad") {
+      ada_stats[['v']][['Theta']][,,itau] <-
+        v_Theta * i / (i + 1) + v_Theta_new / (i + 1)
+      ada_stats[['v']][['other']][,,itau] <-
+        v_other * i / (i + 1) + v_other_new / (i + 1)
+    } else {
+      ada_stats[['v']][['Theta']][,,itau] <-
+        v_Theta * beta2c + v_Theta_new * (1 - beta2c)
+      ada_stats[['v']][['other']][,,itau] <-
+        v_other * beta2c + v_other_new * (1 - beta2c)
+    }
+  } else if (sgdtype %in% c("adagrad2", "adam2")) {
+    v_Theta <- ada_stats[['v']][['Theta']][itau]
+    v_other <- ada_stats[['v']][['other']][,,itau]
+    v_Theta_new <- manifold.Stiefel.inprod(grad_Theta, grad_Theta, G)
+    v_other_new <- outer(c(grad_eta, grad_zeta), c(grad_eta, grad_zeta))
+    if (sgdtype == "adagrad2") {
+      ada_stats[['v']][['Theta']][itau] <-
+        v_Theta * i / (i + 1) + v_Theta_new / (i + 1)
+      ada_stats[['v']][['other']][,,itau] <-
+        v_other * i / (i + 1) + v_other_new / (i + 1)
+    } else {
+      ada_stats[['v']][['Theta']][itau] <-
+        v_Theta * beta2c + v_Theta_new * (1 - beta2c)
+      ada_stats[['v']][['other']][,,itau] <-
+        v_other * beta2c + v_other_new * (1 - beta2c)
+    }
+  } else if (sgdtype == c("rasa")) {
+    ada_stats[['v']][['Theta.l']][,itau] <-
+      ada_stats[['v']][['Theta.l']][,itau] * beta2c + 
+      rowMeans(grad_Theta^2) * (1 - beta2c)
+    ada_stats[['v']][['Theta.r']][,,itau] <-
+      ada_stats[['v']][['Theta.r']][,,itau] * beta2c + 
+      as.matrix(t(grad_Theta) %*% G %*% grad_Theta) * (1 - beta2c)
+    ada_stats[['v']][['other']][,,itau] <-
+      ada_stats[['v']][['other']][,,itau] * beta2c +
+      outer(c(grad_eta, grad_zeta), c(grad_eta, grad_zeta)) * (1 - beta2c)
+  }
+
+  ada_stats
+}
+
+safe_sqrtinv <- function(A, eps = 1e-8, eps2 = 1) {
+  A <- 0.5 * (A + t(A))
+  d <- nrow(A)
+  eigvals <- eigen(A)$values
+  if (any(eigvals < max(eigvals) * eps)) eps <- eps2
+  pracma::sqrtm(A + diag(eps, d, d))$Binv
+}
+
+get_ada_direc <- function(
+  grad_Theta, grad_eta, grad_zeta,
+  ada_stats, itau,
+  sgdtype = c(
+    "sgd", "sgdm",
+    "adagrad", "adagrad2",
+    "adam", "adam2", "adam0",
+    "rasa"
+  )
+) {
+  sgdtype = match.arg(sgdtype)
+  direc <- list()
+  if (sgdtype == "sgd") {
+    direc[['Theta']] <- grad_Theta
+    direc[['other']] <- c(grad_eta, grad_zeta)
+  }
+  if (sgdtype %in% c("adagrad", "adam", "adagrad2", "adam2")) {
+    if (sgdtype %in% c("adagrad", "adam")) {
+      v_Theta <- ada_stats[['v']][['Theta']][,,itau]
+      vsqrtinv_Theta <- safe_sqrtinv(v_Theta)
+      direc[['Theta']] <- grad_Theta %*% vsqrtinv_Theta
+    } else {
+      v_Theta <- ada_stats[['v']][['Theta']][itau]
+      direc[['Theta']] <- grad_Theta / sqrt(v_Theta)
+    }
+    v_other <- ada_stats[['v']][['other']][,,itau]
+    vsqrtinv_other <- safe_sqrtinv(v_other)
+    direc[['other']] <- as.vector(vsqrtinv_other %*% c(grad_eta, grad_zeta))
+  }
+  if (sgdtype == "rasa") {
+    v_Theta_l <- ada_stats[['v']][['Theta.l']][,itau]
+    v_Theta_r <- ada_stats[['v']][['Theta.r']][,,itau]
+    v_other <- ada_stats[['v']][['other']][,,itau]
+    v4rt_Theta_l <- (v_Theta_l + 1e-8)^{-0.25}
+    v4rt_Theta_r <- pracma::sqrtm(safe_sqrtinv(v_Theta_r))$B
+    direc[['Theta']] <- sweep(
+      grad_Theta %*% v4rt_Theta_r,
+      1, v4rt_Theta_l, "*"
+    )
+    vsqrtinv_other <- safe_sqrtinv(v_other)
+    direc[['other']] <- as.vector(vsqrtinv_other %*% c(grad_eta, grad_zeta))
+  }
+   
+  direc
+}
+
+arrange_last_dim <- function(A, indices) {
+  dims <- dim(A)
+  ndim <- length(dims)
+  last_dim <- dims[ndim]
+  stopifnot(all(is.integer(indices)) && length(indices) == last_dim)
+  array(matrix(A, ncol=last_dim)[,indices], dims=dims)
+}
+
+select_ada_stats <- function(ada_stats, parentId) {
+  if (is.null(ada_stats)) return(ada_stats)
+  lapply(ada_stats, arrange_last_dim, indices = parentId)
 }
 
 setParams.inits <- function(inits, meanfun = FALSE) {
@@ -1196,20 +1006,6 @@ setParams.tau <- function(tau = NULL, tau.control = list(), delta.min = NULL) {
   return(list(tau = tau, tau.control = tau.control))
 }
 
-
-# setParams.sgd <- function(sgd.control) {
-#   # stepsize = 1e-3,
-#   # maxIter = 1000,
-#   # nIter.constStepSize = 0, nIter.adam = floor(maxIter),
-#   # stepsize.decayrate = 0.5, stepsize.min = 0,
-#   # nIter.slowerdecay = floor(0.5 * maxIter),
-#   # stepsize.decayrate.slow = 0,
-#   # beta1 = 0.9, beta2 = 0.99,
-#   # asgd.use = FALSE, asgd.start = 100
-#   if (! "stepsize" %in% sgd.control) stepsize <- 1e-3
-#   if (! "maxIter" %in% sgd.control) maxIter <- 1000
-#   if (! "nIter.constStepSize" %in% sgd.control) nIter.constStepSize <- 0
-# }
 
 allocate_nchild <- function(ntau, nselect, rule = "equal") {
   if (rule == "equal") {

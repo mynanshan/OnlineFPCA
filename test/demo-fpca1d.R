@@ -11,13 +11,13 @@ source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
 # TODO:
-# run the new AdaGrad algo
-# Are there closed-form solutions for lambda and sigma2?
+# try a single weights for \Theta. Whether this accelerate tail pc convergence?
+# also need to increase stepsize is do so.
 
 noise_sd <- 0.5
 nBatch <- 5
 nParams <- 6
-nPass <- 5
+nPass <- 2
 nBlock <- 100
 Ninit <- 100
 initMethod <- "face"
@@ -154,10 +154,11 @@ fit <- fpca.sgd(
   stepsize.min = stepsize.min,
   nIter.slowerdecay = floor(0.8 * nIter1pass),
   stepsize.decayrate.slow = 0.3,
+  sgdtype = "sgd",
   nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
   asgd.use = TRUE,
   asgd.start = asgdIterStart,
-  coord.scaling = TRUE,
+  coord.scaling = FALSE,
   nIter.1stTune = nRoundNoTune * nBlockIter,
   nIter.lastTune = nIter1pass,
   nIter.tauNoIncrease = floor(0.7 * nIter1pass),
@@ -249,6 +250,22 @@ tmp <- mapply(
   )$fval,
   h = seq(-0.2,0.2,0.02)
 )
+plot(tmp)
+
+Delta3 <- rnorm(p)
+tmp <- mapply(
+  \(h) {
+    Theta <- Theta.avg
+    Theta[,q] <- Theta[,q] + h * Delta3
+    Theta <- manifold.Stiefel.retract(Theta, G)
+    objfun(
+    dat$Ly, dat$Ltid, Theta, lambda.avg, sigma2.avg,
+    tau = tau.min, stats = "loss"
+  )$fval
+  },
+  h = seq(-0.2,0.2,0.02)
+)
+plot(tmp)
 
 
 
