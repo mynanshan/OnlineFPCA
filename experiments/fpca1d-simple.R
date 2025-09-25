@@ -33,7 +33,7 @@ source("./data_generation/generator.R")
 
 noiseList <- 0.5
 nBatch <- 5
-nParams <- 3
+nParams <- 6
 nPass <- 3
 nBlock <- 100
 Ninit <- 100
@@ -137,6 +137,9 @@ for (noise_sd in noiseList) {
   B <- eval_basis(tgrid, basis)
   G <- get_basis_inprod_matrix(basis)
   Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
+  sqrtmObj <- pracma::sqrtm(as.matrix(G))
+  sqrtG <- sqrtmObj$B
+  sqrtGinv <- sqrtmObj$Binv
 
   # Online FPCA  ------------------------------------------------------------
 
@@ -181,7 +184,7 @@ for (noise_sd in noiseList) {
 
   inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
 
-  for (optMethod in c("SGD", "Adam")) {
+  for (optMethod in c("SGD")) {
     message("Method:", optMethod)
 
     fit <- fpca.sgd(
@@ -308,7 +311,7 @@ for (noise_sd in noiseList) {
 
 # End experiment ----------------------------------------------------------
 
-readr::write_csv(res, file.path(dirpath, filename))
+# readr::write_csv(res, file.path(dirpath, filename))
 
 message("Finishing replication: ", seed)
 set.seed(NULL)
