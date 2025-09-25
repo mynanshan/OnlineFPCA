@@ -392,6 +392,14 @@ fpca.sgd <- function(
         ada_stats, l, sgdtype
       )
 
+      if (sgdtype != "sgd") {
+        direc[['Theta']] <- as.matrix(manifold.Stiefel.project(
+        direc[['Theta']],
+        asl(Theta, l),
+        G
+      ))
+      }
+
       # grad_all <- c(grad_Theta, grad_eta, grad_zeta)
       # if (verbose && l == 1 && (i %% period.message == 0)) {
       #   grad_norms <- sqrt(c(
@@ -699,12 +707,12 @@ objfun <- function(
   }
   if (stats == "all" || stats == "grad") {
     # TODO: calculation changed. Check performance
-    # out[["grad_Theta"]] <- solve(
-    #   G, grad_Theta +
-    #     2 * matrix(rep(tau, each = p), nrow = p) * as.matrix(Omega %*% Theta)
-    # ) |> as.matrix()
-    out[["grad_Theta"]] <- grad_Theta +
+    out[["grad_Theta"]] <- solve(
+      G, grad_Theta +
         2 * matrix(rep(tau, each = p), nrow = p) * as.matrix(Omega %*% Theta)
+    ) |> as.matrix()
+    # out[["grad_Theta"]] <- grad_Theta +
+    #     2 * matrix(rep(tau, each = p), nrow = p) * as.matrix(Omega %*% Theta)
     out[["grad_eta"]] <- as.numeric(grad_eta)
     out[["grad_zeta"]] <- as.numeric(grad_zeta)
   }
@@ -766,7 +774,7 @@ init_ada_stats <- function(
       Theta = array(0, dim = c(ntau)),
       other = array(0, dim = c(q + 1, q + 1, ntau))
     )
-  } else if (sgdtype == "rasa") {
+  } else if (sgdtype %in% c("rasa")) {
     ada_stats[['v']] <- list(
       Theta.l = array(0, dim = c(p, ntau)),
       Theta.r = array(0, dim = c(q, q, ntau)),
@@ -856,13 +864,14 @@ update_ada_stats <- function(
       ada_stats[['v']][['other']][,,itau] <-
         v_other * beta2c + v_other_new * (1 - beta2c)
     }
-  } else if (sgdtype == c("rasa")) {
+  } else if (sgdtype %in% c("rasa")) {
+    grad_Theta_til <- as.matrix(GR %*% grad_Theta)
     ada_stats[['v']][['Theta.l']][,itau] <-
       ada_stats[['v']][['Theta.l']][,itau] * beta2c + 
-      rowMeans(grad_Theta^2) * (1 - beta2c)
+      rowMeans(grad_Theta_til^2) * (1 - beta2c)
     ada_stats[['v']][['Theta.r']][,,itau] <-
       ada_stats[['v']][['Theta.r']][,,itau] * beta2c + 
-      as.matrix(t(grad_Theta) %*% G %*% grad_Theta) * (1 - beta2c)
+      as.matrix(t(grad_Theta) %*% G %*% grad_Theta) / p * (1 - beta2c)
     ada_stats[['v']][['other']][,,itau] <-
       ada_stats[['v']][['other']][,,itau] * beta2c +
       outer(c(grad_eta, grad_zeta), c(grad_eta, grad_zeta)) * (1 - beta2c)
@@ -914,10 +923,11 @@ get_ada_direc <- function(
     v_other <- ada_stats[['v']][['other']][,,itau]
     v4rt_Theta_l <- (v_Theta_l + 1e-8)^{-0.25}
     v4rt_Theta_r <- pracma::sqrtm(safe_sqrtinv(v_Theta_r))$B
-    direc[['Theta']] <- sweep(
-      grad_Theta %*% v4rt_Theta_r,
+    grad_Theta_til <- as.matrix(GR %*% grad_Theta)
+    direc[['Theta']] <- solve(GR, sweep(
+      grad_Theta_til %*% v4rt_Theta_r,
       1, v4rt_Theta_l, "*"
-    )
+    )) |> as.matrix()
     vsqrtinv_other <- safe_sqrtinv(v_other)
     direc[['other']] <- as.vector(vsqrtinv_other %*% c(grad_eta, grad_zeta))
   }

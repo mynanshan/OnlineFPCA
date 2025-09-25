@@ -14,7 +14,7 @@ source("./data_generation/generator.R")
 # try a single weights for \Theta. Whether this accelerate tail pc convergence?
 # also need to increase stepsize is do so.
 
-set.seed(3)
+# set.seed(3)
 
 noise_sd <- 0.5
 nBatch <- 5
@@ -29,7 +29,7 @@ nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 stepsize <- 1e-1
-stepsize.min <- 1e-2
+stepsize.min <- 1e-3
 sgd.step.scale <- 1 # use a smaller step size for sgd
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
@@ -156,7 +156,7 @@ fit <- fpca.sgd(
   stepsize.min = stepsize.min,
   nIter.slowerdecay = floor(0.8 * nIter1pass),
   stepsize.decayrate.slow = 0.3,
-  sgdtype = "sgd",
+  sgdtype = "rasa",
   nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
   asgd.use = TRUE,
   asgd.start = asgdIterStart,
@@ -232,19 +232,6 @@ matplot(rmseAll, type="l")
 matplot(rmseAll.avg, type="l")
 
 # check opt landscape
-objfun(
-  dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg,
-  tau = tau.min, stats = "loss"
-)
-objfun(
-  dat$Ly, dat$Ltid, ThetaBatch, lambda.avg, sigma2.avg,
-  tau = tau.min, stats = "loss"
-)
-objfun(
-  dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg,
-  tau = tau.min, stats = "grad"
-)
-
 tmp <- mapply(
   \(h) objfun(
     dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg * exp(h),
