@@ -92,6 +92,7 @@ rmsePhiBest <- sqrt(colMeans(PhiTrueEval[,1:q] - eval_fd(evalGrid, phiTrueFunc)[
 
 B <- eval_basis(tgrid, basis)
 G <- get_basis_inprod_matrix(basis)
+GR <- Matrix::chol(G)
 Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
 sqrtmObj <- pracma::sqrtm(as.matrix(G))
 sqrtG <- sqrtmObj$B
