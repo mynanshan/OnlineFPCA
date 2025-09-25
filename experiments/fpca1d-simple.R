@@ -1,6 +1,6 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
 #SBATCH --job-name=fpca1d-simplified
-#SBATCH --output=logs/fpca1d_%j.out
+#SBATCH --output=logs/fpca1d-simple_%j.out
 #SBATCH --time=3:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -32,6 +32,7 @@ source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
 noiseList <- c(0.1, 0.5, 1.)
+# noiseList <- c(0.1, 0.5, 1.)
 nBatch <- 5
 nParams <- 6
 nPass <- 3
@@ -81,7 +82,9 @@ res <- data.frame(
 )
 
 for (stepsize in stepsize0List) {
+  message("> Step size = ", stepsize)
   for (noise_sd in noiseList) {
+    message(">> noise = ", noise_sd)
     set.seed(seed)
 
     rp <- get_rp.yang2021(alpha = 2, npc = 10)
@@ -188,7 +191,7 @@ for (stepsize in stepsize0List) {
     inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
 
     for (sgdtype in c("sgd", "adagrad", "rasa")) {
-      message("Method:", optMethod)
+      message(">>> sgdtype = ", sgdtype)
 
       fit <- fpca.sgd(
         fdata_generator,
@@ -291,7 +294,7 @@ for (stepsize in stepsize0List) {
         data.frame(
           noise = noise_sd,
           seed = rep(seed, nRecord + 1),
-          Method = rep(paste0("Pspline-", optMethod), nRecord + 1),
+          Method = rep(paste0("OnlineFPCA-", sgdtype), nRecord + 1),
           StepSize = rep(stepsize, nRecord + 1),
           N = c(0, nIters),
           Ninit = rep(Ninit, nRecord + 1),
