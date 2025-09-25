@@ -43,7 +43,7 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize <- 1e-1
+stepsize <- 1e-0
 stepsize.min <- 1e-2
 sgd.step.scale <- 1 # use a smaller step size for sgd
 nRoundNoTune <- 1

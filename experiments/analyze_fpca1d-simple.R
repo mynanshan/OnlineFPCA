@@ -43,6 +43,8 @@ q <- 3
 N0 <- c(5000, 10000, 15000)
 N1 = 5000
 
+res |> filter(N %in% N0) |> View()
+
 # PACE is optimized by C codes. Performance too different
 meth_ord = c("Pspline-SGD", "Pspline-Adam", "LocLin",
              "Batch-FACE", "Batch-REML", "Batch-SOAP")

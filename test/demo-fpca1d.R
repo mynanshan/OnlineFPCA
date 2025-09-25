@@ -14,6 +14,8 @@ source("./data_generation/generator.R")
 # try a single weights for \Theta. Whether this accelerate tail pc convergence?
 # also need to increase stepsize is do so.
 
+set.seed(3)
+
 noise_sd <- 0.5
 nBatch <- 5
 nParams <- 6

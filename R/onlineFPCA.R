@@ -930,12 +930,22 @@ arrange_last_dim <- function(A, indices) {
   ndim <- length(dims)
   last_dim <- dims[ndim]
   stopifnot(all(is.integer(indices)) && length(indices) == last_dim)
-  array(matrix(A, ncol=last_dim)[,indices], dims=dims)
+  array(matrix(A, ncol=last_dim)[,indices], dim=dims)
 }
 
 select_ada_stats <- function(ada_stats, parentId) {
   if (is.null(ada_stats)) return(ada_stats)
-  lapply(ada_stats, arrange_last_dim, indices = parentId)
+  lapply(
+    ada_stats, \(a) {
+      if (is.list(a)) {
+        lapply(a, arrange_last_dim, indices = parentId)
+      } else if (is.numeric(a)) {
+        arrange_last_dim(a, indices = parentId)
+      } else {
+        stop("unknown type.")
+      }
+    }
+  )
 }
 
 setParams.inits <- function(inits, meanfun = FALSE) {
