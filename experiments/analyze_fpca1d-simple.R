@@ -33,6 +33,7 @@ res <- res |>
   )
 
 sumres <- res |> 
+  # filter(StepSize == 0.1) |> 
   group_by(Method, noise, StepSize, Ninit, npc, initMethod, N) |> 
   summarise_at(vars(Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg), list(mean=mean)) |> 
   ungroup() |> 
@@ -46,7 +47,7 @@ N1 = 5000
 res |> filter(
   N %in% N0,
   noise == 0.5,
-  Method == "OnlineFPCA-sgd"
+  Method == "OnlineFPCA-adam"
 ) |> dplyr::select(
   noise, seed, Method, StepSize, N,
   RMSEphi1, RMSEphi2, RMSEphi3,

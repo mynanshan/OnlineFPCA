@@ -14,7 +14,7 @@ source("./data_generation/generator.R")
 # try a single weights for \Theta. Whether this accelerate tail pc convergence?
 # also need to increase stepsize is do so.
 
-set.seed(95)
+set.seed(11)
 
 noise_sd <- 0.5
 nBatch <- 5
@@ -159,7 +159,7 @@ fit <- fpca.sgd(
   ),
   nbatch = nBatch,
   maxIter = nPass * nIter1pass,
-  stepsize = stepsize,
+  stepsize = sgd_lr0,
   stepsize.decayrate = 0.5,
   stepsize.min = stepsize.min,
   nIter.slowerdecay = floor(0.8 * nIter1pass),
