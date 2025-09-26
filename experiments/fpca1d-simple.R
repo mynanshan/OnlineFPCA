@@ -81,7 +81,6 @@ res <- data.frame(
   RMSEphi3.avg = numeric()
 )
 
-message("> Step size = ", stepsize)
 for (noise_sd in noiseList) {
   message(">> noise = ", noise_sd)
   set.seed(seed)
@@ -195,6 +194,7 @@ for (noise_sd in noiseList) {
   )$grad_Theta
   g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
   stepsize <- sgd_lr0 <- 0.5 / g_Theta_init_norm
+  message("> Step size = ", stepsize)
 
   for (sgdtype in c("sgd", "adagrad", "adam")) {
     message(">>> sgdtype = ", sgdtype)
