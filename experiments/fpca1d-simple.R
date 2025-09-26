@@ -190,7 +190,7 @@ for (stepsize in stepsize0List) {
 
     inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
 
-    for (sgdtype in c("sgd", "adagrad", "rasa")) {
+    for (sgdtype in c("sgd", "adagrad", "adam")) {
       message(">>> sgdtype = ", sgdtype)
 
       fit <- fpca.sgd(
@@ -213,6 +213,7 @@ for (stepsize in stepsize0List) {
         nIter.slowerdecay = floor(0.8 * nIter1pass),
         stepsize.decayrate.slow = 0.3,
         sgdtype = sgdtype,
+        ada.start = asgdIterStart,
         nIter.adam = 0,
         adareset = 200,
         asgd.use = TRUE,
@@ -220,7 +221,7 @@ for (stepsize in stepsize0List) {
         coord.scaling = FALSE,
         nIter.1stTune = nRoundNoTune * nBlockIter,
         nIter.lastTune = nIter1pass,
-        nIter.tauNoIncrease = floor(0.7 * nIter1pass),
+        nIter.tauNoIncrease = floor(0.3 * nIter1pass),
         period.tune = nBlockIter,
         period.record = nBlockIter,
         verbose = FALSE

@@ -24,6 +24,12 @@ manifold.Stiefel.project <- function(Z, X, G = NULL) {
   return(as.matrix(Z))
 }
 
+manifold.Stiefel.transport <- function(Z, Y, X = NULL, G = NULL) {
+  # transport Z from T_X to T_Y
+  # TODO: find an isometric vector transport
+  manifold.Stiefel.project(Z, Y, G)
+}
+
 manifold.Stiefel.retract <- function(X, G = NULL) {
   if (is.null(G)) {
     M <- as.matrix(Matrix::crossprod(X))

@@ -46,7 +46,7 @@ N1 = 5000
 res |> filter(
   N %in% N0,
   noise == 0.5,
-  Method == "OnlineFPCA-rasa"
+  Method == "OnlineFPCA-adagrad"
 ) |> dplyr::select(
   noise, seed, Method, StepSize, N,
   RMSEphi1, RMSEphi2, RMSEphi3,

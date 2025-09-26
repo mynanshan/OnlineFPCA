@@ -14,7 +14,7 @@ source("./data_generation/generator.R")
 # try a single weights for \Theta. Whether this accelerate tail pc convergence?
 # also need to increase stepsize is do so.
 
-set.seed(4)
+set.seed(9)
 
 noise_sd <- 0.5
 nBatch <- 5
@@ -157,9 +157,11 @@ fit <- fpca.sgd(
   stepsize.min = stepsize.min,
   nIter.slowerdecay = floor(0.8 * nIter1pass),
   stepsize.decayrate.slow = 0.3,
-  sgdtype = "sgd",
+  sgdtype = "adam",
+  ada.start = asgdIterStart,
   nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
   adareset = 200,
+  adareset.end = Inf,
   asgd.use = TRUE,
   asgd.start = asgdIterStart,
   coord.scaling = FALSE,
@@ -241,6 +243,10 @@ objfun(
 )$fval
 objfun(
   dat$Ly, dat$Ltid, ThetaTrue, lambda.avg, sigma2.avg,
+  tau = tau.min, stats = "loss"
+)$fval
+objfun(
+  dat$Ly, dat$Ltid, ThetaTrue, lambdaTrue[1:q], noise_sd^2,
   tau = tau.min, stats = "loss"
 )$fval
 
