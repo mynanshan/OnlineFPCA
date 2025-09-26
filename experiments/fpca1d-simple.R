@@ -31,8 +31,8 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
-noiseList <- c(0.5)
-# noiseList <- c(0.1, 0.5, 1.)
+# noiseList <- c(0.5)
+noiseList <- c(0.1, 0.5, 1.)
 nBatch <- 5
 nParams <- 6
 nPass <- 3
@@ -81,7 +81,7 @@ res <- data.frame(
   RMSEphi3.avg = numeric()
 )
 
-for (stepsize in stepsize0List) {
+# for (stepsize in stepsize0List) {
   message("> Step size = ", stepsize)
   for (noise_sd in noiseList) {
     message(">> noise = ", noise_sd)
@@ -190,6 +190,13 @@ for (stepsize in stepsize0List) {
 
     inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
 
+    grad_Theta_init <- objfun(
+      dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
+      ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
+    )$grad_Theta
+    g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
+    sgd_lr0 <- 0.5 / g_Theta_init_norm
+
     for (sgdtype in c("sgd", "adagrad", "adam")) {
       message(">>> sgdtype = ", sgdtype)
 
@@ -207,7 +214,7 @@ for (stepsize in stepsize0List) {
         ),
         nbatch = nBatch,
         maxIter = nPass * nIter1pass,
-        stepsize = stepsize,
+        stepsize = sgd_lr0,
         stepsize.decayrate = 0.5,
         stepsize.min = stepsize.min,
         nIter.slowerdecay = floor(0.8 * nIter1pass),
@@ -315,7 +322,7 @@ for (stepsize in stepsize0List) {
     }
 
   }
-}
+# }
 
 
 # End experiment ----------------------------------------------------------

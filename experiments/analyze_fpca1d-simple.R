@@ -46,7 +46,7 @@ N1 = 5000
 res |> filter(
   N %in% N0,
   noise == 0.5,
-  Method == "OnlineFPCA-adagrad"
+  Method == "OnlineFPCA-sgd"
 ) |> dplyr::select(
   noise, seed, Method, StepSize, N,
   RMSEphi1, RMSEphi2, RMSEphi3,
@@ -54,7 +54,7 @@ res |> filter(
 ) |> View()
 
 # PACE is optimized by C codes. Performance too different
-meth_ord = c("OnlineFPCA-sgd", "OnlineFPCA-adagrad", "OnlineFPCA-rasa")
+meth_ord = c("OnlineFPCA-sgd", "OnlineFPCA-adagrad", "OnlineFPCA-adam", "OnlineFPCA-rasa")
 
 tabres <- ungroup(sumres) |>
   filter(stringr::str_detect(Method, "Batch") | N %in% N0) |>

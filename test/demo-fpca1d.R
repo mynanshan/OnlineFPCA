@@ -14,7 +14,7 @@ source("./data_generation/generator.R")
 # try a single weights for \Theta. Whether this accelerate tail pc convergence?
 # also need to increase stepsize is do so.
 
-set.seed(9)
+set.seed(95)
 
 noise_sd <- 0.5
 nBatch <- 5
@@ -128,6 +128,13 @@ norm_factor <- diag(t(ThetaInit) %*% G %*% ThetaInit)
 ThetaInit <- sweep(ThetaInit, 2, sqrt(norm_factor), "/")
 lambdaInit <- lambdaInit * norm_factor
 PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
+
+grad_Theta_init <- objfun(
+  dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
+  ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
+)$grad_Theta
+g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
+sgd_lr0 <- 0.5 / g_Theta_init_norm
 
 nBlockIter <- nBlock / nBatch
 nIter1pass <- N / nBatch
