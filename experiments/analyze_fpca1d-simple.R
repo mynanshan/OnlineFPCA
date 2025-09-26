@@ -33,7 +33,7 @@ res <- res |>
   )
 
 sumres <- res |> 
-  group_by(Method, noise, Ninit, npc, initMethod, N) |> 
+  group_by(Method, noise, StepSize, Ninit, npc, initMethod, N) |> 
   summarise_at(vars(Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg), list(mean=mean)) |> 
   ungroup() |> 
   group_by(Method, noise, Ninit, npc, initMethod) |> 
@@ -43,32 +43,31 @@ q <- 3
 N0 <- c(5000, 10000, 15000)
 N1 = 5000
 
-res |> filter(N %in% N0) |> View()
+res |> filter(
+  N %in% N0,
+  noise == 0.5,
+  Method == "OnlineFPCA-rasa"
+) |> dplyr::select(
+  noise, seed, Method, StepSize, N,
+  RMSEphi1, RMSEphi2, RMSEphi3,
+  RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg
+) |> View()
 
 # PACE is optimized by C codes. Performance too different
-meth_ord = c("Pspline-SGD", "Pspline-Adam", "LocLin",
-             "Batch-FACE", "Batch-REML", "Batch-SOAP")
+meth_ord = c("OnlineFPCA-sgd", "OnlineFPCA-adagrad", "OnlineFPCA-rasa")
 
 tabres <- ungroup(sumres) |>
   filter(stringr::str_detect(Method, "Batch") | N %in% N0) |>
   dplyr::select(
-    Method, N, noise, SumTime,
+    Method, N, noise, StepSize, SumTime,
     RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
   ) |>
   filter(Method != "Batch-PACE") |> 
   mutate(Method = factor(Method, levels=meth_ord)) |> 
-  arrange(noise, Method, N) |> 
+  arrange(noise, Method, StepSize, N) |> 
   relocate(noise, .before = Method) |> 
   mutate(
     epoch = as.integer(N / N1),
-    Method = case_match(Method,
-      "Pspline-SGD" ~ "OnlineFPCA-RSGD",
-      "Pspline-Adam" ~ "OnlineFPCA-RAdam",
-      "LocLin" ~ "OnlineCov",
-      "Batch-FACE" ~ "FACE",
-      "Batch-REML" ~ "REML",
-      "Batch-SOAP" ~ "SOAP"
-    ),
     SumTime = round(SumTime, 1)
   ) |> 
   relocate(epoch, .before = SumTime) |> 

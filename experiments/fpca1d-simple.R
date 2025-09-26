@@ -31,7 +31,7 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
-noiseList <- c(0.1, 0.5, 1.)
+noiseList <- c(0.5)
 # noiseList <- c(0.1, 0.5, 1.)
 nBatch <- 5
 nParams <- 6
@@ -44,7 +44,7 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize0List <- c(3e-1, 1e-1, 3e-2)
+stepsize0List <- c(3e-1, 1e-1)
 stepsize <- 1e-1
 stepsize.min <- 1e-3
 sgd.step.scale <- 1 # use a smaller step size for sgd
@@ -214,6 +214,7 @@ for (stepsize in stepsize0List) {
         stepsize.decayrate.slow = 0.3,
         sgdtype = sgdtype,
         nIter.adam = 0,
+        adareset = 200,
         asgd.use = TRUE,
         asgd.start = asgdIterStart,
         coord.scaling = FALSE,

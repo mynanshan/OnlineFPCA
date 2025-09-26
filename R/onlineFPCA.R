@@ -27,6 +27,7 @@ fpca.sgd <- function(
   beta1 = 0.9,
   beta2 = 0.99,
   adam.correction = TRUE,
+  adareset = 200,
   asgd.use = FALSE,
   asgd.start = 1,
   humblestart = 10,
@@ -168,6 +169,7 @@ fpca.sgd <- function(
       )
     }
   }
+  ada_counter <- as.integer(0 + init_grad) 
 
   # # stored stats for adaptive stochastic gradient
   # if (all(c("grad_Theta", "grad_eta", "grad_zeta") %in% names(inits))) {
@@ -384,7 +386,7 @@ fpca.sgd <- function(
 
       ada_stats <- update_ada_stats(
         ada_stats, grad_Theta, grad_eta, grad_zeta,
-        itau = l, i = i + init_grad - 1, sgdtype = sgdtype
+        itau = l, i = ada_counter, sgdtype = sgdtype
       )
 
       direc <- get_ada_direc(
@@ -548,7 +550,10 @@ fpca.sgd <- function(
       time.end <- Sys.time()
       time.history[l, i] <- time.history[l, i] +
         difftime(time.end, time.start, units = 'secs')
-    }
+    } # end l in 1:ntau
+
+    ada_counter <- ada_counter + 1
+    if (i %% adareset == 0) ada_counter <- 0
 
     # record parameters
     if (recordParams && (i %% period.record == 0)) {
