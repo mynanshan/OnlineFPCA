@@ -34,7 +34,7 @@ res <- res |>
 
 sumres <- res |> 
   # filter(StepSize == 0.1) |> 
-  group_by(Method, noise, StepSize, Ninit, npc, initMethod, N) |> 
+  group_by(Method, noise, Ninit, npc, initMethod, N) |> 
   summarise_at(vars(Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg), list(mean=mean)) |> 
   ungroup() |> 
   group_by(Method, noise, Ninit, npc, initMethod) |> 
@@ -47,7 +47,7 @@ N1 = 5000
 res |> filter(
   N %in% N0,
   noise == 0.5,
-  Method == "OnlineFPCA-adam"
+  Method == "OnlineFPCA-sgd"
 ) |> dplyr::select(
   noise, seed, Method, StepSize, N,
   RMSEphi1, RMSEphi2, RMSEphi3,
@@ -60,12 +60,12 @@ meth_ord = c("OnlineFPCA-sgd", "OnlineFPCA-adagrad", "OnlineFPCA-adam", "OnlineF
 tabres <- ungroup(sumres) |>
   filter(stringr::str_detect(Method, "Batch") | N %in% N0) |>
   dplyr::select(
-    Method, N, noise, StepSize, SumTime,
+    Method, N, noise, SumTime,
     RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
   ) |>
   filter(Method != "Batch-PACE") |> 
   mutate(Method = factor(Method, levels=meth_ord)) |> 
-  arrange(noise, Method, StepSize, N) |> 
+  arrange(noise, Method, N) |> 
   relocate(noise, .before = Method) |> 
   mutate(
     epoch = as.integer(N / N1),

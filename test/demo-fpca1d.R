@@ -13,8 +13,10 @@ source("./data_generation/generator.R")
 # TODO:
 # try a single weights for \Theta. Whether this accelerate tail pc convergence?
 # also need to increase stepsize is do so.
+# - remove unused arguments: nIter.adam, coord.scale, asgd.use
+# FIXME: modify the retraction, make it more in line with definition.
 
-set.seed(11)
+# set.seed(6)
 
 noise_sd <- 0.5
 nBatch <- 5
@@ -28,7 +30,6 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize <- 1e-1
 stepsize.min <- 1e-3
 sgd.step.scale <- 1 # use a smaller step size for sgd
 nRoundNoTune <- 1
@@ -129,10 +130,15 @@ ThetaInit <- sweep(ThetaInit, 2, sqrt(norm_factor), "/")
 lambdaInit <- lambdaInit * norm_factor
 PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
 
+# TODO: update these codes to formal versions
+# - Retract ThetaInit
+# - Project grad_Theta_init
+ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
 grad_Theta_init <- objfun(
   dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
   ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
 )$grad_Theta
+grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
 g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
 sgd_lr0 <- 0.5 / g_Theta_init_norm
 
@@ -142,8 +148,6 @@ asgdIterStart <- round(nRecord.1pass * 0.7 * nBlockIter)
 adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 
 inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
-
-optMethod <- "SGD"
 
 fit <- fpca.sgd(
   fdata_generator,
@@ -164,14 +168,13 @@ fit <- fpca.sgd(
   stepsize.min = stepsize.min,
   nIter.slowerdecay = floor(0.8 * nIter1pass),
   stepsize.decayrate.slow = 0.3,
-  sgdtype = "adam",
-  ada.start = asgdIterStart,
-  nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
-  adareset = 200,
+  sgdtype = "sgd",
+  ada.start = 200,
+  adareset = 400,
   adareset.end = Inf,
-  asgd.use = TRUE,
-  asgd.start = asgdIterStart,
-  coord.scaling = FALSE,
+  asgd.start = 200,
+  asgd.reset = 400,
+  asgd.end = Inf,
   nIter.1stTune = nRoundNoTune * nBlockIter,
   nIter.lastTune = nIter1pass,
   nIter.tauNoIncrease = floor(0.3 * nIter1pass),
@@ -221,24 +224,26 @@ ThetaAll <- sapply(
   \(i) params$Theta[,, tau_path_id_extend[i], i],
   simplify = "array"
 )
-rmseAll <- sapply(1:q, \(k) {
-  diffTheta <- sweep(ThetaAll[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-  diffPhi <- B %*% diffTheta
-  sqrt(colMeans(diffPhi^2))
-})
+# rmseAll <- sapply(1:q, \(k) {
+#   diffTheta <- sweep(ThetaAll[, k, ], 1, phiTrueFunc$coefs[, k], "-")
+#   diffPhi <- B %*% diffTheta
+#   sqrt(colMeans(diffPhi^2))
+# })
+rmseAll <- rmse_phi(ThetaAll, phiTrueFunc$coefs, B)
 ThetaAll.avg <- sapply(
   seq_along(fit$params.history$iter.params),
   \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
   simplify = "array"
 )
-rmseAll.avg <- sapply(1:q, \(k) {
-  diffTheta <- sweep(ThetaAll.avg[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-  diffPhi <- B %*% diffTheta
-  sqrt(colMeans(diffPhi^2))
-})
+# rmseAll.avg <- sapply(1:q, \(k) {
+#   diffTheta <- sweep(ThetaAll.avg[, k, ], 1, phiTrueFunc$coefs[, k], "-")
+#   diffPhi <- B %*% diffTheta
+#   sqrt(colMeans(diffPhi^2))
+# })
+rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
 
 matplot(evalGrid, PhiTrueEval[,1:q], type="l", lty=1)
-matplot(tgrid, eval_fd(tgrid, FuncData(Theta.avg, basis)), type="l", add=T, lty=2)
+matplot(evalGrid, PhiAvgEval, type="l", add=T, lty=2)
 matplot(rmseAll, type="l")
 matplot(rmseAll.avg, type="l")
 
@@ -270,8 +275,8 @@ Delta1 <- rnorm(p)
 tmp <- mapply(
   \(h) {
     Theta <- Theta.avg
-    Theta[,2] <- Theta[,2] + h * Delta1
-    Theta <- manifold.Stiefel.retract(Theta, G)
+    Theta[,3] <- Theta[,3] + h * Delta1
+    Theta <- manifold.Stiefel.retract(Theta, NULL, G)
     objfun(
     dat$Ly, dat$Ltid, Theta, lambda.avg, sigma2.avg,
     tau = tau.min, stats = "loss"
