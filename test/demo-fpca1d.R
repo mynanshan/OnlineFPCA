@@ -149,6 +149,9 @@ adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 
 inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
 
+# TODO: how to account for the covariance between FPCs and eigvals
+
+
 fit <- fpca.sgd(
   fdata_generator,
   tgrid,

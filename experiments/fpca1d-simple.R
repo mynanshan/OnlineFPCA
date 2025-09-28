@@ -18,7 +18,7 @@ parser$add_argument(
 )
 parser$add_argument(
   "--noise_level",
-  type = "interger",
+  type = "integer",
   default = 2,
   help = "Noise term standard deviation (1: 0.1, 2: 0.5, 3: 1)"
 )
