@@ -8,6 +8,9 @@ dirpath <- file.path("experiments", exprmt)
 
 # RMSE table ----------------------------------------------------
 
+noise_sd <- 0.5
+sgdtype <- "sgd"
+
 res <- do.call(
   rbind,
   lapply(
@@ -15,7 +18,10 @@ res <- do.call(
       seed <- i
       n_digit_seed = ceiling(log10(seed + 1))
       seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
-      filename <- paste0("simu_",exprmt,"_sd",seedtext,".csv")
+      filename <- paste0(
+        "simu_", exprmt, "_sig", noise_sd, "_", sgdtype,
+        "_sd", seedtext, ".csv"
+      )
       tryCatch(
         {read_csv(file.path(dirpath, filename), show_col_types = FALSE)},
         error = function(e) NULL

@@ -203,7 +203,12 @@ nIter1pass <- N / nBatch
 asgdIterStart <- round(nRecord.1pass * 0.7 * nBlockIter)
 adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 
-inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
+# inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
+inits <- list(
+  Theta = ThetaInit,
+  lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
+  sigma2 = sigma2Init
+)
 
 ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
 grad_Theta_init <- objfun(
@@ -242,6 +247,7 @@ fit <- fpca.sgd(
   adareset.end = Inf,
   asgd.start = 200,
   asgd.reset = 400,
+  asgd.reset.end = nIter1pass,
   asgd.end = Inf,
   nIter.1stTune = nRoundNoTune * nBlockIter,
   nIter.lastTune = nIter1pass,

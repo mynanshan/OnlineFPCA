@@ -1,5 +1,7 @@
 library(Matrix)
 
+# TODO: add support for a callback function
+
 fpca.sgd <- function(
   data_generator,
   obsGrid,
@@ -33,6 +35,7 @@ fpca.sgd <- function(
   adareset.end = Inf,
   asgd.start = 1,
   asgd.reset = 200,
+  asgd.reset.end = Inf,
   asgd.end = Inf,
   nIter.1stTune = floor(0.1 * maxIter),
   nIter.lastTune = maxIter,
@@ -379,9 +382,9 @@ fpca.sgd <- function(
 
       if (verbose && l == 1 && (i %% period.message == 0)) {
         direc_norms <- sqrt(c(
-          Theta = colSums(direc[['Theta']] * G %*% direc[['Theta']]),
-          eta = sum(direc[['other']][1:q]^2),
-          zeta = direc[['other']][q + 1]^2
+          Theta = colSums(direc[['Theta']] * G %*% direc[['Theta']]) |> sqrt(),
+          eta = (direc[['other']][1:q]) |> abs(),
+          zeta = direc[['other']][q + 1] |> abs()
         ))
         print(direc_norms)
       }
@@ -423,8 +426,8 @@ fpca.sgd <- function(
     } # end l in 1:ntau
 
     # update adaptive gradient counter
-    if (i >= ada.start && i <= adareset.end) {
-      if (i %% adareset == 0) {
+    if (i >= ada.start) {
+      if (i <= adareset.end && i %% adareset == 0) {
         ada_counter <- 0
       } else {
         ada_counter <- ada_counter + 1
@@ -433,7 +436,7 @@ fpca.sgd <- function(
 
     # update averaging counter
     if (i >= asgd.start && i <= asgd.end) {
-      if (i %% asgd.reset == 0) {
+      if (i <= asgd.reset.end && i %% asgd.reset == 0) {
         asgd_counter <- 0
         # replace the standard estimates with the averaged estimates
         Theta <- Theta.avg

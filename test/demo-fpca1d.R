@@ -10,11 +10,6 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
-# TODO:
-# try a single weights for \Theta. Whether this accelerate tail pc convergence?
-# also need to increase stepsize is do so.
-# - remove unused arguments: nIter.adam, coord.scale, asgd.use
-# FIXME: modify the retraction, make it more in line with definition.
 
 # set.seed(6)
 
@@ -133,6 +128,10 @@ PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
 # TODO: update these codes to formal versions
 # - Retract ThetaInit
 # - Project grad_Theta_init
+# - RMSE evaluation, pmin version
+# - Remove all unused arguments
+# - Set ada and asgd related parameters
+# - Change lambdaInit: rather large and inaccurate than small
 ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
 grad_Theta_init <- objfun(
   dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
@@ -147,9 +146,16 @@ nIter1pass <- N / nBatch
 asgdIterStart <- round(nRecord.1pass * 0.7 * nBlockIter)
 adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 
-inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
+# inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
+inits <- list(
+  Theta = ThetaInit,
+  lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
+  sigma2 = sigma2Init
+)
 
 # TODO: how to account for the covariance between FPCs and eigvals
+# TODO: bad initialization of lambda significantly affect the performance
+#   does adagrad alleviate this issue?
 
 
 fit <- fpca.sgd(
@@ -164,6 +170,12 @@ fit <- fpca.sgd(
     maxtau = 1e-1,
     mintau = 1e-6
   ),
+  # tau = 1e-8,
+  # tau.control = list(
+  #   ntau = 1,
+  #   nselect = 1,
+  #   adatau = FALSE
+  # ),
   nbatch = nBatch,
   maxIter = nPass * nIter1pass,
   stepsize = sgd_lr0,
@@ -177,6 +189,7 @@ fit <- fpca.sgd(
   adareset.end = Inf,
   asgd.start = 200,
   asgd.reset = 400,
+  asgd.reset.end = nIter1pass,
   asgd.end = Inf,
   nIter.1stTune = nRoundNoTune * nBlockIter,
   nIter.lastTune = nIter1pass,
@@ -227,22 +240,14 @@ ThetaAll <- sapply(
   \(i) params$Theta[,, tau_path_id_extend[i], i],
   simplify = "array"
 )
-# rmseAll <- sapply(1:q, \(k) {
-#   diffTheta <- sweep(ThetaAll[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-#   diffPhi <- B %*% diffTheta
-#   sqrt(colMeans(diffPhi^2))
-# })
+# ThetaAll <- params$Theta[,, 1,]
 rmseAll <- rmse_phi(ThetaAll, phiTrueFunc$coefs, B)
 ThetaAll.avg <- sapply(
   seq_along(fit$params.history$iter.params),
   \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
   simplify = "array"
 )
-# rmseAll.avg <- sapply(1:q, \(k) {
-#   diffTheta <- sweep(ThetaAll.avg[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-#   diffPhi <- B %*% diffTheta
-#   sqrt(colMeans(diffPhi^2))
-# })
+# ThetaAll.avg <- params$Theta.avg[,, 1,]
 rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
 
 matplot(evalGrid, PhiTrueEval[,1:q], type="l", lty=1)
@@ -255,15 +260,19 @@ matplot(rmseAll.avg, type="l")
 objfun(
   dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg,
   tau = tau.min, stats = "loss"
-)$fval
+)$lik
 objfun(
   dat$Ly, dat$Ltid, ThetaTrue, lambda.avg, sigma2.avg,
   tau = tau.min, stats = "loss"
-)$fval
+)$lik
 objfun(
   dat$Ly, dat$Ltid, ThetaTrue, lambdaTrue[1:q], noise_sd^2,
   tau = tau.min, stats = "loss"
-)$fval
+)$lik
+objfun(
+  dat$Ly, dat$Ltid, ThetaBatch0, lambdaTrue[1:q], noise_sd^2,
+  tau = tau.min, stats = "loss"
+)$lik
 
 tmp <- mapply(
   \(h) objfun(
