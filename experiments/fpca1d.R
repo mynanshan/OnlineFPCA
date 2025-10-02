@@ -108,7 +108,6 @@ phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
 rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
 rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
 
-B <- eval_basis(tgrid, basis)
 G <- get_basis_inprod_matrix(basis)
 GR <- Matrix::chol(G)
 Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
@@ -120,6 +119,7 @@ for (noise_sd in noiseList) {
 
   message(">> noise = ", noise_sd)
 
+  set.seed(seed)
   dat <- get_measurements(
     rp,
     n = N,
@@ -132,6 +132,7 @@ for (noise_sd in noiseList) {
     sigma = noise_sd
   )
   tgrid <- dat$tgrid
+  B <- eval_basis(tgrid, basis)
 
   fdata_generator <- function(n, total_count) {
     idx <- (total_count):(total_count + n - 1) %% N + 1
