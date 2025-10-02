@@ -197,7 +197,7 @@ for (noise_sd in noiseList) {
   grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
   g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
   sgd_lr0 <- stepsize0 / g_Theta_init_norm
-  message("> Step size = ", stepsize)
+  message("> Step size = ", stepsize0)
 
   for (sgdtype in c("sgd", "adagrad")) {
     message(">>> sgdtype = ", sgdtype)
@@ -299,7 +299,7 @@ for (noise_sd in noiseList) {
         noise = noise_sd,
         seed = rep(seed, nRecord + 1),
         Method = rep(paste0("OnlineFPCA-", sgdtype), nRecord + 1),
-        StepSize = rep(stepsize, nRecord + 1),
+        StepSize = rep(stepsize0, nRecord + 1),
         N = c(0, nIters),
         Ninit = rep(Ninit, nRecord + 1),
         initMethod = rep(initMethod, nRecord + 1),
