@@ -43,12 +43,10 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize <- 2e-1
-stepsize.min <- 5e-2
-sgd.step.scale <- 1 # use a smaller step size for sgd
+stepsize0 <- 0.5
+stepsize.min <- 1e-3
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
-asgd.use <- TRUE
 
 exprmt <- "fpca1d"
 dirpath <- file.path("experiments", exprmt)
@@ -79,28 +77,48 @@ res <- data.frame(
   RMSEphi3.avg = numeric()
 )
 
+set.seed(seed)
+
+rp <- get_rp.yang2021(alpha = 2, npc = 10)
+m_min <- NULL
+m_max <- NULL
+m_mean <- 6
+m_sd <- 2
+m_type <- "gaussian"
+
+t0 <- rp$t0
+t1 <- rp$t1
+D <- rp$ndim
+
+# evaluate true mean and eigenfunctions
+neval <- 101
+evalGrid <- seq(t0, t1, length.out = neval)
+muTrueEval <- rp$meanfun(evalGrid)
+PhiTrueEval <- rp$eigfun(evalGrid)
+lambdaTrue <- rp$eigval
+
+q <- npc <- 3
+
+nbasis <- 7
+basis <- fda::create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
+p <- nbasis
+
+muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
+phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
+rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
+rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
+
+B <- eval_basis(tgrid, basis)
+G <- get_basis_inprod_matrix(basis)
+GR <- Matrix::chol(G)
+Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
+sqrtmObj <- pracma::sqrtm(as.matrix(G))
+sqrtG <- sqrtmObj$B
+sqrtGinv <- sqrtmObj$Binv
+
 for (noise_sd in noiseList) {
-  set.seed(seed)
 
-  rp <- get_rp.yang2021(alpha = 2, npc = 10)
-  m_min <- NULL
-  m_max <- NULL
-  m_mean <- 6
-  m_sd <- 2
-  m_type <- "gaussian"
-
-  t0 <- rp$t0
-  t1 <- rp$t1
-  D <- rp$ndim
-
-  # evaluate true mean and eigenfunctions
-  neval <- 101
-  evalGrid <- seq(t0, t1, length.out = neval)
-  muTrueEval <- rp$meanfun(evalGrid)
-  PhiTrueEval <- rp$eigfun(evalGrid)
-  lambdaTrue <- rp$eigval
-
-  q <- npc <- 3
+  message(">> noise = ", noise_sd)
 
   dat <- get_measurements(
     rp,
@@ -125,20 +143,7 @@ for (noise_sd in noiseList) {
     )
   }
 
-  nbasis <- 7
-  basis <- create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
-  p <- nbasis
-
-  muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
-  phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
-  rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
-  rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
-
-  B <- eval_basis(tgrid, basis)
-  G <- get_basis_inprod_matrix(basis)
-  Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
-
-  # Online FPCA  ------------------------------------------------------------
+  # Online FPCA  ------------------------------------------------------
 
   message("Start OnlineFPCA ---------------")
 
@@ -176,13 +181,25 @@ for (noise_sd in noiseList) {
 
   nBlockIter <- nBlock / nBatch
   nIter1pass <- N / nBatch
-  asgdIterStart <- round(nRecord.1pass * 0.7 * nBlockIter)
-  adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 
-  inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
+  inits <- list(
+    Theta = ThetaInit,
+    lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
+    sigma2 = sigma2Init
+  )
 
-  for (optMethod in c("SGD", "Adam")) {
-    message("Method:", optMethod)
+  ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
+  grad_Theta_init <- objfun(
+    dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
+    ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
+  )$grad_Theta
+  grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
+  g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
+  sgd_lr0 <- stepsize0 / g_Theta_init_norm
+  message("> Step size = ", stepsize)
+
+  for (sgdtype in c("sgd", "adagrad")) {
+    message(">>> sgdtype = ", sgdtype)
 
     fit <- fpca.sgd(
       fdata_generator,
@@ -198,21 +215,25 @@ for (noise_sd in noiseList) {
       ),
       nbatch = nBatch,
       maxIter = nPass * nIter1pass,
-      stepsize = stepsize,
-      stepsize.decayrate = 0.6,
+      stepsize = ifelse(sgdtype=="sgd", sgd_lr0, stepsize0),
+      stepsize.decayrate = 0.51,
       stepsize.min = stepsize.min,
       nIter.slowerdecay = floor(0.8 * nIter1pass),
-      stepsize.decayrate.slow = 0.3,
-      nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
-      asgd.use = TRUE,
-      asgd.start = asgdIterStart,
-      coord.scaling = FALSE,
+      stepsize.decayrate.slow = 0.51,
+      sgdtype = sgdtype,
+      # ada.start = 1,
+      adareset = 20 * nBlockIter,
+      adareset.end = Inf,
+      asgd.start = 10 * nBlockIter,
+      asgd.reset = 20 * nBlockIter,
+      asgd.reset.end = nIter1pass,
+      asgd.end = Inf,
       nIter.1stTune = nRoundNoTune * nBlockIter,
       nIter.lastTune = nIter1pass,
-      nIter.tauNoIncrease = floor(0.7 * nIter1pass),
+      nIter.tauNoIncrease = floor(0.3 * nIter1pass),
       period.tune = nBlockIter,
       period.record = nBlockIter,
-      verbose = FALSE
+      verbose = TRUE
     )
 
     tau.min <- fit$tau.min
@@ -256,21 +277,13 @@ for (noise_sd in noiseList) {
       \(i) params$Theta[,, tau_path_id_extend[i], i],
       simplify = "array"
     )
-    rmseAll <- sapply(1:q, \(k) {
-      diffTheta <- sweep(ThetaAll[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-      diffPhi <- B %*% diffTheta
-      sqrt(colMeans(diffPhi^2))
-    })
+    rmseAll <- rmse_phi(ThetaAll, phiTrueFunc$coefs, B)
     ThetaAll.avg <- sapply(
       seq_along(fit$params.history$iter.params),
       \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
       simplify = "array"
     )
-    rmseAll.avg <- sapply(1:q, \(k) {
-      diffTheta <- sweep(ThetaAll.avg[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-      diffPhi <- B %*% diffTheta
-      sqrt(colMeans(diffPhi^2))
-    })
+    rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
 
     times <- c(
       colSums(fit$time.history[, 1:nIter1pass]),
@@ -284,7 +297,7 @@ for (noise_sd in noiseList) {
       data.frame(
         noise = noise_sd,
         seed = rep(seed, nRecord + 1),
-        Method = rep(paste0("Pspline-", optMethod), nRecord + 1),
+        Method = rep(paste0("OnlineFPCA-", sgdtype), nRecord + 1),
         StepSize = rep(stepsize, nRecord + 1),
         N = c(0, nIters),
         Ninit = rep(Ninit, nRecord + 1),
@@ -364,7 +377,7 @@ for (noise_sd in noiseList) {
     data.frame(
       noise = noise_sd,
       seed = rep(seed, nRecord.1pass),
-      Method = rep("LocLin", nRecord.1pass),
+      Method = rep("OnlineCov", nRecord.1pass),
       StepSize = rep(NA, nRecord.1pass),
       N = nIters.1pass,
       Ninit = rep(NA, nRecord.1pass),

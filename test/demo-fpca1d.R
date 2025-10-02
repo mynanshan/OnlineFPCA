@@ -183,7 +183,7 @@ fit <- fpca.sgd(
   stepsize.min = stepsize.min,
   nIter.slowerdecay = floor(0.8 * nIter1pass),
   stepsize.decayrate.slow = 0.3,
-  sgdtype = "sgd",
+  sgdtype = "adagrad",
   ada.start = 200,
   adareset = 400,
   adareset.end = Inf,

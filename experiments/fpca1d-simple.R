@@ -47,8 +47,8 @@ source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
 noise_sd <- switch(
-noise_lvl,
-"1" = 0.1, "2" = 0.5, "3" = 1
+  noise_lvl,
+  "1" = 0.1, "2" = 0.5, "3" = 1
 )
 nBatch <- 5
 nParams <- 6
@@ -62,10 +62,8 @@ nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 stepsize.min <- 1e-3
-sgd.step.scale <- 1 # use a smaller step size for sgd
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
-asgd.use <- TRUE
 
 exprmt <- "fpca1d-simple"
 dirpath <- file.path("experiments", exprmt)
@@ -76,27 +74,27 @@ if (!dir.exists(dirpath)) {
 n_digit_seed = ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0(
-  "simu_", exprmt, "_sig", noise_sd, "_", sgdtype,
-  "_sd", seedtext, ".csv"
+  "simu_", exprmt, "_sig", noise_lvl,
+  "_", sgdtype, "_sd", seedtext, ".csv"
 )
 
 res <- data.frame(
-noise = numeric(),
-seed = numeric(),
-Method = character(),
-StepSize = numeric(),
-N = numeric(),
-Ninit = numeric(),
-initMethod = character(),
-npc = numeric(),
-nBatch = numeric(),
-Time = numeric(),
-RMSEphi1 = numeric(),
-RMSEphi2 = numeric(),
-RMSEphi3 = numeric(),
-RMSEphi1.avg = numeric(),
-RMSEphi2.avg = numeric(),
-RMSEphi3.avg = numeric()
+  noise = numeric(),
+  seed = numeric(),
+  Method = character(),
+  StepSize = numeric(),
+  N = numeric(),
+  Ninit = numeric(),
+  initMethod = character(),
+  npc = numeric(),
+  nBatch = numeric(),
+  Time = numeric(),
+  RMSEphi1 = numeric(),
+  RMSEphi2 = numeric(),
+  RMSEphi3 = numeric(),
+  RMSEphi1.avg = numeric(),
+  RMSEphi2.avg = numeric(),
+  RMSEphi3.avg = numeric()
 )
 
 message(">> noise = ", noise_sd)
@@ -146,7 +144,7 @@ fdata_generator <- function(n, total_count) {
 }
 
 nbasis <- 7
-basis <- create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
+basis <- fda::create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
 p <- nbasis
 
 muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
@@ -201,7 +199,6 @@ PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
 nBlockIter <- nBlock / nBatch
 nIter1pass <- N / nBatch
 asgdIterStart <- round(nRecord.1pass * 0.7 * nBlockIter)
-adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 
 # inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
 inits <- list(
