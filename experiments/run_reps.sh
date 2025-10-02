@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+module load r/4.5.0
+
 # Usage
 if [[ $# -lt 1 ]]; then
   echo "Usage: $0 path/to/script.R [n_reps] [-- script-args...]"
