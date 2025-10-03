@@ -41,10 +41,8 @@ nBlockList <- c(10, 20, 50, 100)
 Ninit <- 100
 initMethod <- "face"
 N <- 5000
-stepsize <- 2e-1
-stepsize.min <- 5e-2
-sgd.step.scale <- 1 # use a smaller step size for sgd
-asgd.use <- TRUE
+stepsize0 <- 0.5
+stepsize.min <- 1e-3
 ewmabv.beta.list <- c(0.1, 0.3, 0.5, 0.7, 0.9)
 
 exprmt <- "abv1d"
@@ -113,7 +111,11 @@ rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
 
 B <- eval_basis(tgrid, basis)
 G <- get_basis_inprod_matrix(basis)
+GR <- Matrix::chol(G)
 Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
+sqrtmObj <- pracma::sqrtm(as.matrix(G))
+sqrtG <- sqrtmObj$B
+sqrtGinv <- sqrtmObj$Binv
 
 # Online FPCA  ------------------------------------------------------------
 
@@ -151,10 +153,21 @@ ThetaInit <- sweep(ThetaInit, 2, sqrt(norm_factor), "/")
 lambdaInit <- lambdaInit * norm_factor
 PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
 
-inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
+ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
+grad_Theta_init <- objfun(
+  dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
+  ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
+)$grad_Theta
+grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
+g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
+sgd_lr0 <- stepsize0 / g_Theta_init_norm
+message("> Step size = ", stepsize0)
 
-optMethod <- "Adam"
-
+inits <- list(
+  Theta = ThetaInit,
+  lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
+  sigma2 = sigma2Init
+)
 
 plan(multisession, workers = availableCores() - 1)
 
@@ -172,8 +185,6 @@ res <-
     nRoundTune <- nRecord.1pass - nRoundNoTune
     nBlockIter <- nBlock / nBatch
     nIter1pass <- N / nBatch
-    asgdIterStart <- round(nRecord.1pass * 0.7 * nBlockIter)
-    adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 
     fit <- fpca.sgd(
       fdata_generator,
@@ -189,18 +200,21 @@ res <-
       ),
       nbatch = nBatch,
       maxIter = nPass * nIter1pass,
-      stepsize = stepsize,
-      stepsize.decayrate = 0.6,
+      stepsize = stepsize0,
+      stepsize.decayrate = 0.51,
       stepsize.min = stepsize.min,
       nIter.slowerdecay = floor(0.8 * nIter1pass),
-      stepsize.decayrate.slow = 0.3,
-      nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
-      asgd.use = TRUE,
-      asgd.start = asgdIterStart,
-      coord.scaling = FALSE,
+      stepsize.decayrate.slow = 0.51,
+      sgdtype = "adagrad",
+      adareset = 20 * nBlockIter,
+      adareset.end = Inf,
+      asgd.start = 10 * nBlockIter,
+      asgd.reset = 20 * nBlockIter,
+      asgd.reset.end = nIter1pass,
+      asgd.end = Inf,
       nIter.1stTune = nRoundNoTune * nBlockIter,
       nIter.lastTune = nIter1pass,
-      nIter.tauNoIncrease = floor(0.7 * nIter1pass),
+      nIter.tauNoIncrease = floor(0.3 * nIter1pass),
       period.tune = nBlockIter,
       period.record = nBlockIter,
       ewmabv.beta = ewmabv.beta,
@@ -248,21 +262,13 @@ res <-
       \(i) params$Theta[,, tau_path_id_extend[i], i],
       simplify = "array"
     )
-    rmseAll <- sapply(1:q, \(k) {
-      diffTheta <- sweep(ThetaAll[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-      diffPhi <- B %*% diffTheta
-      sqrt(colMeans(diffPhi^2))
-    })
+    rmseAll <- rmse_phi(ThetaAll, phiTrueFunc$coefs, B)
     ThetaAll.avg <- sapply(
       seq_along(fit$params.history$iter.params),
       \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
       simplify = "array"
     )
-    rmseAll.avg <- sapply(1:q, \(k) {
-      diffTheta <- sweep(ThetaAll.avg[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-      diffPhi <- B %*% diffTheta
-      sqrt(colMeans(diffPhi^2))
-    })
+    rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
 
     times <- c(
       colSums(fit$time.history[, 1:nIter1pass]),
@@ -276,7 +282,7 @@ res <-
 
     data.frame(
       seed = seed,
-      Method = paste0("Pspline-", optMethod),
+      Method = paste0("OnlineFPCA-", sgdtype),
       epoch = seq_len(nPass),
       nBlock = nBlock,
       wBeta = ewmabv.beta,

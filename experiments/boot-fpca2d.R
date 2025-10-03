@@ -7,6 +7,8 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem-per-cpu=4G
 
+# FIXME: deprecated
+
 parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."
 )

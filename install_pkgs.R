@@ -5,7 +5,8 @@ required_pkgs <- c(
   "Metrics", "fastmatrix", "RSpectra",
   "mgcv", "argparse", "Rcpp", "rTensor",
   "stringr", "tidyr", "dplyr", "readr",
-  "lubridate", "readxl", "Rdimtools", "sm", "remotes"
+  "lubridate", "readxl", "Rdimtools", "sm", "remotes", 
+  "foreach", "doFuture"
 )
 # NOTE: date 2025-06-29
 # At present time, the newest RcppArnadillo is unstable
