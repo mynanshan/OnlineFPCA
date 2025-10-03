@@ -222,7 +222,6 @@ for (noise_sd in noiseList) {
       nIter.slowerdecay = floor(0.8 * nIter1pass),
       stepsize.decayrate.slow = 0.51,
       sgdtype = sgdtype,
-      # ada.start = 1,
       adareset = 20 * nBlockIter,
       adareset.end = Inf,
       asgd.start = 10 * nBlockIter,

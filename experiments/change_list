@@ -14,4 +14,23 @@ Lower bound for lambdaInit
 # Change of function arguments
 - no asgdIterStart/End
 - no adamIterStart/End
-- no asgd.use
+- no asgd.use, coord.scaling
+- stepsize = ifelse(sgdtype=="sgd", sgd_lr0, stepsize0),
+- stepsize.decayrate = 0.51
+- stepsize.decayrate.slow = 0.51
+- sgdtype = sgdtype,
+- adareset = 20 * nBlockIter,
+- adareset.end = Inf,
+- asgd.start = 10 * nBlockIter,
+- asgd.reset = 20 * nBlockIter,
+- asgd.reset.end = nIter1pass,
+- asgd.end = Inf,
+- nIter.tauNoIncrease = floor(0.3 * nIter1pass),
+- verbose = TRUE
+
+# rmse evaluation
+rmseAll <- rmse_phi(ThetaAll, phiTrueFunc$coefs, B)
+rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
+
+# Results saving
+- Method renaming, OnlineFPCA-`sgdtype`, OnlineCov

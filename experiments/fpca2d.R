@@ -48,10 +48,8 @@ nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 stepsize0 <- 0.5
 stepsize.min <- 1e-3
-sgd.step.scale <- 1 # use a smaller step size for sgd
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
-asgd.use <- TRUE
 
 exprmt <- "fpca2d"
 dirpath <- file.path("experiments", exprmt)
@@ -132,6 +130,8 @@ sqrtGinv <- sqrtmObj$Binv
 
 for (noise_sd in noiseList) {
 
+  message(">> noise = ", noise_sd)
+
   set.seed(seed)
   dat <- get_measurements(
     rp,
@@ -144,6 +144,8 @@ for (noise_sd in noiseList) {
     m_type = m_type,
     sigma = noise_sd
   )
+  tgrid <- dat$tgrid
+  B <- eval_basis(tgrid, basis)
 
   fdata_generator <- function(n, total_count) {
     idx <- (total_count):(total_count + n - 1) %% N + 1
@@ -154,8 +156,6 @@ for (noise_sd in noiseList) {
       Lmi = dat$Lmi[idx]
     )
   }
-  tgrid <- dat$tgrid
-  B <- eval_basis(tgrid, basis)
 
   # Online FPCA  ------------------------------------------------------------
 
@@ -263,8 +263,8 @@ for (noise_sd in noiseList) {
     sigma2 = sigma2Init
   )
 
-  for (optMethod in c("SGD", "Adam")) {
-    message("Method:", optMethod)
+  for (sgdtype in c("sgd", "adagrad")) {
+    message(">>> sgdtype = ", sgdtype)
 
     fit <- fpca.sgd(
       fdata_generator,
@@ -280,21 +280,24 @@ for (noise_sd in noiseList) {
       ),
       nbatch = nBatch,
       maxIter = nPass * nIter1pass,
-      stepsize = stepsize,
-      stepsize.decayrate = 0.6,
+      stepsize = ifelse(sgdtype=="sgd", sgd_lr0, stepsize0),
+      stepsize.decayrate = 0.51,
       stepsize.min = stepsize.min,
       nIter.slowerdecay = floor(0.8 * nIter1pass),
-      stepsize.decayrate.slow = 0.3,
-      nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
-      asgd.use = TRUE,
-      asgd.start = asgdIterStart,
-      coord.scaling = FALSE,
+      stepsize.decayrate.slow = 0.51,
+      sgdtype = sgdtype,
+      adareset = 20 * nBlockIter,
+      adareset.end = Inf,
+      asgd.start = 10 * nBlockIter,
+      asgd.reset = 20 * nBlockIter,
+      asgd.reset.end = nIter1pass,
+      asgd.end = Inf,
       nIter.1stTune = nRoundNoTune * nBlockIter,
       nIter.lastTune = nIter1pass,
-      nIter.tauNoIncrease = floor(0.7 * nIter1pass),
+      nIter.tauNoIncrease = floor(0.3 * nIter1pass),
       period.tune = nBlockIter,
       period.record = nBlockIter,
-      verbose = FALSE
+      verbose = TRUE
     )
 
     tau.min <- fit$tau.min
@@ -338,21 +341,13 @@ for (noise_sd in noiseList) {
       \(i) params$Theta[,, tau_path_id_extend[i], i],
       simplify = "array"
     )
-    rmseAll <- sapply(1:q, \(k) {
-      diffTheta <- sweep(ThetaAll[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-      diffPhi <- B %*% diffTheta
-      sqrt(colMeans(diffPhi^2))
-    })
+    rmseAll <- rmse_phi(ThetaAll, phiTrueFunc$coefs, B)
     ThetaAll.avg <- sapply(
       seq_along(fit$params.history$iter.params),
       \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
       simplify = "array"
     )
-    rmseAll.avg <- sapply(1:q, \(k) {
-      diffTheta <- sweep(ThetaAll.avg[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-      diffPhi <- B %*% diffTheta
-      sqrt(colMeans(diffPhi^2))
-    })
+    rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
 
     times <- c(
       colSums(fit$time.history[, 1:nIter1pass]),
@@ -366,8 +361,8 @@ for (noise_sd in noiseList) {
       data.frame(
         noise = noise_sd,
         seed = rep(seed, nRecord + 1),
-        Method = rep(paste0("Pspline-", optMethod), nRecord + 1),
-        StepSize = rep(stepsize, nRecord + 1),
+        Method = rep(paste0("OnlineFPCA-", sgdtype), nRecord + 1),
+        StepSize = rep(stepsize0, nRecord + 1),
         N = c(0, nIters),
         nBatch = rep(nBatch, nRecord + 1),
         Time = times,
