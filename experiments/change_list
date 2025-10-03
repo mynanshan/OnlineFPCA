@@ -1,0 +1,17 @@
+# change stepsize settings
+stepsize - stepsize0
+stepsize0 <- 0.5
+stepsize.min <- 1e-3
+define sgd_lr0
+remove all occurrence of `stepsize`
+
+# Move rp generation and common basis settings ahead of the loop
+set.seed before both rp and data generation
+
+# Safe initialization
+Lower bound for lambdaInit
+
+# Change of function arguments
+- no asgdIterStart/End
+- no adamIterStart/End
+- no asgd.use

@@ -35,7 +35,7 @@ mOpCov_path <- "external_codes/mOpCov/"
 source(paste0(mOpCov_path, "mOpCov_prep.R"))
 Rcpp::sourceCpp(paste0(mOpCov_path, "mOpCov_cpp.cpp"))
 
-noiseList <- c(0.1, 0.5, 1.0)
+noiseList <- c(0.1, 0.5, 1.)
 nBatch <- 5
 nParams <- 6
 nPass <- 5
@@ -46,8 +46,8 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize <- 2e-1
-stepsize.min <- 1e-1
+stepsize0 <- 0.5
+stepsize.min <- 1e-3
 sgd.step.scale <- 1 # use a smaller step size for sgd
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
@@ -79,38 +79,60 @@ res <- data.frame(
   RMSEphi3.avg = numeric()
 )
 
+set.seed(seed)
+
+rp <- get_rp.wang2020(alpha = 2)
+m_min <- NULL
+m_max <- NULL
+m_mean <- 25
+m_sd <- 6
+m_type <- "gaussian"
+
+t0 <- rp$t0
+t1 <- rp$t1
+D <- rp$ndim
+
+# evaluate true mean and eigenfunctions
+nevalList <- c(51, 51)
+neval <- prod(nevalList)
+evalGridList <- lapply(1:rp$ndim, \(d) {
+  seq(t0[d], t1[d], length.out = nevalList[d])
+})
+evalGrid <- margins2grid(evalGridList)
+muTrueEval <- rp$meanfun(evalGrid)
+PhiTrueEval <- rp$eigfun(evalGrid)
+lambdaTrue <- rp$eigval
+covTrueEval <- PhiTrueEval %*% diag(lambdaTrue) %*% t(PhiTrueEval)
+evalGridListSmall <- lapply(1:rp$ndim, \(d) {
+  seq(t0[d], t1[d], length.out = 21)
+})
+evalGridSmall <- margins2grid(evalGridListSmall)
+
+q <- npc <- 3
+
+# set B-spline basis
+nbasis1d <- 7
+basis <- TensorBasis(list(
+  create.bspline.basis(c(t0[1], t1[1]), nbasis = nbasis1d, norder = 4),
+  create.bspline.basis(c(t0[2], t1[2]), nbasis = nbasis1d, norder = 4)
+))
+p <- attr(basis, "nbasis")
+
+muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
+phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
+rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
+rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
+
+G <- get_basis_inprod_matrix(basis)
+Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
+Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
+sqrtmObj <- pracma::sqrtm(as.matrix(G))
+sqrtG <- sqrtmObj$B
+sqrtGinv <- sqrtmObj$Binv
+
 for (noise_sd in noiseList) {
+
   set.seed(seed)
-
-  rp <- get_rp.wang2020(alpha = 2)
-  m_min <- NULL
-  m_max <- NULL
-  m_mean <- 25
-  m_sd <- 6
-  m_type <- "gaussian"
-
-  t0 <- rp$t0
-  t1 <- rp$t1
-  D <- rp$ndim
-
-  # evaluate true mean and eigenfunctions
-  nevalList <- c(51, 51)
-  neval <- prod(nevalList)
-  evalGridList <- lapply(1:rp$ndim, \(d) {
-    seq(t0[d], t1[d], length.out = nevalList[d])
-  })
-  evalGrid <- margins2grid(evalGridList)
-  muTrueEval <- rp$meanfun(evalGrid)
-  PhiTrueEval <- rp$eigfun(evalGrid)
-  lambdaTrue <- rp$eigval
-  covTrueEval <- PhiTrueEval %*% diag(lambdaTrue) %*% t(PhiTrueEval)
-  evalGridListSmall <- lapply(1:rp$ndim, \(d) {
-    seq(t0[d], t1[d], length.out = 21)
-  })
-  evalGridSmall <- margins2grid(evalGridListSmall)
-
-  q <- npc <- 3
-
   dat <- get_measurements(
     rp,
     n = N,
@@ -133,23 +155,7 @@ for (noise_sd in noiseList) {
     )
   }
   tgrid <- dat$tgrid
-
-  # set B-spline basis
-  nbasis1d <- 7
-  basis <- TensorBasis(list(
-    create.bspline.basis(c(t0[1], t1[1]), nbasis = nbasis1d, norder = 4),
-    create.bspline.basis(c(t0[2], t1[2]), nbasis = nbasis1d, norder = 4)
-  ))
-  p <- attr(basis, "nbasis")
-
-  muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
-  phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
-  rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
-  rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
-
   B <- eval_basis(tgrid, basis)
-  G <- get_basis_inprod_matrix(basis)
-  Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
 
   # Online FPCA  ------------------------------------------------------------
 
@@ -240,10 +246,22 @@ for (noise_sd in noiseList) {
 
   nBlockIter <- nBlock / nBatch
   nIter1pass <- N / nBatch
-  asgdIterStart <- round(nRecord.1pass * 0.7 * nBlockIter)
-  adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 
-  inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
+  ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
+  grad_Theta_init <- objfun(
+    dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
+    ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
+  )$grad_Theta
+  grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
+  g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
+  sgd_lr0 <- stepsize0 / g_Theta_init_norm
+  message("> Step size = ", stepsize0)
+
+  inits <- list(
+    Theta = ThetaInit,
+    lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
+    sigma2 = sigma2Init
+  )
 
   for (optMethod in c("SGD", "Adam")) {
     message("Method:", optMethod)

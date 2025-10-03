@@ -183,12 +183,6 @@ for (noise_sd in noiseList) {
   nBlockIter <- nBlock / nBatch
   nIter1pass <- N / nBatch
 
-  inits <- list(
-    Theta = ThetaInit,
-    lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
-    sigma2 = sigma2Init
-  )
-
   ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
   grad_Theta_init <- objfun(
     dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
@@ -198,6 +192,12 @@ for (noise_sd in noiseList) {
   g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
   sgd_lr0 <- stepsize0 / g_Theta_init_norm
   message("> Step size = ", stepsize0)
+
+  inits <- list(
+    Theta = ThetaInit,
+    lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
+    sigma2 = sigma2Init
+  )
 
   for (sgdtype in c("sgd", "adagrad")) {
     message(">>> sgdtype = ", sgdtype)
