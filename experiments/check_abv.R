@@ -282,7 +282,7 @@ res <-
 
     data.frame(
       seed = seed,
-      Method = paste0("OnlineFPCA-", sgdtype),
+      Method = paste0("OnlineFPCA-adagrad"),
       epoch = seq_len(nPass),
       nBlock = nBlock,
       wBeta = ewmabv.beta,
