@@ -122,7 +122,8 @@ rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
 rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
 
 G <- get_basis_inprod_matrix(basis)
-Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
+GR <- chol(G)
+invG <- chol2inv(GR)
 Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
 sqrtmObj <- pracma::sqrtm(as.matrix(G))
 sqrtG <- sqrtmObj$B

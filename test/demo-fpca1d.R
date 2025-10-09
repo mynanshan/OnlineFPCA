@@ -25,6 +25,7 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
+stepsize0 <- 0.5
 stepsize.min <- 1e-3
 sgd.step.scale <- 1 # use a smaller step size for sgd
 nRoundNoTune <- 1
@@ -89,6 +90,7 @@ rmsePhiBest <- sqrt(colMeans(PhiTrueEval[,1:q] - eval_fd(evalGrid, phiTrueFunc)[
 B <- eval_basis(tgrid, basis)
 G <- get_basis_inprod_matrix(basis)
 GR <- Matrix::chol(G)
+invG <- chol2inv(GR)
 Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
 sqrtmObj <- pracma::sqrtm(as.matrix(G))
 sqrtG <- sqrtmObj$B
@@ -139,7 +141,7 @@ grad_Theta_init <- objfun(
 )$grad_Theta
 grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
 g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
-sgd_lr0 <- 0.5 / g_Theta_init_norm
+sgd_lr0 <- stepsize0 / g_Theta_init_norm
 
 nBlockIter <- nBlock / nBatch
 nIter1pass <- N / nBatch
@@ -157,6 +159,7 @@ inits <- list(
 # TODO: bad initialization of lambda significantly affect the performance
 #   does adagrad alleviate this issue?
 
+sgdtype <- "adam"
 
 fit <- fpca.sgd(
   fdata_generator,
@@ -178,13 +181,12 @@ fit <- fpca.sgd(
   # ),
   nbatch = nBatch,
   maxIter = nPass * nIter1pass,
-  stepsize = sgd_lr0,
+  stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
   stepsize.decayrate = 0.5,
   stepsize.min = stepsize.min,
   nIter.slowerdecay = floor(0.8 * nIter1pass),
   stepsize.decayrate.slow = 0.3,
-  sgdtype = "adagrad",
-  ada.start = 200,
+  sgdtype = sgdtype,
   adareset = 400,
   adareset.end = Inf,
   asgd.start = 200,
@@ -256,6 +258,9 @@ matplot(rmseAll, type="l")
 matplot(rmseAll.avg, type="l")
 
 # check opt landscape
+ThetaTrue = phiTrueFunc$coefs[,1:q]
+lambdaTrue
+sigma2true = noise_sd^2
 
 objfun(
   dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg,
@@ -287,7 +292,7 @@ Delta1 <- rnorm(p)
 tmp <- mapply(
   \(h) {
     Theta <- Theta.avg
-    Theta[,3] <- Theta[,3] + h * Delta1
+    Theta[,1] <- Theta[,1] + h * Delta1
     Theta <- manifold.Stiefel.retract(Theta, NULL, G)
     objfun(
     dat$Ly, dat$Ltid, Theta, lambda.avg, sigma2.avg,

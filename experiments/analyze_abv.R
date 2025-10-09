@@ -34,3 +34,4 @@ res <- res |>
   summarise_at(c("RMSEphi1.avg", "RMSEphi2.avg", "RMSEphi3.avg", "tau"), mean) |> 
   arrange(epoch, nBlock, wBeta) 
 
+res

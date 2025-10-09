@@ -1364,7 +1364,6 @@ vecHess_apply_wrapper <- function(x) {
   del_zeta <- x[(p*q+q+1):(p*q+q+1)]
   vha <- vecHess_apply(vh, Del_Th, del_eta, del_zeta, grad_Theta, TRUE)
   return(c(
-    # as.matrix(G %*% vha$H_Theta_Psi_Delta),
     vha$H_Theta_Psi_Delta,
     vha$H_eta_Psi_Delta,
     vha$H_zeta_Psi_Delta

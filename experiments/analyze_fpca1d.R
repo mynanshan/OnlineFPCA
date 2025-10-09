@@ -71,6 +71,11 @@ tabres <- ungroup(sumres) |>
     ),
     SumTime = round(SumTime, 1)
   ) |> 
+  rename(
+    RMSEphi1 = RMSEphi1.avg_mean,
+    RMSEphi2 = RMSEphi2.avg_mean,
+    RMSEphi3 = RMSEphi3.avg_mean
+  ) |> 
   relocate(epoch, .before = SumTime) |> 
   dplyr::select(-N)
 

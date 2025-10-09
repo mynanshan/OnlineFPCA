@@ -1,6 +1,6 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
-#SBATCH --job-name=fpca1d
-#SBATCH --output=logs/fpca1d_%j.out
+#SBATCH --job-name=ci-simu1d
+#SBATCH --output=logs/ci-simu1d_%j.out
 #SBATCH --time=3:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -203,7 +203,7 @@ for (noise_sd in noiseList) {
     sigma2 = sigma2Init
   )
 
-  for (sgdtype in c("sgd", "adagrad", "adam")) {
+  for (sgdtype in c("sgd", "adagrad")) {
     message(">>> sgdtype = ", sgdtype)
 
     fit <- fpca.sgd(

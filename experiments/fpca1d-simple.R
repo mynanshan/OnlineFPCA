@@ -155,10 +155,13 @@ rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
 B <- eval_basis(tgrid, basis)
 G <- get_basis_inprod_matrix(basis)
 GR <- Matrix::chol(G)
+invG <- chol2inv(GR)
 Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
 sqrtmObj <- pracma::sqrtm(as.matrix(G))
 sqrtG <- sqrtmObj$B
 sqrtGinv <- sqrtmObj$Binv
+
+perm <- get_commute_index(p, q)
 
 # Online FPCA  ------------------------------------------------------------
 
@@ -200,13 +203,6 @@ nBlockIter <- nBlock / nBatch
 nIter1pass <- N / nBatch
 asgdIterStart <- round(nRecord.1pass * 0.7 * nBlockIter)
 
-# inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
-inits <- list(
-  Theta = ThetaInit,
-  lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
-  sigma2 = sigma2Init
-)
-
 ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
 grad_Theta_init <- objfun(
   dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
@@ -216,6 +212,12 @@ grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
 g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
 stepsize <- sgd_lr0 <- 0.5 / g_Theta_init_norm
 message("> Step size = ", stepsize)
+
+inits <- list(
+  Theta = ThetaInit,
+  lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
+  sigma2 = sigma2Init
+)
 
 message(">>> sgdtype = ", sgdtype)
 
@@ -239,19 +241,20 @@ fit <- fpca.sgd(
   nIter.slowerdecay = floor(0.8 * nIter1pass),
   stepsize.decayrate.slow = 0.3,
   sgdtype = sgdtype,
-  ada.start = 200,
-  adareset = 400,
+  adareset = 20 * nBlockIter,
   adareset.end = Inf,
-  asgd.start = 200,
-  asgd.reset = 400,
+  asgd.start = 10 * nBlockIter,
+  asgd.reset = 20 * nBlockIter,
   asgd.reset.end = nIter1pass,
   asgd.end = Inf,
+  fpcCI = TRUE,
+  ci.start = 10 * nBlockIter,
   nIter.1stTune = nRoundNoTune * nBlockIter,
   nIter.lastTune = nIter1pass,
   nIter.tauNoIncrease = floor(0.3 * nIter1pass),
   period.tune = nBlockIter,
   period.record = nBlockIter,
-  verbose = FALSE
+  verbose = TRUE
 )
 
 tau.min <- fit$tau.min
@@ -309,6 +312,23 @@ times <- c(
 )
 times <- colSums(matrix(times, nrow = nBlockIter))
 times <- c(difftime(end_time.init, start_time.init, units = 'secs'), times)
+
+# check CIs
+CIs <- fit$CI
+ii <- 71
+par(mfrow=c(1,3))
+for (k in seq_len(q)) {
+  plot(
+    tgrid, CIs[,k,2,ii], type = 'l',
+    ylim = range(CIs[,,,ii]),
+    xlab="t", ylab=expression(phi[1]),
+    lwd = 2
+  )
+  lines(tgrid, CIs[,k,1,ii], lty = 2, lwd = 1.5, pch="+")
+  lines(tgrid, CIs[,k,3,ii], lty = 2, lwd = 1.5, pch="-")
+  lines(evalGrid, PhiTrueEval[,k], col=2, lwd = 2)
+}
+par(mfrow=c(1,1))
 
 res <- rbind(
   res,

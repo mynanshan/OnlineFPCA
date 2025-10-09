@@ -1,3 +1,4 @@
+# FIXME: deprecated
 arg <- commandArgs(trailingOnly = TRUE)
 seed0 <- as.numeric(arg[1])
 if (is.na(seed0)) {
