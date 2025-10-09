@@ -16,8 +16,16 @@ parser$add_argument(
   default = 1234,
   help = "Seed used for this experiment."
 )
+parser$add_argument(
+  "--compare",
+  type = "integer",
+  default = 1,
+  choices = c(0,1),
+  help = "Whether to run competing methods."
+)
 args <- parser$parse_args()
 seed <- as.integer(args[["seed"]])
+compare <- as.logical(args[["compare"]])
 
 library(fda)
 library(Matrix)
@@ -319,313 +327,317 @@ for (noise_sd in noiseList) {
     )
   }
 
-  # Online Cov --------------------------------------------------------------
-  message("Start OnlineCov ---------------")
+  if (compare) {
 
-  EV1 <- 100
-  EV2 <- 50
-  eval_mu <- seq(t0, t1, length.out = EV1) # grid for mean function
-  eval_gam_vec <- seq(t0, t1, length.out = EV2)
-  eval_gam_mat <- cbind(rep(eval_gam_vec, each = EV2), rep(eval_gam_vec, EV2)) # grid for cov function
-  Kmax <- round(N / nBlock) # total number of data blocks, 1000
+    # Online Cov --------------------------------------------------------------
+    message("Start OnlineCov ---------------")
 
-  fit.ll <- fpca.lpoly.online(
-    fdata_generator,
-    n = nBlock,
-    evalArgs = list(
-      EV1 = EV1,
-      EV2 = EV2,
-      t0 = t0,
-      t1 = t1,
-      eval_mu = eval_mu,
-      eval_gam_vec = eval_gam_vec,
-      eval_gam_mat = eval_gam_mat
-    ),
-    streamArgs = list(Kmax = Kmax),
-    L2 = nParams,
-    L1 = 1,
-    G = 0.5,
-    R = 1,
-    Mcl = 1,
-    optimal_C = FALSE,
-    C0 = 1,
-    verbose = FALSE,
-    period = 1
-  )
+    EV1 <- 100
+    EV2 <- 50
+    eval_mu <- seq(t0, t1, length.out = EV1) # grid for mean function
+    eval_gam_vec <- seq(t0, t1, length.out = EV2)
+    eval_gam_mat <- cbind(rep(eval_gam_vec, each = EV2), rep(eval_gam_vec, EV2)) # grid for cov function
+    Kmax <- round(N / nBlock) # total number of data blocks, 1000
 
-  # check eigenfunctions
-  PhiEstAll.ll <- sapply(
-    1:Kmax,
-    \(k) matrix(fit.ll$vecs[1:(npc * EV2), k], ncol = npc),
-    simplify = "array"
-  )
-  PhiEst.ll <- PhiEstAll.ll[,, Kmax]
-  lambdaEst.ll <- fit.ll$vals[1:npc, Kmax]
-  PhiEstFunc.ll <- smooth_basis(eval_gam_vec, PhiEst.ll, basis, lambda = 1e-10)
-  PhiEst.ll <- eval_fd(evalGrid, PhiEstFunc.ll)
-  PhiEst.ll <- flip_direc(PhiEst.ll, PhiTrueEval[, 1:npc])
-  PhiEstAll.ll[, attributes(PhiEst.ll)$flipped, ] <-
-    -PhiEstAll.ll[, attributes(PhiEst.ll)$flipped, ]
-
-  rmseAll.ll <- sapply(1:npc, \(k) {
-    Phik.ll <- PhiEstAll.ll[, k, ]
-    coefs <- smooth_basis(eval_gam_vec, Phik.ll, basis, lambda = 1e-10)$coefs
-    Phik.ll <- eval_fd(evalGrid, FuncData(coefs, basis))
-    is_flipped <- colMeans(sweep(Phik.ll, 1, PhiTrueEval[, k], "*")) < 0
-    Phik.ll[, is_flipped] <- -Phik.ll[, is_flipped]
-    sqrt(colMeans(sweep(Phik.ll, 1, PhiTrueEval[, k], "-")^2))
-  })
-
-  res <- rbind(
-    res,
-    data.frame(
-      noise = noise_sd,
-      seed = rep(seed, nRecord.1pass),
-      Method = rep("OnlineCov", nRecord.1pass),
-      StepSize = rep(NA, nRecord.1pass),
-      N = nIters.1pass,
-      Ninit = rep(NA, nRecord.1pass),
-      initMethod = rep(NA, nRecord.1pass),
-      npc = rep(npc, nRecord.1pass),
-      nBatch = rep(NA, nRecord.1pass),
-      Time = fit.ll$time,
-      RMSEphi1 = rmseAll.ll[, 1],
-      RMSEphi2 = rmseAll.ll[, 2],
-      RMSEphi3 = rmseAll.ll[, 3],
-      RMSEphi1.avg = rmseAll.ll[, 1],
-      RMSEphi2.avg = rmseAll.ll[, 2],
-      RMSEphi3.avg = rmseAll.ll[, 3]
+    fit.ll <- fpca.lpoly.online(
+      fdata_generator,
+      n = nBlock,
+      evalArgs = list(
+        EV1 = EV1,
+        EV2 = EV2,
+        t0 = t0,
+        t1 = t1,
+        eval_mu = eval_mu,
+        eval_gam_vec = eval_gam_vec,
+        eval_gam_mat = eval_gam_mat
+      ),
+      streamArgs = list(Kmax = Kmax),
+      L2 = nParams,
+      L1 = 1,
+      G = 0.5,
+      R = 1,
+      Mcl = 1,
+      optimal_C = FALSE,
+      C0 = 1,
+      verbose = FALSE,
+      period = 1
     )
-  )
 
-  # Batch method 1: PACE ----------------------------------------------------
-
-  batch_start <- Sys.time()
-  fitBatch <- fdapace::FPCA(
-    dat$Ly,
-    dat$Lt,
-    optns = list(
-      dataType = "Sparse",
-      nRegGrid = neval,
-      userMu = list(t = evalGrid, mu = muTrueEval),
-      methodBwCov = "GMeanAndGCV"
+    # check eigenfunctions
+    PhiEstAll.ll <- sapply(
+      1:Kmax,
+      \(k) matrix(fit.ll$vecs[1:(npc * EV2), k], ncol = npc),
+      simplify = "array"
     )
-  )
-  muBatchEval <- fitBatch$mu
-  theta_muBatch <- smooth_basis(
-    evalGrid,
-    muBatchEval,
-    basis,
-    lambda = 1e-10
-  )$coefs
-  eig <- RSpectra::eigs_sym(fitBatch$smoothedCov, npc)
-  PhiBatchEval <- flip_direc(eig$vectors, PhiTrueEval[, 1:npc])
-  ThetaBatch <- smooth_basis(
-    evalGrid,
-    PhiBatchEval,
-    basis,
-    lambda = 1e-10
-  )$coefs
-  norm_factor <- diag(t(ThetaBatch) %*% G %*% ThetaBatch)
-  ThetaBatch <- sweep(ThetaBatch, 2, sqrt(norm_factor), "/")
-  lambdaBatch <- eig$values
-  sigma2Batch <- fitBatch$sigma2
-  batch_end <- Sys.time()
-  PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
-  PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[, 1:npc, drop = F])
-  rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:npc])^2))
-  res <- rbind(
-    res,
-    data.frame(
-      noise = noise_sd,
-      seed = seed,
-      Method = "Batch-PACE",
-      StepSize = NA,
-      N = N,
-      Ninit = NA,
-      initMethod = NA,
-      npc = npc,
-      nBatch = N,
-      Time = difftime(batch_end, batch_start, units = 'secs'),
-      RMSEphi1 = rmseBatch[1],
-      RMSEphi2 = rmseBatch[2],
-      RMSEphi3 = rmseBatch[3],
-      RMSEphi1.avg = rmseBatch[1],
-      RMSEphi2.avg = rmseBatch[2],
-      RMSEphi3.avg = rmseBatch[3]
-    )
-  )
+    PhiEst.ll <- PhiEstAll.ll[,, Kmax]
+    lambdaEst.ll <- fit.ll$vals[1:npc, Kmax]
+    PhiEstFunc.ll <- smooth_basis(eval_gam_vec, PhiEst.ll, basis, lambda = 1e-10)
+    PhiEst.ll <- eval_fd(evalGrid, PhiEstFunc.ll)
+    PhiEst.ll <- flip_direc(PhiEst.ll, PhiTrueEval[, 1:npc])
+    PhiEstAll.ll[, attributes(PhiEst.ll)$flipped, ] <-
+      -PhiEstAll.ll[, attributes(PhiEst.ll)$flipped, ]
 
-  # Batch method 2: FACE ----------------------------------------------------
+    rmseAll.ll <- sapply(1:npc, \(k) {
+      Phik.ll <- PhiEstAll.ll[, k, ]
+      coefs <- smooth_basis(eval_gam_vec, Phik.ll, basis, lambda = 1e-10)$coefs
+      Phik.ll <- eval_fd(evalGrid, FuncData(coefs, basis))
+      is_flipped <- colMeans(sweep(Phik.ll, 1, PhiTrueEval[, k], "*")) < 0
+      Phik.ll[, is_flipped] <- -Phik.ll[, is_flipped]
+      sqrt(colMeans(sweep(Phik.ll, 1, PhiTrueEval[, k], "-")^2))
+    })
 
-  tmpdat <- data.frame(
-    argvals = unlist(dat$Lt),
-    subj = rep(1:N, dat$Lmi),
-    y = unlist(dat$Ly)
-  )
-  batch_start <- Sys.time()
-  fitBatch <- face::face.sparse(
-    tmpdat,
-    center = FALSE,
-    argvals.new = evalGrid,
-    knots = p
-  )
-  muBatchEval <- fitBatch$mu.new
-  theta_muBatch <- smooth_basis(
-    evalGrid,
-    muBatchEval,
-    basis,
-    lambda = 1e-10
-  )$coefs
-  eig <- RSpectra::eigs_sym(fitBatch$Chat.new, npc)
-  PhiBatchEval <- flip_direc(eig$vectors, PhiTrueEval[, 1:npc])
-  ThetaBatch <- smooth_basis(
-    evalGrid,
-    PhiBatchEval,
-    basis,
-    lambda = 1e-10
-  )$coefs
-  lambdaBatch <- eig$values
-  sigma2Batch <- fitBatch$sigma2
-  norm_factor <- diag(t(ThetaBatch) %*% G %*% ThetaBatch)
-  ThetaBatch <- sweep(ThetaBatch, 2, sqrt(norm_factor), "/")
-  lambdaBatch <- lambdaBatch * norm_factor
-  PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
-  batch_end <- Sys.time()
-  PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
-  PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[, 1:npc, drop = F])
-  rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:npc])^2))
-  res <- rbind(
-    res,
-    data.frame(
-      noise = noise_sd,
-      seed = seed,
-      Method = "Batch-FACE",
-      StepSize = NA,
-      N = N,
-      Ninit = NA,
-      initMethod = NA,
-      npc = npc,
-      nBatch = N,
-      Time = difftime(batch_end, batch_start, units = 'secs'),
-      # AV = fit0$av,
-      # EWMABV = fit0$ewmabv,
-      RMSEphi1 = rmseBatch[1],
-      RMSEphi2 = rmseBatch[2],
-      RMSEphi3 = rmseBatch[3],
-      RMSEphi1.avg = rmseBatch[1],
-      RMSEphi2.avg = rmseBatch[2],
-      RMSEphi3.avg = rmseBatch[3]
+    res <- rbind(
+      res,
+      data.frame(
+        noise = noise_sd,
+        seed = rep(seed, nRecord.1pass),
+        Method = rep("OnlineCov", nRecord.1pass),
+        StepSize = rep(NA, nRecord.1pass),
+        N = nIters.1pass,
+        Ninit = rep(NA, nRecord.1pass),
+        initMethod = rep(NA, nRecord.1pass),
+        npc = rep(npc, nRecord.1pass),
+        nBatch = rep(NA, nRecord.1pass),
+        Time = fit.ll$time,
+        RMSEphi1 = rmseAll.ll[, 1],
+        RMSEphi2 = rmseAll.ll[, 2],
+        RMSEphi3 = rmseAll.ll[, 3],
+        RMSEphi1.avg = rmseAll.ll[, 1],
+        RMSEphi2.avg = rmseAll.ll[, 2],
+        RMSEphi3.avg = rmseAll.ll[, 3]
+      )
     )
-  )
 
-  # Batch method 3: REML ----------------------------------------------------
-  tmpdat <- cbind(rep(1:N, dat$Lmi), unlist(dat$Ly), unlist(dat$Lt))
-  batch_start <- Sys.time()
-  fitBatch <- fpca::fpca.mle(
-    tmpdat,
-    M.set = c(5:9),
-    r.set = npc,
-    ini.method = "loc",
-    basis.method = "bs",
-    max.step = 50,
-    grid.l = evalGrid,
-    grids = evalGrid
-  )
-  muBatchEval <- fitBatch$fitted_mean
-  theta_muBatch <- smooth_basis(
-    evalGrid,
-    muBatchEval,
-    basis,
-    lambda = 1e-10
-  )$coefs
-  PhiBatchEval <- flip_direc(t(fitBatch$eigenfunctions), PhiTrueEval[, 1:npc])
-  ThetaBatch <- smooth_basis(
-    evalGrid,
-    PhiBatchEval,
-    basis,
-    lambda = 1e-10
-  )$coefs
-  lambdaBatch <- fitBatch$eigenvalues
-  norm_factor <- diag(t(ThetaBatch) %*% G %*% ThetaBatch)
-  ThetaBatch <- sweep(ThetaBatch, 2, sqrt(norm_factor), "/")
-  lambdaBatch <- lambdaBatch * norm_factor
-  PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
-  sigma2Batch <- unname(fitBatch$error_var)
-  batch_end <- Sys.time()
-  PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
-  PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[, 1:npc, drop = F])
-  rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:npc])^2))
-  res <- rbind(
-    res,
-    data.frame(
-      noise = noise_sd,
-      seed = seed,
-      Method = "Batch-REML",
-      StepSize = NA,
-      N = N,
-      Ninit = NA,
-      initMethod = NA,
-      npc = npc,
-      nBatch = N,
-      Time = difftime(batch_end, batch_start, units = 'secs'),
-      # AV = fit0$av,
-      # EWMABV = fit0$ewmabv,
-      RMSEphi1 = rmseBatch[1],
-      RMSEphi2 = rmseBatch[2],
-      RMSEphi3 = rmseBatch[3],
-      RMSEphi1.avg = rmseBatch[1],
-      RMSEphi2.avg = rmseBatch[2],
-      RMSEphi3.avg = rmseBatch[3]
-    )
-  )
+    # Batch method 1: PACE ----------------------------------------------------
 
-  # Batch method 4: SOAP ------------------------------------------
-  batch_start <- Sys.time()
-  fitBatch <- fpca.reg(
-    dat$Ly,
-    dat$Ltid,
-    inits,
-    meanfun = FALSE,
-    npc = 3,
-    maxIter = 100,
-    nu = 1,
-    verbose = FALSE,
-    record_iterations = TRUE,
-    tau = 10^seq(-3, -1, 0.5),
-    use_validation_set = FALSE,
-    refine_alpha = FALSE
-  )
-  ThetaBatch <- fitBatch$Theta
-  muBatchEval <- eval_fd(evalGrid, FuncData(fitBatch$theta_mu, basis))
-  PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
-  PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[, 1:npc, drop = F])
-  batch_end <- Sys.time()
-  rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:npc])^2))
-  res <- rbind(
-    res,
-    data.frame(
-      noise = noise_sd,
-      seed = seed,
-      Method = "Batch-SOAP",
-      StepSize = NA,
-      N = N,
-      Ninit = NA,
-      initMethod = NA,
-      npc = npc,
-      nBatch = N,
-      Time = difftime(batch_end, batch_start, units = 'secs') +
-        difftime(end_time.init, start_time.init, units = 'secs'),
-      # AV = fit0$av,
-      # EWMABV = fit0$ewmabv,
-      RMSEphi1 = rmseBatch[1],
-      RMSEphi2 = rmseBatch[2],
-      RMSEphi3 = rmseBatch[3],
-      RMSEphi1.avg = rmseBatch[1],
-      RMSEphi2.avg = rmseBatch[2],
-      RMSEphi3.avg = rmseBatch[3]
+    batch_start <- Sys.time()
+    fitBatch <- fdapace::FPCA(
+      dat$Ly,
+      dat$Lt,
+      optns = list(
+        dataType = "Sparse",
+        nRegGrid = neval,
+        userMu = list(t = evalGrid, mu = muTrueEval),
+        methodBwCov = "GMeanAndGCV"
+      )
     )
-  )
+    muBatchEval <- fitBatch$mu
+    theta_muBatch <- smooth_basis(
+      evalGrid,
+      muBatchEval,
+      basis,
+      lambda = 1e-10
+    )$coefs
+    eig <- RSpectra::eigs_sym(fitBatch$smoothedCov, npc)
+    PhiBatchEval <- flip_direc(eig$vectors, PhiTrueEval[, 1:npc])
+    ThetaBatch <- smooth_basis(
+      evalGrid,
+      PhiBatchEval,
+      basis,
+      lambda = 1e-10
+    )$coefs
+    norm_factor <- diag(t(ThetaBatch) %*% G %*% ThetaBatch)
+    ThetaBatch <- sweep(ThetaBatch, 2, sqrt(norm_factor), "/")
+    lambdaBatch <- eig$values
+    sigma2Batch <- fitBatch$sigma2
+    batch_end <- Sys.time()
+    PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
+    PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[, 1:npc, drop = F])
+    rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:npc])^2))
+    res <- rbind(
+      res,
+      data.frame(
+        noise = noise_sd,
+        seed = seed,
+        Method = "Batch-PACE",
+        StepSize = NA,
+        N = N,
+        Ninit = NA,
+        initMethod = NA,
+        npc = npc,
+        nBatch = N,
+        Time = difftime(batch_end, batch_start, units = 'secs'),
+        RMSEphi1 = rmseBatch[1],
+        RMSEphi2 = rmseBatch[2],
+        RMSEphi3 = rmseBatch[3],
+        RMSEphi1.avg = rmseBatch[1],
+        RMSEphi2.avg = rmseBatch[2],
+        RMSEphi3.avg = rmseBatch[3]
+      )
+    )
+
+    # Batch method 2: FACE ----------------------------------------------------
+
+    tmpdat <- data.frame(
+      argvals = unlist(dat$Lt),
+      subj = rep(1:N, dat$Lmi),
+      y = unlist(dat$Ly)
+    )
+    batch_start <- Sys.time()
+    fitBatch <- face::face.sparse(
+      tmpdat,
+      center = FALSE,
+      argvals.new = evalGrid,
+      knots = p
+    )
+    muBatchEval <- fitBatch$mu.new
+    theta_muBatch <- smooth_basis(
+      evalGrid,
+      muBatchEval,
+      basis,
+      lambda = 1e-10
+    )$coefs
+    eig <- RSpectra::eigs_sym(fitBatch$Chat.new, npc)
+    PhiBatchEval <- flip_direc(eig$vectors, PhiTrueEval[, 1:npc])
+    ThetaBatch <- smooth_basis(
+      evalGrid,
+      PhiBatchEval,
+      basis,
+      lambda = 1e-10
+    )$coefs
+    lambdaBatch <- eig$values
+    sigma2Batch <- fitBatch$sigma2
+    norm_factor <- diag(t(ThetaBatch) %*% G %*% ThetaBatch)
+    ThetaBatch <- sweep(ThetaBatch, 2, sqrt(norm_factor), "/")
+    lambdaBatch <- lambdaBatch * norm_factor
+    PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
+    batch_end <- Sys.time()
+    PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
+    PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[, 1:npc, drop = F])
+    rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:npc])^2))
+    res <- rbind(
+      res,
+      data.frame(
+        noise = noise_sd,
+        seed = seed,
+        Method = "Batch-FACE",
+        StepSize = NA,
+        N = N,
+        Ninit = NA,
+        initMethod = NA,
+        npc = npc,
+        nBatch = N,
+        Time = difftime(batch_end, batch_start, units = 'secs'),
+        # AV = fit0$av,
+        # EWMABV = fit0$ewmabv,
+        RMSEphi1 = rmseBatch[1],
+        RMSEphi2 = rmseBatch[2],
+        RMSEphi3 = rmseBatch[3],
+        RMSEphi1.avg = rmseBatch[1],
+        RMSEphi2.avg = rmseBatch[2],
+        RMSEphi3.avg = rmseBatch[3]
+      )
+    )
+
+    # Batch method 3: REML ----------------------------------------------------
+    tmpdat <- cbind(rep(1:N, dat$Lmi), unlist(dat$Ly), unlist(dat$Lt))
+    batch_start <- Sys.time()
+    fitBatch <- fpca::fpca.mle(
+      tmpdat,
+      M.set = c(5:9),
+      r.set = npc,
+      ini.method = "loc",
+      basis.method = "bs",
+      max.step = 50,
+      grid.l = evalGrid,
+      grids = evalGrid
+    )
+    muBatchEval <- fitBatch$fitted_mean
+    theta_muBatch <- smooth_basis(
+      evalGrid,
+      muBatchEval,
+      basis,
+      lambda = 1e-10
+    )$coefs
+    PhiBatchEval <- flip_direc(t(fitBatch$eigenfunctions), PhiTrueEval[, 1:npc])
+    ThetaBatch <- smooth_basis(
+      evalGrid,
+      PhiBatchEval,
+      basis,
+      lambda = 1e-10
+    )$coefs
+    lambdaBatch <- fitBatch$eigenvalues
+    norm_factor <- diag(t(ThetaBatch) %*% G %*% ThetaBatch)
+    ThetaBatch <- sweep(ThetaBatch, 2, sqrt(norm_factor), "/")
+    lambdaBatch <- lambdaBatch * norm_factor
+    PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
+    sigma2Batch <- unname(fitBatch$error_var)
+    batch_end <- Sys.time()
+    PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
+    PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[, 1:npc, drop = F])
+    rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:npc])^2))
+    res <- rbind(
+      res,
+      data.frame(
+        noise = noise_sd,
+        seed = seed,
+        Method = "Batch-REML",
+        StepSize = NA,
+        N = N,
+        Ninit = NA,
+        initMethod = NA,
+        npc = npc,
+        nBatch = N,
+        Time = difftime(batch_end, batch_start, units = 'secs'),
+        # AV = fit0$av,
+        # EWMABV = fit0$ewmabv,
+        RMSEphi1 = rmseBatch[1],
+        RMSEphi2 = rmseBatch[2],
+        RMSEphi3 = rmseBatch[3],
+        RMSEphi1.avg = rmseBatch[1],
+        RMSEphi2.avg = rmseBatch[2],
+        RMSEphi3.avg = rmseBatch[3]
+      )
+    )
+
+    # Batch method 4: SOAP ------------------------------------------
+    batch_start <- Sys.time()
+    fitBatch <- fpca.reg(
+      dat$Ly,
+      dat$Ltid,
+      inits,
+      meanfun = FALSE,
+      npc = 3,
+      maxIter = 100,
+      nu = 1,
+      verbose = FALSE,
+      record_iterations = TRUE,
+      tau = 10^seq(-3, -1, 0.5),
+      use_validation_set = FALSE,
+      refine_alpha = FALSE
+    )
+    ThetaBatch <- fitBatch$Theta
+    muBatchEval <- eval_fd(evalGrid, FuncData(fitBatch$theta_mu, basis))
+    PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
+    PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[, 1:npc, drop = F])
+    batch_end <- Sys.time()
+    rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:npc])^2))
+    res <- rbind(
+      res,
+      data.frame(
+        noise = noise_sd,
+        seed = seed,
+        Method = "Batch-SOAP",
+        StepSize = NA,
+        N = N,
+        Ninit = NA,
+        initMethod = NA,
+        npc = npc,
+        nBatch = N,
+        Time = difftime(batch_end, batch_start, units = 'secs') +
+          difftime(end_time.init, start_time.init, units = 'secs'),
+        # AV = fit0$av,
+        # EWMABV = fit0$ewmabv,
+        RMSEphi1 = rmseBatch[1],
+        RMSEphi2 = rmseBatch[2],
+        RMSEphi3 = rmseBatch[3],
+        RMSEphi1.avg = rmseBatch[1],
+        RMSEphi2.avg = rmseBatch[2],
+        RMSEphi3.avg = rmseBatch[3]
+      )
+    )
+
+  }
 }
 
 
