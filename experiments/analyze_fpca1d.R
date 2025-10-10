@@ -45,7 +45,8 @@ N1 = 5000
 
 # PACE is optimized by C codes. Performance too different
 meth_ord = c(
-  "OnlineFPCA-sgd", "OnlineFPCA-adagrad", "OnlineCov",
+  paste0("OnlineFPCA-", c("sgd", "adagrad", "adam")),
+  "OnlineCov",
   "Batch-PACE", "Batch-FACE", "Batch-REML", "Batch-SOAP"
 )
 
@@ -63,6 +64,7 @@ tabres <- ungroup(sumres) |>
     Method = case_match(Method,
       "OnlineFPCA-sgd" ~ "OnlineFPCA-RSGD",
       "OnlineFPCA-adagrad" ~ "OnlineFPCA-RAdagrad",
+      "OnlineFPCA-adam" ~ "OnlineFPCA-RAdam",
       "OnlineCov" ~ "OnlineCov",
       "Batch-PACE" ~ "PACE",
       "Batch-FACE" ~ "FACE",

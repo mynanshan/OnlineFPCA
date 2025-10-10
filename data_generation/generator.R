@@ -102,6 +102,7 @@ get_rp.wang2020 <- function(r1 = 3, r2 = 2, alpha = 2, lambda0 = 1) {
   npc <- r1 * r2
   t0 <- c(0, 0); t1 <- c(1, 1)
   mu <- function(X) {return(rep(0, nrow(X)))}
+  # eigval <- lambda0 * (1:npc)^(-alpha)
   eigval <- lambda0 * exp(-(0:(npc-1)) * log(alpha))
   eigfun <- local({
     efun <- function(x, r) {
