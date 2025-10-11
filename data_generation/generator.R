@@ -114,9 +114,12 @@ get_rp.wang2020 <- function(r1 = 3, r2 = 2, alpha = 2, lambda0 = 1) {
       psi2 <- efun(X[,2], r2)
       phimat <- matrix(nrow = N, ncol = npc)
       for (k in 1:npc) {
-        i <- (k-1) %/% r2 + 1
-        j <- (k-1) %% r2 + 1
-        phimat[,k] <- psi1[,i] * psi2[,j]
+        # i <- (k-1) %/% r2 + 1
+        # j <- (k-1) %% r2 + 1
+        i <- (k-1) %/% r1 + 1
+        j <- (k-1) %% r1 + 1
+        # phimat[,k] <- psi1[,i] * psi2[,j]
+        phimat[,k] <- psi1[,j] * psi2[,i]
       }
       return(phimat)
     }

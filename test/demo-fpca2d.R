@@ -10,11 +10,13 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
+seed <- 23
+
 mOpCov_path <- "external_codes/mOpCov/"
 source(paste0(mOpCov_path, "mOpCov_prep.R"))
 Rcpp::sourceCpp(paste0(mOpCov_path, "mOpCov_cpp.cpp"))
 
-noise_sd <- 0.5
+noise_sd <- 0.1
 nBatch <- 5
 nParams <- 6
 nPass <- 3
@@ -56,7 +58,6 @@ res <- data.frame(
   RMSEphi3.avg = numeric()
 )
 
-seed <- 1
 set.seed(seed)
 
 rp <- get_rp.wang2020(alpha = 2)
@@ -100,6 +101,9 @@ muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
 phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
 rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
 rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
+
+ThetaTrue = phiTrueFunc$coefs[,1:q]
+sigma2true = noise_sd^2
 
 G <- get_basis_inprod_matrix(basis)
 GR <- chol(G)
@@ -189,9 +193,19 @@ CovRes <- mOpCov(
   lam = list(lam = 1e-10, alpha = 1e-6),
   ker = "cos"
 )
+# CovRes <- mOpCov(
+#   location = Tinit,
+#   x = Yinit,
+#   subject = subject_ids,
+#   q = c(8, 8),
+#   lam = list(lam = 1e-10, alpha = 1e-6),
+#   # ker = "cos",
+#   ker = "sob",
+#   control = list(Mmethod = "eig")
+# )
 FpcaOut <- fpca.mOpCov(OUT = CovRes)
-lambdaInit <- FpcaOut$Eigen$values[1:q]
 PhiInitEvalFull <- computeEigen(evalGrid, CovRes, FpcaOut)
+lambdaInit <- FpcaOut$Eigen$values[1:q]
 PhiInitEval <- PhiInitEvalFull[, 1:q]
 ThetaInit <- smooth_basis(
   evalGrid,
@@ -232,8 +246,8 @@ grad_Theta_init <- objfun(
   ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
 )$grad_Theta
 grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
-# g_Theta_init_norm <- sqrt(mean(colSums(grad_Theta_init * G %*% grad_Theta_init)))
-g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
+g_Theta_init_norm <- sqrt(mean(colSums(grad_Theta_init * G %*% grad_Theta_init)))
+# g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
 sgd_lr0 <- stepsize0 / g_Theta_init_norm
 message("> Step size = ", stepsize0)
 
@@ -243,6 +257,11 @@ inits <- list(
   # sigma2 = min(sigma2Init, 1e-2)
   sigma2 = sigma2Init
 )
+# inits <- list(
+#   Theta = ThetaTrue[,1:q] + rnorm(p*q, 0, 1e-2),
+#   lambda = lambdaTrue[1:q] * exp(rnorm(q, 0, 1e-2)),
+#   sigma2 = sigma2true * exp(rnorm(1, 0, 1e-2))
+# )
 
 sgdtype <- "adam"
 
@@ -264,7 +283,7 @@ fit <- fpca.sgd(
   maxIter = nPass * nIter1pass,
   stepsize = if(sgdtype %in% c("sgd", "sgdm")) {
     sgd_lr0
-  } else if (sgdtype %in% c("adagrad", "adam", "rasa")) {
+  } else {
     stepsize0
   },
   stepsize.decayrate = 0.51, # 0.51,
@@ -276,7 +295,7 @@ fit <- fpca.sgd(
   adamw = TRUE,
   adam.rescale = TRUE,
   adareset = 10 * nBlockIter,
-  adareset.end = nIter1pass,
+  adareset.end = Inf, # nIter1pass,
   asgd.start = 10 * nBlockIter,
   asgd.reset = 20 * nBlockIter,
   asgd.reset.end = nIter1pass,
@@ -344,9 +363,6 @@ rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
 matplot(rmseAll, type="l")
 matplot(rmseAll.avg, type="l")
 
-ThetaTrue = phiTrueFunc$coefs[,1:q]
-lambdaTrue
-sigma2true = noise_sd^2
 
 objfun(
   dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg,
@@ -378,7 +394,7 @@ Delta1 <- rnorm(p)
 tmp <- mapply(
   \(h) {
     Theta <- Theta.avg
-    Theta[,1] <- Theta[,1] + h * Delta1
+    Theta[,2] <- Theta[,2] + h * Delta1
     Theta <- manifold.Stiefel.retract(Theta, NULL, G)
     objfun(
     dat$Ly, dat$Ltid, Theta, lambda.avg, sigma2.avg,

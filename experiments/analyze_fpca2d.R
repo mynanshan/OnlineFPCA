@@ -43,7 +43,7 @@ N1 = 5000
 N0 <- N1 * (1:q)
 
 # PACE is optimized by C codes. Performance too different
-meth_ord = c("OnlineFPCA-sgd", "OnlineFPCA-adagrad", "Batch-SOAP")
+meth_ord = c("OnlineFPCA-sgd", "OnlineFPCA-adagrad", "OnlineFPCA-adam", "Batch-SOAP")
 
 tabres <- ungroup(sumres) |>
   filter(stringr::str_detect(Method, "Batch") | N %in% N0) |>
@@ -59,6 +59,7 @@ tabres <- ungroup(sumres) |>
     Method = case_match(Method,
       "OnlineFPCA-sgd" ~ "OnlineFPCA-RSGD",
       "OnlineFPCA-adagrad" ~ "OnlineFPCA-RAdagrad",
+      "OnlineFPCA-adam" ~ "OnlineFPCA-RAdam",
       "Batch-SOAP" ~ "SOAP"
     ),
     SumTime = round(SumTime, 1)
@@ -72,3 +73,23 @@ tabres <- ungroup(sumres) |>
   dplyr::select(-N)
 
 knitr::kable(tabres, "latex", digits = 3)
+
+library(ggplot2)
+
+ggplot(
+  data = res |> 
+    rename(
+      phi1 = RMSEphi1.avg,
+      phi2 = RMSEphi2.avg,
+      phi3 = RMSEphi3.avg
+    ) |>
+    filter(N == N0 * 5) |> 
+    pivot_longer(
+      cols = paste0("phi", 1:3),
+      names_to = "phi",
+      values_to = "rmse"
+    ),
+  aes(x = rmse)
+) +
+  geom_histogram(bins = 30) +
+  facet_grid(Method ~ phi)
