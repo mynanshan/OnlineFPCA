@@ -48,7 +48,7 @@ stepsize.min <- 1e-3
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
 
-exprmt <- "fpca1d"
+exprmt <- "ci1d"
 dirpath <- file.path("experiments", exprmt)
 if (!dir.exists(dirpath)) {
   dir.create(dirpath, recursive = TRUE)
@@ -227,7 +227,7 @@ for (noise_sd in noiseList) {
 
     CIs <- fit$CI
 
-    saveRDS(CIs, file.path(dirpath, paste0(filebasename, "_", sgdtype, "rds")))
+    saveRDS(CIs, file.path(dirpath, paste0(filebasename, "_", sgdtype, ".rds")))
 
   }
 
