@@ -16,12 +16,17 @@ fpca.sgd <- function(
   stepsize.min = 0,
   nIter.slowerdecay = floor(0.5 * maxIter),
   stepsize.decayrate.slow = 0,
+  dynlr = FALSE,
+  dynlrCtrl = NULL,
+  dynlr.end = 200,
   sgdtype = c(
     "sgd",
     "sgdm",
     "adagrad",
     "adam",
     "adam0",
+    "adagrad2",
+    "adam2",
     "rasa"
   ),
   beta1 = 0.9,
@@ -37,7 +42,6 @@ fpca.sgd <- function(
   asgd.end = Inf,
   weight = c("obs", "subj"),
   fpcCI = FALSE,
-  ci.start = 1,
   nIter.1stTune = floor(0.1 * maxIter),
   nIter.lastTune = maxIter,
   period.tune = 100,
@@ -230,6 +234,16 @@ fpca.sgd <- function(
   # exponential moving average of updating directions' norms
   ewadn <- numeric(ntau)
 
+  # step size settings
+  # TODO: implement the dynamic learning rate
+  if (dynlr) {
+    if (is.null(dynlrCtrl)) {
+      dynlrCtrl <- list(niter = NULL, refdn = NULL)
+    }
+    if (is.null(dynlrCtrl$niter)) dynlrCtrl$niter <- 200
+    if (is.null(dynlrCtrl$refdn)) dynlrCtrl$refdn <- 0.5
+  }
+
   # ABV accumulators for dynamic tuning
   av <- numeric(ntau) # averaged one-function validation score
   ewmabv <- numeric(ntau) # averaged block validation score
@@ -245,6 +259,8 @@ fpca.sgd <- function(
 
   # record number of samples processed
   total_count <- 0
+
+  # record some debugging info
   check <- list(
     grad_norms = c(),
     direc_norms = c(),
@@ -443,6 +459,7 @@ fpca.sgd <- function(
           G
         ))
       }
+      # TODO: testing ewadn. This looks like a dirty fix. Can we get rid of it?
       if (stringr::str_detect(sgdtype, "adam")) {
         mn_dTheta <- sum(direc[['Theta']] * G %*% direc[['Theta']]) / q
         ewadn[l] <- ifelse(
@@ -454,9 +471,10 @@ fpca.sgd <- function(
       }
 
       # store information for CIs
-      if (fpcCI && i >= ci.start && l == 1) {
+      # CI's accumulation should be subject to the restart of ASGD
+      if (fpcCI && i >= asgd.start && i <= asgd.end && l == 1) {
         # Only use l==1 for CI computation
-        ii <- i - ci.start  # num of mini-batches used for CIs
+        ii <- asgd_counter  # num of mini-batches used for CIs
         # accumulate Euclidean gradients
         for (gname in names(ge)) {
           ge[[gname]] <- ge[[gname]] * ii / (ii + 1) +
@@ -472,38 +490,35 @@ fpca.sgd <- function(
           vh[[vname]] <- vh[[vname]] * ii / (ii + 1) +
             vhi[[vname]] / (ii + 1)
         }
+        curr_Theta <- asl(Theta.avg, 1)
+        Delta_Th <- manifold.Stiefel.project(
+          ge$grad_Theta, curr_Theta, G
+        )
+        # TODO: compute inverse Hessian, switch to a CG solver
+        vecGrad <- c(Delta_Th, ge$grad_eta, ge$grad_zeta)
+        opres <- suppressWarnings(
+          gslnls::gsl_nls(
+            fn = \(x) vecHess_apply_wrapper(x, vh, curr_Theta, grad_Theta),
+            y = vecGrad,
+            start = vecGrad
+          )
+        )
+        vsol <- vecProj(opres$m$getPars(), curr_Theta)
+        V <- matrix(vsol[1:(p*q)], p, q)
+        JV <- dV2phi(V, matrix(0,p,q), curr_Theta)
+        curr_phi_var <- JV^2
+        phi.var <- phi.var * ii / (ii + 1) +
+          curr_phi_var / (ii + 1)
         # update CI estimates
         if (i %% period.record == 0) {
           attr(CIs, "iters") <- c(attr(CIs, "iters"), i)
           idx <- i %/% period.record + 1
-          curr_Theta <- if (i >= asgd.start && i <= asgd.end) {
-            asl(Theta.avg, 1)
-          } else {
-            asl(Theta, 1)
-          }
-          Delta_Th <- manifold.Stiefel.project(
-            ge$grad_Theta, curr_Theta, G
-          )
-          # TODO: compute inverse Hessian, switch to a CG solver
-          vecGrad <- c(Delta_Th, ge$grad_eta, ge$grad_zeta)
-          opres <- suppressWarnings(
-            gslnls::gsl_nls(
-              fn = \(x) vecHess_apply_wrapper(x, vh, curr_Theta, grad_Theta),
-              y = vecGrad,
-              start = vecGrad
-            )
-          )
-          vsol <- vecProj(opres$m$getPars(), curr_Theta)
-          V <- matrix(vsol[1:(p*q)], p, q)
-          JV <- dV2phi(V, matrix(0,p,q), curr_Theta)
-          curr_phi_var <- JV^2
-          phi.var <- phi.var * ii / (ii + 1) +
-            curr_phi_var / (ii + 1)
           curr_sd <- sqrt(phi.var) / sqrt(ii + 1)
           curr_Phi <- as.matrix(B %*% curr_Theta)
           CIs[,,1,idx] <- curr_Phi - 1.96 * curr_sd
           CIs[,,2,idx] <- curr_Phi
           CIs[,,3,idx] <- curr_Phi + 1.96 * curr_sd
+          if (verbose) cat("CI computed at iteration", i, "\n")
         }
       }
 
@@ -514,8 +529,7 @@ fpca.sgd <- function(
       }
       Theta[,, l] <- manifold.Stiefel.retract(
         -curr_stepsize * direc[['Theta']],
-        asl(Theta, l),
-        G
+        asl(Theta, l), G
       )
       lambda[, l] <- lambda[, l] * exp(-curr_stepsize * direc[['other']][1:q])
       sigma2[l] <- sigma2[l] * exp(-curr_stepsize * direc[['other']][q + 1])
@@ -1112,27 +1126,27 @@ get.sample.cov <- function(Ly, Ltid) {
 # AdaGrad-related helpers ------------------------------------------------
 
 init_ada_stats <- function(
-  p,
-  q,
-  ntau,
+  p, q, ntau,
   sgdtype = c(
     "sgd",
     "sgdm",
     "adagrad",
     "adam",
     "adam0",
+    "adagrad2",
+    "adam2",
     "rasa"
   ),
   adamw = TRUE
 ) {
   sgdtype <- match.arg(sgdtype)
   ada_stats <- NULL
-  if (sgdtype %in% c("sgdm", "adam", "adam0")) {
+  if (sgdtype == "sgdm" || stringr::str_detect(sgdtype, "adam")) {
     ada_stats[['m']] <- list(
       Theta = array(0, dim = c(p, q, ntau)),
       other = matrix(0, nrow = q + 1, ncol = ntau)
     )
-    if (adamw && sgdtype %in% c("adam", "adam0")) {
+    if (adamw && stringr::str_detect(sgdtype, "adam")) {
       ada_stats[['mhat']] <- list(
         Theta = array(0, dim = c(p, q, ntau)),
         other = matrix(0, nrow = q + 1, ncol = ntau)
@@ -1144,13 +1158,11 @@ init_ada_stats <- function(
       Theta = array(0, dim = c(q, q, ntau)),
       other = array(0, dim = c(q + 1, q + 1, ntau))
     )
-    if (sgdtype == "adam") {
-      if (adamw) {
-        ada_stats[['vhat']] <- list(
-          Theta = array(0, dim = c(q, q, ntau)),
-          other = array(0, dim = c(q + 1, q + 1, ntau))
-        )
-      }
+    if (adamw && sgdtype == "adam") {
+      ada_stats[['vhat']] <- list(
+        Theta = array(0, dim = c(q, q, ntau)),
+        other = array(0, dim = c(q + 1, q + 1, ntau))
+      )
     }
   } else if (sgdtype %in% c("adam0")) {
     ada_stats[['v']] <- list(
@@ -1161,6 +1173,19 @@ init_ada_stats <- function(
       ada_stats[['vhat']] <- list(
         Theta = array(0, dim = c(p, q, ntau)),
         other = array(0, dim = c(q + 1, ntau))
+      )
+    }
+  } else if (sgdtype %in% c("adagrad2", "adam2")) {
+    ada_stats[['v']] <- list(
+      Theta.l = array(0, dim = c(p, ntau)),
+      Theta.r = array(0, dim = c(q, q, ntau)),
+      other = array(0, dim = c(q + 1, q + 1, ntau))
+    )
+    if (adamw && sgdtype == "adam2") {
+      ada_stats[['vhat']] <- list(
+        Theta.l = array(0, dim = c(p, ntau)),
+        Theta.r = array(0, dim = c(q, q, ntau)),
+        other = array(0, dim = c(q + 1, q + 1, ntau))
       )
     }
   } else if (sgdtype %in% c("rasa")) {
@@ -1193,6 +1218,8 @@ update_ada_stats <- function(
     "adagrad",
     "adam",
     "adam0",
+    "adagrad2",
+    "adam2",
     "rasa"
   ),
   adamw = TRUE,
@@ -1205,7 +1232,7 @@ update_ada_stats <- function(
   stopifnot(length(grad_eta) == q)
   stopifnot(length(grad_zeta) == 1)
 
-  if (i == 0 && !(sgdtype %in% c("adam", "adam0"))) {
+  if (i == 0 && !stringr::str_detect(sgdtype, "adam")) {
     # If no gradient info is accummulated yet,
     # no averaging happens
     beta1 <- 0
@@ -1213,19 +1240,15 @@ update_ada_stats <- function(
   }
 
   # update momentum terms
-  if (sgdtype %in% c("sgdm", "adam", "adam0")) {
+  if (sgdtype == "sgdm" || stringr::str_detect(sgdtype, "adam")) {
     m_Theta <- ada_stats[['m']][['Theta']][,, itau]
-    # if (itau==1 && (i %% 10 == 0)) cat("Ada counter:", i, "\n")
-    # if (itau==1 && (i %% 10 == 0)) cat( "Previous m:", sqrt(colSums(m_Theta * G %*% m_Theta)), "\n")
     trs_m_Theta <- manifold.Stiefel.transport(m_Theta, Theta, NULL, G)
-    # if (itau==1 && (i %% 10 == 0)) cat( "Trans m:", sqrt(colSums(trs_m_Theta * G %*% trs_m_Theta)), "\n")
     m_Theta <- trs_m_Theta * beta1 + grad_Theta * (1 - beta1)
-    # if (itau==1 && (i %% 10 == 0)) cat( "New m:", sqrt(colSums(m_Theta * G %*% m_Theta)), "\n")
     m_other <- ada_stats[['m']][['other']][, itau]
     m_other <- m_other * beta1 + c(grad_eta, grad_zeta) * (1 - beta1)
     ada_stats[['m']][['Theta']][,, itau] <- m_Theta
     ada_stats[['m']][['other']][, itau] <- m_other
-    if (sgdtype %in% c("adam", "adam0") && adamw) {
+    if (stringr::str_detect(sgdtype, "adam") && adamw) {
       ada_stats[['mhat']][['Theta']][,, itau] <- m_Theta /
         ifelse(i > 0, 1 - beta1^i, 1)
       ada_stats[['mhat']][['other']][, itau] <- m_other /
@@ -1247,6 +1270,27 @@ update_ada_stats <- function(
         ada_stats[['vhat']][['Theta']][,, itau] <- v_Theta /
           ifelse(i > 0, 1 - beta2^i, 1)
       }
+    }
+  } else if (sgdtype %in% c("adagrad2", "adam2")) {
+    grad_Theta_til <- as.matrix(GR %*% grad_Theta)
+    v_Theta_l <- ada_stats[['v']][['Theta.l']][, itau]
+    v_Theta_r <- ada_stats[['v']][['Theta.r']][,, itau]
+    v_Theta_l_new <- rowMeans(grad_Theta_til^2)     # p
+    v_Theta_r_new <- crossprod(grad_Theta_til) / p  # q x q
+    if (sgdtype == "adagrad2") {
+      v_Theta_l <- v_Theta_l * i / (i + 1) + v_Theta_l_new / (i + 1)
+      v_Theta_r <- v_Theta_r * i / (i + 1) + v_Theta_r_new / (i + 1)
+    } else {
+      v_Theta_l <- v_Theta_l * beta2 + v_Theta_l_new * (1 - beta2)
+      v_Theta_r <- v_Theta_r * beta2 + v_Theta_r_new * (1 - beta2)
+    }
+    ada_stats[['v']][['Theta.l']][, itau] <- v_Theta_l
+    ada_stats[['v']][['Theta.r']][,, itau] <- v_Theta_r
+    if (adamw && sgdtype == "adam2") {
+      ada_stats[['vhat']][['Theta.l']][, itau] <- v_Theta_l /
+          ifelse(i > 0, 1 - beta2^i, 1)
+      ada_stats[['vhat']][['Theta.r']][,, itau] <- v_Theta_r /
+          ifelse(i > 0, 1 - beta2^i, 1)
     }
   } else if (sgdtype == "rasa") {
     grad_Theta_til <- as.matrix(GR %*% grad_Theta)
@@ -1274,10 +1318,10 @@ update_ada_stats <- function(
   }
 
   # update variance terms for eta and zeta
-  if (sgdtype %in% c("adagrad", "adam")) {
+  if (sgdtype %in% c("adagrad", "adam", "adagrad2", "adam2")) {
     v_other <- ada_stats[['v']][['other']][,, itau]
     v_other_new <- outer(c(grad_eta, grad_zeta), c(grad_eta, grad_zeta))
-    if (sgdtype == "adagrad") {
+    if (stringr::str_detect(sgdtype, "adagrad")) {
       ada_stats[['v']][['other']][,, itau] <-
         v_other * i / (i + 1) + v_other_new / (i + 1)
     } else {
@@ -1331,6 +1375,8 @@ get_ada_direc <- function(
     "adagrad",
     "adam",
     "adam0",
+    "adagrad2",
+    "adam2",
     "rasa"
   ),
   adamw = TRUE
@@ -1344,8 +1390,10 @@ get_ada_direc <- function(
     direc[['Theta']] <- ada_stats[['m']][['Theta']][,, itau]
     direc[['other']] <- ada_stats[['m']][['other']][, itau]
   } else if (sgdtype == "adagrad") {
-    direc[['Theta']] <- grad_Theta %*%
-      safe_sqrtinv(ada_stats[['v']][['Theta']][,, itau])
+    # direc[['Theta']] <- grad_Theta %*%
+    #   safe_sqrtinv(ada_stats[['v']][['Theta']][,, itau])
+    direc[['Theta']] <- sweep(grad_Theta, 2,
+      (diag(ada_stats[['v']][['Theta']][,, itau]) + 1e-8)^(-0.5), "*")
     direc[['other']] <- 
       safe_sqrtinv(ada_stats[['v']][['other']][,, itau]) %*%
         c(grad_eta, grad_zeta)
@@ -1364,6 +1412,63 @@ get_ada_direc <- function(
       safe_sqrtinv(ada_stats[['v']][['other']][,, itau]) %*%
         ada_stats[['m']][['other']][, itau]
     }
+  } else if (sgdtype == "adagrad2") {
+    grad_Theta_til <- as.matrix(GR %*% grad_Theta)
+    v_Theta_l <- ada_stats[['v']][['Theta.l']][, itau]
+    v_Theta_r <- ada_stats[['v']][['Theta.r']][,, itau]
+    v_other <- ada_stats[['v']][['other']][,, itau]
+    # TODO: it is still not clear how to give 
+    # norm-1 directions here. Think about it.
+    # vsqrtinv_Theta_l <-
+    #   (v_Theta_l * q / sum(diag(v_Theta_r)) + 1e-8)^(-0.5)
+    # # vsqrtinv_Theta_r <-
+    # #   safe_sqrtinv(v_Theta_r * p / sum(diag(v_Theta_r)))
+    # vsqrtinv_Theta_r <- safe_sqrtinv(v_Theta_r)
+    vsqrtinv_Theta_l <-
+      (v_Theta_l * q / sum(diag(v_Theta_r)) + 1e-8)^(-0.5)
+    vsqrtinv_Theta_r <- (diag(v_Theta_r) + 1e-8)^(-0.5)
+    # direc[['Theta']] <- as.matrix(backsolve(
+    #   GR,
+    #   grad_Theta_til |> 
+    #     sweep(1, vsqrtinv_Theta_l, "*") |> 
+    #     (\(X) X %*% vsqrtinv_Theta_r)()
+    # ))
+    direc[['Theta']] <- as.matrix(backsolve(
+      GR,
+      grad_Theta_til |> 
+        sweep(1, vsqrtinv_Theta_l, "*") |> 
+        sweep(2, vsqrtinv_Theta_r, "*")
+    ))
+    vsqrtinv_other <- safe_sqrtinv(v_other)
+    direc[['other']] <- vsqrtinv_other %*% c(grad_eta, grad_zeta)
+  } else if (sgdtype == "adam2") {
+    m_Theta <- if (!adamw) {
+      ada_stats[['m']][['Theta']][,, itau]
+    } else {
+      ada_stats[['mhat']][['Theta']][,, itau]
+    }
+    m_Theta <- as.matrix(GR %*% m_Theta)
+    m_other <- if (!adamw) {
+      ada_stats[['m']][['other']][, itau]
+    } else {
+      ada_stats[['mhat']][['other']][, itau]
+    }
+    v_Theta_l <- ada_stats[['v']][['Theta.l']][, itau]
+    v_Theta_r <- ada_stats[['v']][['Theta.r']][,, itau]
+    v_other <- ada_stats[['v']][['other']][,, itau]
+    vsqrtinv_Theta_l <-
+      (v_Theta_l * q / sum(diag(v_Theta_r)) + 1e-8)^(-0.5)
+    # vsqrtinv_Theta_r <-
+    #   safe_sqrtinv(v_Theta_r * p / sum(diag(v_Theta_r)))
+    vsqrtinv_Theta_r <- safe_sqrtinv(v_Theta_r)
+    direc[['Theta']] <- as.matrix(backsolve(
+      GR,
+      m_Theta |> 
+        sweep(1, vsqrtinv_Theta_l, "*") |> 
+        (\(X) X %*% vsqrtinv_Theta_r)()
+    ))
+    vsqrtinv_other <- safe_sqrtinv(v_other)
+    direc[['other']] <- vsqrtinv_other %*% c(grad_eta, grad_zeta)
   } else if (sgdtype == "rasa") {
     v_Theta_l <- ada_stats[['v']][['Theta.l']][, itau]
     v_Theta_r <- ada_stats[['v']][['Theta.r']][, itau]

@@ -12,6 +12,8 @@ source("./data_generation/generator.R")
 
 seed <- 23
 
+RhpcBLASctl::blas_set_num_threads(8)
+
 mOpCov_path <- "external_codes/mOpCov/"
 source(paste0(mOpCov_path, "mOpCov_prep.R"))
 Rcpp::sourceCpp(paste0(mOpCov_path, "mOpCov_cpp.cpp"))
@@ -251,6 +253,11 @@ g_Theta_init_norm <- sqrt(mean(colSums(grad_Theta_init * G %*% grad_Theta_init))
 sgd_lr0 <- stepsize0 / g_Theta_init_norm
 message("> Step size = ", stepsize0)
 
+# TODO: it turns out the g_Theta_init_norm is not a good estimate
+# of the grad's norm
+# Also, the algorithm is not necessaily better when ||direc|| is approximatedly 1
+# TODO: check an adaptive base step size scheme
+
 inits <- list(
   Theta = ThetaInit,
   lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
@@ -263,7 +270,7 @@ inits <- list(
 #   sigma2 = sigma2true * exp(rnorm(1, 0, 1e-2))
 # )
 
-sgdtype <- "adam"
+sgdtype <- "sgd"
 
 message(">>> sgdtype = ", sgdtype)
 
@@ -295,7 +302,7 @@ fit <- fpca.sgd(
   adamw = TRUE,
   adam.rescale = TRUE,
   adareset = 10 * nBlockIter,
-  adareset.end = Inf, # nIter1pass,
+  adareset.end = nIter1pass,
   asgd.start = 10 * nBlockIter,
   asgd.reset = 20 * nBlockIter,
   asgd.reset.end = nIter1pass,
@@ -362,6 +369,13 @@ rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
 
 matplot(rmseAll, type="l")
 matplot(rmseAll.avg, type="l")
+
+par(mfrow=c(1,q))
+for (k in seq_len(q)) {
+  plot(PhiAvgEval[,k], xlab="", ylab=bquote(phi[.(k)]), col = rgb(0, 0, 0, 0.4))
+  points(PhiTrueEval[,k], col = rgb(1, 0, 0, 0.4))
+}
+par(mfrow=c(1,1))
 
 
 objfun(

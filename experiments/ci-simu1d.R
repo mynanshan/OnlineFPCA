@@ -31,7 +31,7 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
-noiseList <- c(0.1, 0.5, 1.)
+noise_sd <- 0.5
 nBatch <- 5
 nParams <- 6
 nPass <- 3
@@ -56,7 +56,7 @@ if (!dir.exists(dirpath)) {
 
 n_digit_seed = ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
-filebasename <- paste0("ci_", exprmt, "_sd", seedtext)
+filename <- paste0("ci_", exprmt, "_sd", seedtext, ".RData")
 
 set.seed(seed)
 
@@ -100,142 +100,212 @@ sqrtGinv <- sqrtmObj$Binv
 perm <- get_commute_index(p, q)
 
 
-for (noise_sd in noiseList) {
+message(">> noise = ", noise_sd)
 
-  message(">> noise = ", noise_sd)
+set.seed(seed)
+dat <- get_measurements(
+  rp,
+  n = N,
+  m_min = m_min,
+  m_max = m_max,
+  m_mean = m_mean,
+  m_sd = m_sd,
+  design_type = "random",
+  m_type = m_type,
+  sigma = noise_sd
+)
+tgrid <- dat$tgrid
+B <- eval_basis(tgrid, basis)
 
-  set.seed(seed)
-  dat <- get_measurements(
-    rp,
-    n = N,
-    m_min = m_min,
-    m_max = m_max,
-    m_mean = m_mean,
-    m_sd = m_sd,
-    design_type = "random",
-    m_type = m_type,
-    sigma = noise_sd
+fdata_generator <- function(n, total_count) {
+  idx <- (total_count):(total_count + n - 1) %% N + 1
+  list(
+    Ly = dat$Ly[idx],
+    Ltid = dat$Ltid[idx],
+    Lt = dat$Lt[idx],
+    Lmi = dat$Lmi[idx]
   )
-  tgrid <- dat$tgrid
-  B <- eval_basis(tgrid, basis)
+}
 
-  fdata_generator <- function(n, total_count) {
-    idx <- (total_count):(total_count + n - 1) %% N + 1
-    list(
-      Ly = dat$Ly[idx],
-      Ltid = dat$Ltid[idx],
-      Lt = dat$Lt[idx],
-      Lmi = dat$Lmi[idx]
-    )
-  }
+# Online FPCA  ------------------------------------------------------
 
-  # Online FPCA  ------------------------------------------------------
+message("Start OnlineFPCA ---------------")
 
-  message("Start OnlineFPCA ---------------")
+start_time.init <- Sys.time()
+tmpdat <- data.frame(
+  argvals = unlist(dat$Lt[1:Ninit]),
+  subj = rep(1:Ninit, dat$Lmi[1:Ninit]),
+  y = unlist(dat$Ly[1:Ninit])
+)
+fitFace <- face::face.sparse(
+  tmpdat,
+  center = FALSE,
+  argvals.new = evalGrid,
+  knots = p
+)
+end_time.init <- Sys.time()
 
-  start_time.init <- Sys.time()
-  tmpdat <- data.frame(
-    argvals = unlist(dat$Lt[1:Ninit]),
-    subj = rep(1:Ninit, dat$Lmi[1:Ninit]),
-    y = unlist(dat$Ly[1:Ninit])
+muInitEval <- fitFace$mu.new
+theta_muInit <- smooth_basis(
+  evalGrid,
+  muInitEval,
+  basis,
+  lambda = 1e-10
+)$coefs
+eig <- RSpectra::eigs_sym(fitFace$Chat.new, q)
+PhiInitEval <- flip_direc(eig$vectors, PhiTrueEval[, 1:q])
+ThetaInit <- smooth_basis(evalGrid, PhiInitEval, basis, lambda = 1e-10)$coefs
+lambdaInit <- eig$values
+sigma2Init <- fitFace$sigma2
+
+norm_factor <- diag(t(ThetaInit) %*% G %*% ThetaInit)
+ThetaInit <- sweep(ThetaInit, 2, sqrt(norm_factor), "/")
+lambdaInit <- lambdaInit * norm_factor
+PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
+
+nBlockIter <- nBlock / nBatch
+nIter1pass <- N / nBatch
+
+ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
+grad_Theta_init <- objfun(
+  dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
+  ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
+)$grad_Theta
+grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
+g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
+sgd_lr0 <- stepsize0 / g_Theta_init_norm
+message("> Step size = ", stepsize0)
+
+inits <- list(
+  Theta = ThetaInit,
+  lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
+  sigma2 = sigma2Init
+)
+
+resCI <- vector("list", 3)
+names(resCI) <- c("sgd", "adagrad", "adam")
+
+for (sgdtype in c("sgd", "adagrad", "adam")) {
+  message(">>> sgdtype = ", sgdtype)
+
+  fit <- fpca.sgd(
+    fdata_generator,
+    tgrid,
+    inits = inits,
+    meanfun = FALSE,
+    tau = NULL,
+    tau.control = list(
+      ntau = nParams,
+      nselect = 2,
+      maxtau = 1e-1,
+      mintau = 1e-6
+    ),
+    nbatch = nBatch,
+    maxIter = nPass * nIter1pass,
+    stepsize = ifelse(sgdtype=="sgd", sgd_lr0, stepsize0),
+    stepsize.decayrate = 0.51,
+    stepsize.min = stepsize.min,
+    nIter.slowerdecay = nIter1pass,
+    stepsize.decayrate.slow = 0.51,
+    sgdtype = sgdtype,
+    adamw = TRUE,
+    adam.rescale = TRUE,
+    adareset = 20 * nBlockIter,
+    adareset.end = nIter1pass,
+    asgd.start = 10 * nBlockIter,
+    asgd.reset = 20 * nBlockIter,
+    asgd.reset.end = nIter1pass,
+    asgd.end = Inf,
+    fpcCI = TRUE,
+    nIter.1stTune = nRoundNoTune * nBlockIter,
+    nIter.lastTune = nIter1pass,
+    nIter.tauNoIncrease = floor(0.3 * nIter1pass),
+    period.tune = nBlockIter,
+    period.record = nBlockIter,
+    verbose = TRUE
   )
-  fitFace <- face::face.sparse(
-    tmpdat,
-    center = FALSE,
-    argvals.new = evalGrid,
-    knots = p
-  )
-  end_time.init <- Sys.time()
 
-  muInitEval <- fitFace$mu.new
-  theta_muInit <- smooth_basis(
-    evalGrid,
-    muInitEval,
-    basis,
-    lambda = 1e-10
-  )$coefs
-  eig <- RSpectra::eigs_sym(fitFace$Chat.new, q)
-  PhiInitEval <- flip_direc(eig$vectors, PhiTrueEval[, 1:q])
-  ThetaInit <- smooth_basis(evalGrid, PhiInitEval, basis, lambda = 1e-10)$coefs
-  lambdaInit <- eig$values
-  sigma2Init <- fitFace$sigma2
+  resCI[[sgdtype]] <- fit$CI
 
-  norm_factor <- diag(t(ThetaInit) %*% G %*% ThetaInit)
-  ThetaInit <- sweep(ThetaInit, 2, sqrt(norm_factor), "/")
-  lambdaInit <- lambdaInit * norm_factor
-  PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
+  tau.min <- fit$tau.min
+  l <- which(fit$tau == tau.min)[1]
+  Theta.avg <- fit$Theta.avg[,, l]
 
-  nBlockIter <- nBlock / nBatch
-  nIter1pass <- N / nBatch
-
-  ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
-  grad_Theta_init <- objfun(
-    dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
-    ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
-  )$grad_Theta
-  grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
-  g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
-  sgd_lr0 <- stepsize0 / g_Theta_init_norm
-  message("> Step size = ", stepsize0)
-
-  inits <- list(
-    Theta = ThetaInit,
-    lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
-    sigma2 = sigma2Init
-  )
-
-  for (sgdtype in c("sgd", "adagrad", "adam")) {
-    message(">>> sgdtype = ", sgdtype)
-
-    fit <- fpca.sgd(
-      fdata_generator,
-      tgrid,
-      inits = inits,
-      meanfun = FALSE,
-      tau = NULL,
-      tau.control = list(
-        ntau = nParams,
-        nselect = 2,
-        maxtau = 1e-1,
-        mintau = 1e-6
-      ),
-      nbatch = nBatch,
-      maxIter = nPass * nIter1pass,
-      stepsize = ifelse(sgdtype=="sgd", sgd_lr0, stepsize0),
-      stepsize.decayrate = 0.51,
-      stepsize.min = stepsize.min,
-      nIter.slowerdecay = nIter1pass,
-      stepsize.decayrate.slow = 0.51,
-      sgdtype = sgdtype,
-      adamw = TRUE,
-      adam.rescale = TRUE,
-      adareset = 20 * nBlockIter,
-      adareset.end = nIter1pass,
-      asgd.start = 10 * nBlockIter,
-      asgd.reset = 20 * nBlockIter,
-      asgd.reset.end = nIter1pass,
-      asgd.end = Inf,
-      fpcCI = TRUE,
-      ci.start = 10 * nBlockIter,
-      nIter.1stTune = nRoundNoTune * nBlockIter,
-      nIter.lastTune = nIter1pass,
-      nIter.tauNoIncrease = floor(0.3 * nIter1pass),
-      period.tune = nBlockIter,
-      period.record = nBlockIter,
-      verbose = TRUE
-    )
-
-    CIs <- fit$CI
-
-    saveRDS(CIs, file.path(dirpath, paste0(filebasename, "_", sgdtype, ".rds")))
-
-  }
-
+  # match eigenfunctions
+  PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
+  PhiAvgEval <- match_fpc(PhiAvgEval, PhiTrueEval[, 1:q, drop = F])
+  resCI[[sgdtype]] <- resCI[[sgdtype]][,
+    attributes(PhiAvgEval)$match_id, , , drop = F ]
+  resCI[[sgdtype]][, attributes(PhiAvgEval)$flipped, , ] <-
+    -resCI[[sgdtype]][, attributes(PhiAvgEval)$flipped, , ]
 }
 
 
+# ---------- Compute a global optimum ----------------
+library(ManifoldOptim)
+
+Th_id <- seq(1, p*q)
+lam_id <- seq(p*q + 1, p*q + q)
+sig_id <- p*q + q + 1
+
+F_val <- function(x) {
+  Theta <- as.matrix(backsolve(GR, matrix(x[Th_id], p, q)))
+  lambda <- exp(x[lam_id])
+  sigma2 <- exp(x[sig_id])
+  objfun(dat$Ly, dat$Ltid, Theta, lambda, sigma2, NULL, 1e-9, "loss")$fval
+}
+F_grad <- function(x) {
+  Theta <- backsolve(GR, matrix(x[Th_id], p, q))
+  lambda <- exp(x[lam_id])
+  sigma2 <- exp(x[sig_id])
+  gradObj <- objfun(dat$Ly, dat$Ltid, Theta, lambda, sigma2, NULL, 1e-9, "grad")
+  c(
+    as.matrix(GR %*% gradObj$grad_Theta),
+    gradObj$grad_eta,
+    gradObj$grad_zeta
+  )
+}
+mod <- Module("ManifoldOptim_module", PACKAGE = "ManifoldOptim")
+prob <- new(mod$RProblem, F_val, F_grad)
+
+mani.defn <- get.product.defn(
+  get.stiefel.defn(p, q), get.euclidean.defn(q+1, 1)
+)
+mani.params <- get.manifold.params()
+solver.params <- get.solver.params(isconvex = FALSE, DEBUG=3)
+x0 <- c(
+  as.matrix(GR %*% phiTrueFunc$coefs[,1:q]),
+  log(lambdaTrue[1:q]), log(noise_sd^2)
+)
+opt <- manifold.optim(
+  prob, mani.defn, method = "LRBFGS", 
+  mani.params = mani.params, solver.params = solver.params, x0 = x0
+)
+
+ThetaStar <- as.matrix(backsolve(GR, matrix(opt$xopt[Th_id], p, q)))
+lambdaStar <- exp(opt$xopt[lam_id])
+sigma2Star <- exp(opt$xopt[sig_id])
+
+# matplot(evalGrid, PhiTrueEval[,1:q], type="l", lty=1)
+# matplot(evalGrid, eval_fd(evalGrid, FuncData(ThetaStar, basis)), type="l", add=T, lty=2)
+
+plot_CI_elu <- function(CIs, k, idx) {
+  rg <- range(c(CIs[,k,,idx]))
+  plot(CIs[,k,2,idx], type="l", ylim = rg, ylab = bquote(phi[.(k)]), lwd = 2)
+  lines(CIs[,k,1,idx], lty=2, lwd = 2)
+  lines(CIs[,k,3,idx], lty=2, lwd = 2)
+  lines(as.vector(B %*% ThetaStar[,k]), col=2)
+}
+
 # End experiment ----------------------------------------------------------
 
+save(
+  list(
+    sol = list(Theta = ThetaStar, lambda = lambdaStar, sigma2 = sigma2Star),
+    CIs = resCI
+  ),
+  file = file.path(dirpath, filename)
+)
 
 message("Finishing replication: ", seed)
 set.seed(NULL)
