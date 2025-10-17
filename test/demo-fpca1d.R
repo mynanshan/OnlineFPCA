@@ -159,7 +159,7 @@ inits <- list(
 # TODO: bad initialization of lambda significantly affect the performance
 #   does adagrad alleviate this issue?
 
-sgdtype <- "adam"
+sgdtype <- "adam2"
 
 fit <- fpca.sgd(
   fdata_generator,

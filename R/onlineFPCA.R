@@ -1439,8 +1439,9 @@ get_ada_direc <- function(
         sweep(1, vsqrtinv_Theta_l, "*") |> 
         sweep(2, vsqrtinv_Theta_r, "*")
     ))
-    vsqrtinv_other <- safe_sqrtinv(v_other)
-    direc[['other']] <- vsqrtinv_other %*% c(grad_eta, grad_zeta)
+    # vsqrtinv_other <- safe_sqrtinv(v_other)
+    # direc[['other']] <- vsqrtinv_other %*% c(grad_eta, grad_zeta)
+    direc[['other']] <- c(grad_eta, grad_zeta) / sqrt(diag(v_other) + 1e-8)
   } else if (sgdtype == "adam2") {
     m_Theta <- if (!adamw) {
       ada_stats[['m']][['Theta']][,, itau]

@@ -299,13 +299,12 @@ plot_CI_elu <- function(CIs, k, idx) {
 
 # End experiment ----------------------------------------------------------
 
-save(
-  list(
-    sol = list(Theta = ThetaStar, lambda = lambdaStar, sigma2 = sigma2Star),
-    CIs = resCI
-  ),
-  file = file.path(dirpath, filename)
-)
+saveObj = list(
+  sol = list(Theta = ThetaStar, lambda = lambdaStar, sigma2 = sigma2Star),
+  CIs = resCI
+) 
+
+save(saveObj, file = file.path(dirpath, filename))
 
 message("Finishing replication: ", seed)
 set.seed(NULL)
