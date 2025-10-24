@@ -4,6 +4,7 @@ data/
 logs/
 
 *.csv
+*.RData
 Theta*.rds
 taupath*.rds
 *.pdf

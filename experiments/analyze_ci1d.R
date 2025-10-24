@@ -3,54 +3,69 @@ library(Matrix)
 
 source("./R/fdaMdim.R")
 source("./R/helper.R")
-source("./data_generation/generator.R")
-
-N <- 5000
 
 exprmt <- "ci1d"
 dirpath <- file.path("experiments", exprmt)
 
-rp <- get_rp.yang2021(alpha = 2, npc = 10)
-m_min <- NULL
-m_max <- NULL
-m_mean <- 6
-m_sd <- 2
-m_type <- "gaussian"
-
-t0 <- rp$t0
-t1 <- rp$t1
-D <- rp$ndim
-
-dat <- get_measurements(
-  rp,
-  n = N,
-  m_min = m_min,
-  m_max = m_max,
-  m_mean = m_mean,
-  m_sd = m_sd,
-  design_type = "random",
-  m_type = m_type,
-  sigma = noise_sd
-)
-tgrid <- dat$tgrid
-nt <- length(tgrid)
-
-muTrueGrid <- rp$meanfun(tgrid)
-PhiTrueGrid <- rp$eigfun(tgrid)
-lambdaTrue <- rp$eigval
-
 npc <- 3
+nrep <- 1000
+nt <- 51
+t0 <- 0; t1 <- 1
+tgrid <- seq(t0,t1,length.out=nt)
 
-sgdtype <- "sgd"
+nbasis <- 7
+basis <- fda::create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
+B <- eval_basis(tgrid, basis)
 
 idx.start <- 11
 idx.end <- 151
+
+sgdtype <- "sgd"
+
+cr <- array(0, dim = c(nt, npc, idx.end))
+
+for (seed in seq_len(nrep)) {
+
+  n_digit_seed = ceiling(log10(seed + 1))
+  seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
+  filename <- paste0("ci_", exprmt, "_sd", seedtext, ".RData")
+
+  errflag <- FALSE
+  tryCatch(
+    load(file.path(dirpath, filename)),
+    error = function(e) {
+      cat("Combination unfound:", sgdtype, seed, "\n")
+      errflag <<- TRUE
+    }
+  )
+  CIs <- saveObj$CIs[[sgdtype]]
+
+  # optimum
+  PhiStar <- as.matrix(B %*% saveObj$sol$Theta)
+
+  # coverage
+  for (k in seq_len(npc)) {
+    phik_star <- PhiStar[,k]
+    inprds <- colMeans(CIs[,k,2,] * phik_star)  # (nt, niter)
+    neg.ind <- inprds < 0
+    CIs[,k,,neg.ind] <- -CIs[,k,,neg.ind]
+    phi_l0 <- CIs[,k,1,]
+    phi_u0 <- CIs[,k,3,]
+    phi_l <- pmin(phi_l0, phi_u0)
+    phi_u <- pmax(phi_l0, phi_u0)
+    cr[,k,] <- cr[,k,] + ((phik_star > phi_l) & (phik_star < phi_u)) / nrep
+  }
+}
+
+
+
+
 
 read.CI <- function(seed, sgdtype) {
 
   n_digit_seed = ceiling(log10(seed + 1))
   seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
-  filebasename <- paste0("ci_", exprmt, "_sd", seedtext, "_")
+  filename <- paste0("ci_", exprmt, "_sd", seedtext, ".RData")
 
   errflag <- FALSE
   tryCatch(

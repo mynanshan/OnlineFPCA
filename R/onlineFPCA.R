@@ -14,11 +14,11 @@ fpca.sgd <- function(
   nIter.constStepSize = 0,
   stepsize.decayrate = 0.5,
   stepsize.min = 0,
+  period.decay = 1,
   nIter.slowerdecay = floor(0.5 * maxIter),
   stepsize.decayrate.slow = 0,
   dynlr = FALSE,
   dynlrCtrl = NULL,
-  dynlr.end = 200,
   sgdtype = c(
     "sgd",
     "sgdm",
@@ -235,13 +235,30 @@ fpca.sgd <- function(
   ewadn <- numeric(ntau)
 
   # step size settings
-  # TODO: implement the dynamic learning rate
   if (dynlr) {
-    if (is.null(dynlrCtrl)) {
-      dynlrCtrl <- list(niter = NULL, refdn = NULL)
+    if (is.null(dynlrCtrl)) dynlrCtrl <- list()
+    if (is.null(dynlrCtrl$niter)) {
+      dynlrCtrl$niter <- 500
+    } else {
+      stopifnot(dynlrCtrl$niter > 0)
     }
-    if (is.null(dynlrCtrl$niter)) dynlrCtrl$niter <- 200
-    if (is.null(dynlrCtrl$refdn)) dynlrCtrl$refdn <- 0.5
+    if (is.null(dynlrCtrl$reset)) {
+      dynlrCtrl$reset <- 100
+    } else {
+      stopifnot(dynlrCtrl$reset > 0)
+    }
+    if (is.null(dynlrCtrl$refdn)) {
+      dynlrCtrl$refdn <- 0.2
+    } else {
+      stopifnot(dynlrCtrl$refdn > 0)
+    }
+    if (is.null(dynlrCtrl$w)) {
+      dynlrCtrl$w <- 0.99
+    } else {
+      stopifnot(dynlrCtrl$w > 0 && dynlrCtrl$w < 1)
+    }
+    direc_Th_norms <- rep(1, q)
+    dynlr_counter <- 0
   }
 
   # ABV accumulators for dynamic tuning
@@ -265,6 +282,7 @@ fpca.sgd <- function(
     grad_norms = c(),
     direc_norms = c(),
     stepsize = c(),
+    dTheta = c(),
     mhat_norms = c(),
     vhat_sqrt = c(),
     m_norms = c(),
@@ -277,23 +295,17 @@ fpca.sgd <- function(
     }
 
     # Stepsize decaying factor
-    # TODO: simplify the code. Remove unnecessary options
-    if (i > nIter.constStepSize) {
-      if (i <= nIter.slowerdecay) {
-        if (stepsize.decayrate.slow == 0) {
-          decay <- 1 / (1 + log(i - nIter.constStepSize))
-        } else {
-          decay <- 1 / (i^stepsize.decayrate.slow)
-        }
-      } else {
-        if (i == nIter.slowerdecay + 1) {
-          iter0 <- ceiling(1 / decay^(1 / stepsize.decayrate))
-        }
-        decay <- 1 / (iter0 + i - nIter.slowerdecay)^stepsize.decayrate
-      }
-    } else {
-      decay <- 1
-    }
+    decay <- 1 / max(i - nIter.constStepSize, 1)^ifelse(
+      i <= nIter.slowerdecay,
+      stepsize.decayrate.slow,
+      stepsize.decayrate
+    )
+    # TODO: TESTING
+    decay <- 1 / ((i-1) %/% period.decay + 1)^ifelse(
+      i <= nIter.slowerdecay,
+      stepsize.decayrate.slow,
+      stepsize.decayrate
+    )
 
     if (asgd_counter == 0 && i >= asgd.start) {
       # if asgd_counter == 0, initialize avg estimates
@@ -527,12 +539,16 @@ fpca.sgd <- function(
       if (curr_stepsize < stepsize.min) {
         curr_stepsize <- stepsize.min
       }
+      Theta_l <- asl(Theta, l)
       Theta[,, l] <- manifold.Stiefel.retract(
         -curr_stepsize * direc[['Theta']],
-        asl(Theta, l), G
+        Theta_l, G
       )
       lambda[, l] <- lambda[, l] * exp(-curr_stepsize * direc[['other']][1:q])
       sigma2[l] <- sigma2[l] * exp(-curr_stepsize * direc[['other']][q + 1])
+      # #### testing
+      # Theta[,1, l] <- phiTrueFunc$coefs[,1]
+      # lambda[1, l] <- lambdaTrue[1]
 
       if (i >= asgd.start && i <= asgd.end) {
         invRetr_Theta <- manifold.Stiefel.invRetract(
@@ -549,6 +565,28 @@ fpca.sgd <- function(
           lambda[, l]^(1 / (asgd_counter + 1))
         sigma2.avg[l] <- sigma2.avg[l]^(asgd_counter / (asgd_counter + 1)) *
           sigma2[l]^(1 / (asgd_counter + 1))
+        # #### testing
+        # Theta.avg[,1, l] <- phiTrueFunc$coefs[,1]
+        # lambda.avg[1, l] <- lambdaTrue[1]
+      }
+
+      if (dynlr && l == 1 && i <= dynlrCtrl$niter) {
+        dThL2 <- colSums(direc[['Theta']] * G %*% direc[['Theta']])
+        direc_Th_norms <- if (dynlr_counter == 0) {
+          dThL2
+        } else {
+          dThL2 * (1 - dynlrCtrl$w) + direc_Th_norms * dynlrCtrl$w
+          # dThL2 / (dynlr_counter + 1) + direc_Th_norms * dynlr_counter / (dynlr_counter + 1)
+        }
+        dynlr_counter <- dynlr_counter + 1
+        if (i %% dynlrCtrl$reset == 0) {
+          stepsize <- dynlrCtrl$refdn / (decay * sqrt(mean(direc_Th_norms)))
+          if (verbose) {
+            cat("Step size updated to", stepsize, "\n")
+          }
+          dynlr_counter <- 0
+          direc_Th_norms <- rep(0, q)
+        }
       }
 
       # In-Fitting informations. May be changed to a callback 
@@ -570,6 +608,7 @@ fpca.sgd <- function(
         check$grad_norms <- rbind(check$grad_norms, sqrt(colSums(grad_Theta * G %*% grad_Theta)))
         check$direc_norms <- rbind(check$direc_norms, sqrt(colSums(direc[['Theta']] * G %*% direc[['Theta']])))
         check$stepsize <- c(check$stepsize, curr_stepsize)
+        check$dTheta <- rbind(check$dTheta, sqrt(colMeans(as.matrix(B %*% (Theta[,, l] - Theta_l))^2)))
         # check$mhat_norms <- rbind(check$m_norms, sqrt(colSums(ada_stats$mhat$Theta[,,l] * G %*% ada_stats$mhat$Theta[,,l])))
         # check$vhat_sqrt <- rbind(check$vhat_sqrt, sqrt(diag(ada_stats$vhat$Theta[,,l])))
         # check$m_norms <- rbind(check$m_norms, sqrt(colSums(ada_stats$m$Theta[,,l] * G %*% ada_stats$m$Theta[,,l])))
@@ -1232,7 +1271,8 @@ update_ada_stats <- function(
   stopifnot(length(grad_eta) == q)
   stopifnot(length(grad_zeta) == 1)
 
-  if (i == 0 && !stringr::str_detect(sgdtype, "adam")) {
+  # if (i == 0 && !stringr::str_detect(sgdtype, "adam")) {
+  if (i == 0) {
     # If no gradient info is accummulated yet,
     # no averaging happens
     beta1 <- 0
@@ -1394,23 +1434,33 @@ get_ada_direc <- function(
     #   safe_sqrtinv(ada_stats[['v']][['Theta']][,, itau])
     direc[['Theta']] <- sweep(grad_Theta, 2,
       (diag(ada_stats[['v']][['Theta']][,, itau]) + 1e-8)^(-0.5), "*")
-    direc[['other']] <- 
-      safe_sqrtinv(ada_stats[['v']][['other']][,, itau]) %*%
-        c(grad_eta, grad_zeta)
+    # direc[['other']] <- 
+    #   safe_sqrtinv(ada_stats[['v']][['other']][,, itau]) %*%
+    #     c(grad_eta, grad_zeta)
+    direc[['other']] <- c(grad_eta, grad_zeta) *
+      (diag(ada_stats[['v']][['other']][,, itau]) + 1e-8)^(-0.5)
   } else if (sgdtype == "adam") {
     direc[['Theta']] <- if (adamw) {
-      ada_stats[['mhat']][['Theta']][,, itau] %*%
-        safe_sqrtinv(ada_stats[['vhat']][['Theta']][,, itau])
+      # ada_stats[['mhat']][['Theta']][,, itau] %*%
+      #   safe_sqrtinv(ada_stats[['vhat']][['Theta']][,, itau])
+      sweep(ada_stats[['mhat']][['Theta']][,, itau], 2,
+        (diag(ada_stats[['vhat']][['Theta']][,, itau]) + 1e-8)^(-0.5), "*")
     } else {
-      ada_stats[['m']][['Theta']][,, itau] %*%
-        safe_sqrtinv(ada_stats[['v']][['Theta']][,, itau])
+      # ada_stats[['m']][['Theta']][,, itau] %*%
+      #   safe_sqrtinv(ada_stats[['v']][['Theta']][,, itau])
+      sweep(ada_stats[['m']][['Theta']][,, itau], 2,
+        (diag(ada_stats[['v']][['Theta']][,, itau]) + 1e-8)^(-0.5), "*")
     }
     direc[['other']] <- if (adamw) {
-      safe_sqrtinv(ada_stats[['vhat']][['other']][,, itau]) %*%
-        ada_stats[['mhat']][['other']][, itau]
+      # safe_sqrtinv(ada_stats[['vhat']][['other']][,, itau]) %*%
+      #   ada_stats[['mhat']][['other']][, itau]
+      ada_stats[['mhat']][['other']][, itau] *
+        (diag(ada_stats[['vhat']][['other']][,, itau]) + 1e-8)^(-0.5)
     } else {
-      safe_sqrtinv(ada_stats[['v']][['other']][,, itau]) %*%
-        ada_stats[['m']][['other']][, itau]
+      # safe_sqrtinv(ada_stats[['v']][['other']][,, itau]) %*%
+      #   ada_stats[['m']][['other']][, itau]
+      ada_stats[['m']][['other']][, itau] *
+        (diag(ada_stats[['v']][['other']][,, itau]) + 1e-8)^(-0.5)
     }
   } else if (sgdtype == "adagrad2") {
     grad_Theta_til <- as.matrix(GR %*% grad_Theta)

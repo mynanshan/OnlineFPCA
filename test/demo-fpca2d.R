@@ -10,9 +10,9 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
-seed <- 23
+# seed <- 23
 
-RhpcBLASctl::blas_set_num_threads(8)
+RhpcBLASctl::blas_set_num_threads(12)
 
 mOpCov_path <- "external_codes/mOpCov/"
 source(paste0(mOpCov_path, "mOpCov_prep.R"))
@@ -21,7 +21,7 @@ Rcpp::sourceCpp(paste0(mOpCov_path, "mOpCov_cpp.cpp"))
 noise_sd <- 0.1
 nBatch <- 5
 nParams <- 6
-nPass <- 3
+nPass <- 2
 nBlock <- 100
 Ninit <- 100
 N <- 5000
@@ -270,7 +270,7 @@ inits <- list(
 #   sigma2 = sigma2true * exp(rnorm(1, 0, 1e-2))
 # )
 
-sgdtype <- "sgd"
+sgdtype <- "adagrad"
 
 message(">>> sgdtype = ", sgdtype)
 
@@ -291,13 +291,23 @@ fit <- fpca.sgd(
   stepsize = if(sgdtype %in% c("sgd", "sgdm")) {
     sgd_lr0
   } else {
-    stepsize0
+    # stepsize0
+    0.1
   },
+  nIter.constStepSize = 40 * nBlockIter,
   stepsize.decayrate = 0.51, # 0.51,
   stepsize.min = stepsize.min,
+  period.decay = 5 * nBlockIter,
   nIter.slowerdecay = nIter1pass, # 10 * nBlockIter, # same as adareset
-  # stepsize.decayrate.slow = ifelse(sgdtype == "sgd", 0.51, 0.3),
   stepsize.decayrate.slow = 0.51,
+  dynlr = TRUE,
+  # dynlr = FALSE,
+  dynlrCtrl = list(
+    niter = 10 * nBlockIter,
+    reset = 5 * nBlockIter,
+    refdn = 0.1,
+    w = 0.9
+  ),
   sgdtype = sgdtype,
   adamw = TRUE,
   adam.rescale = TRUE,
@@ -376,6 +386,19 @@ for (k in seq_len(q)) {
   points(PhiTrueEval[,k], col = rgb(1, 0, 0, 0.4))
 }
 par(mfrow=c(1,1))
+
+# (ThetaAll[,,1:150] - ThetaAll[,,2:151]) |> 
+#   matrix(nrow = p) |> 
+#   (\(C) as.matrix(B %*% C)^2)() |> 
+#   colMeans() |> sqrt() |> 
+#   matrix(nrow = q) |> t()
+
+for (ii in seq(51, 501, 25)) {
+k <- 2
+plot(as.vector(B %*% ThetaAll[,k,ii]), xlab="", ylab=bquote(phi[.(k)]), col = rgb(0, 0, 0, 0.4))
+points(PhiTrueEval[,k], col = rgb(1, 0, 0, 0.4))
+}
+
 
 
 objfun(
