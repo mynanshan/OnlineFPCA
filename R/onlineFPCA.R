@@ -289,25 +289,33 @@ fpca.sgd <- function(
     v_sqrt = c()
   )
 
+  decay_counter <- 0
   for (i in 1:maxIter) {
     if (verbose && (i %% period.message == 0)) {
       message("- Iteration ", i)
     }
 
     # Stepsize decaying factor
-    decay <- 1 / max(i - nIter.constStepSize, 1)^ifelse(
-      i <= nIter.slowerdecay,
-      stepsize.decayrate.slow,
-      stepsize.decayrate
-    )
-    # TODO: TESTING
-    decay <- 1 / (
-      (max(i - nIter.constStepSize, 1)-1) %/% period.decay + 1
-    )^ifelse(
-      i <= nIter.slowerdecay,
-      stepsize.decayrate.slow,
-      stepsize.decayrate
-    )
+    if (i == nIter.constStepSize + 1) {
+      decay_counter <- 0
+    } else if (i == nIter.slowerdecay + 1) {
+      ii <- max(decay_counter - 1, 1) %/% period.decay + 1
+      stepsize <- stepsize / ii^stepsize.decayrate.slow
+      decay_counter <- 0
+    }
+    decay_counter <- decay_counter + 1
+    decay <- 1 / (max(decay_counter - 1, 1) %/% period.decay + 1)^
+      if (i <= nIter.constStepSize) {
+        0
+      } else if (i <= nIter.slowerdecay) {
+        stepsize.decayrate.slow
+      } else {
+        stepsize.decayrate
+      }
+    curr_stepsize <- stepsize * decay
+    if (curr_stepsize < stepsize.min) {
+      curr_stepsize <- stepsize.min
+    }
 
     if (asgd_counter == 0 && i >= asgd.start) {
       # if asgd_counter == 0, initialize avg estimates
@@ -537,10 +545,6 @@ fpca.sgd <- function(
       }
 
       # Parameter updates
-      curr_stepsize <- stepsize * decay
-      if (curr_stepsize < stepsize.min) {
-        curr_stepsize <- stepsize.min
-      }
       Theta_l <- asl(Theta, l)
       Theta[,, l] <- manifold.Stiefel.retract(
         -curr_stepsize * direc[['Theta']],
@@ -548,9 +552,6 @@ fpca.sgd <- function(
       )
       lambda[, l] <- lambda[, l] * exp(-curr_stepsize * direc[['other']][1:q])
       sigma2[l] <- sigma2[l] * exp(-curr_stepsize * direc[['other']][q + 1])
-      # #### testing
-      # Theta[,1, l] <- phiTrueFunc$coefs[,1]
-      # lambda[1, l] <- lambdaTrue[1]
 
       if (i >= asgd.start && i <= asgd.end) {
         invRetr_Theta <- manifold.Stiefel.invRetract(
@@ -567,9 +568,6 @@ fpca.sgd <- function(
           lambda[, l]^(1 / (asgd_counter + 1))
         sigma2.avg[l] <- sigma2.avg[l]^(asgd_counter / (asgd_counter + 1)) *
           sigma2[l]^(1 / (asgd_counter + 1))
-        # #### testing
-        # Theta.avg[,1, l] <- phiTrueFunc$coefs[,1]
-        # lambda.avg[1, l] <- lambdaTrue[1]
       }
 
       if (dynlr && l == 1 && i <= dynlrCtrl$niter) {

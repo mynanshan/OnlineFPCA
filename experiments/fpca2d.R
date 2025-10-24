@@ -286,12 +286,14 @@ for (noise_sd in noiseList) {
       } else {
         stepsize0
       },
-      nIter.constStepSize = nIter1pass,
+      # nIter.constStepSize = nIter1pass,
+      nIter.constStepSize = 0,
       stepsize.decayrate = 0.51,
       stepsize.min = stepsize.min,
       period.decay = 5 * nBlockIter,
       nIter.slowerdecay = nIter1pass,
-      stepsize.decayrate.slow = 0.51,
+      # stepsize.decayrate.slow = 0.51,
+      stepsize.decayrate.slow = 0.3,
       dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
       dynlrCtrl = list(
         niter = 20 * nBlockIter,

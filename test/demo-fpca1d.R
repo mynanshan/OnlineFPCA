@@ -25,8 +25,8 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize0 <- 0.5
-stepsize.min <- 1e-3
+stepsize0 <- 0.1
+stepsize.min <- 1e-5
 sgd.step.scale <- 1 # use a smaller step size for sgd
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
@@ -140,7 +140,7 @@ grad_Theta_init <- objfun(
   ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
 )$grad_Theta
 grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
-g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
+g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init) / q)
 sgd_lr0 <- stepsize0 / g_Theta_init_norm
 
 nBlockIter <- nBlock / nBatch
@@ -159,7 +159,7 @@ inits <- list(
 # TODO: bad initialization of lambda significantly affect the performance
 #   does adagrad alleviate this issue?
 
-sgdtype <- "adam2"
+sgdtype <- "sgd"
 
 fit <- fpca.sgd(
   fdata_generator,
@@ -175,11 +175,22 @@ fit <- fpca.sgd(
   ),
   nbatch = nBatch,
   maxIter = nPass * nIter1pass,
-  stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
+  # stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
+  stepsize = 0.1,
+  nIter.constStepSize = 0,
   stepsize.decayrate = 0.51,
   stepsize.min = stepsize.min,
+  period.decay = 5 * nBlockIter,
   nIter.slowerdecay = nIter1pass,
-  stepsize.decayrate.slow = 0.51,
+  stepsize.decayrate.slow = 0.3,
+  dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
+  # dynlr = FALSE,
+  dynlrCtrl = list(
+    niter = 20 * nBlockIter,
+    reset = 5 * nBlockIter,
+    refdn = stepsize0,
+    w = 0.9
+  ),
   sgdtype = sgdtype,
   adamw = TRUE,
   adam.rescale = TRUE,
@@ -196,6 +207,8 @@ fit <- fpca.sgd(
   period.record = nBlockIter,
   verbose = TRUE
 )
+
+check <- fit$check
 
 tau.min <- fit$tau.min
 l <- which(fit$tau == tau.min)[1]

@@ -11,6 +11,7 @@ source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
 # seed <- 23
+seed <- ceiling(runif(1) * 9999)
 
 RhpcBLASctl::blas_set_num_threads(12)
 
@@ -271,6 +272,7 @@ inits <- list(
 # )
 
 sgdtype <- "sgd"
+sgdtype <- "adam"
 sgdtype <- "adagrad"
 
 message(">>> sgdtype = ", sgdtype)
@@ -289,19 +291,16 @@ fit <- fpca.sgd(
   ),
   nbatch = nBatch,
   maxIter = nPass * nIter1pass,
-  stepsize = if(sgdtype %in% c("sgd", "sgdm")) {
-    sgd_lr0
-  } else {
-    # stepsize0
+  stepsize = if(sgdtype %in% c("sgd", "sgdm")) {sgd_lr0} else { # stepsize0
     0.1
   },
-  nIter.constStepSize = 50 * nBlockIter,
+  nIter.constStepSize = 0,
   stepsize.decayrate = 0.51, # 0.51,
   stepsize.min = stepsize.min,
   period.decay = 5 * nBlockIter,
   nIter.slowerdecay = nIter1pass, # 10 * nBlockIter, # same as adareset
-  stepsize.decayrate.slow = 0.51,
-  dynlr = TRUE,
+  stepsize.decayrate.slow = 0.3,
+  dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
   # dynlr = FALSE,
   dynlrCtrl = list(
     niter = 20 * nBlockIter,
