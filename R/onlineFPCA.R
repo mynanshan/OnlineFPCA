@@ -301,7 +301,9 @@ fpca.sgd <- function(
       stepsize.decayrate
     )
     # TODO: TESTING
-    decay <- 1 / ((i-1) %/% period.decay + 1)^ifelse(
+    decay <- 1 / (
+      (max(i - nIter.constStepSize, 1)-1) %/% period.decay + 1
+    )^ifelse(
       i <= nIter.slowerdecay,
       stepsize.decayrate.slow,
       stepsize.decayrate

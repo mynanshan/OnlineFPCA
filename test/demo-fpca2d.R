@@ -30,7 +30,7 @@ nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 stepsize0 <- 0.5
-stepsize.min <- 1e-3
+stepsize.min <- 1e-5
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
 
@@ -270,6 +270,7 @@ inits <- list(
 #   sigma2 = sigma2true * exp(rnorm(1, 0, 1e-2))
 # )
 
+sgdtype <- "sgd"
 sgdtype <- "adagrad"
 
 message(">>> sgdtype = ", sgdtype)
@@ -294,7 +295,7 @@ fit <- fpca.sgd(
     # stepsize0
     0.1
   },
-  nIter.constStepSize = 40 * nBlockIter,
+  nIter.constStepSize = 50 * nBlockIter,
   stepsize.decayrate = 0.51, # 0.51,
   stepsize.min = stepsize.min,
   period.decay = 5 * nBlockIter,
@@ -303,7 +304,7 @@ fit <- fpca.sgd(
   dynlr = TRUE,
   # dynlr = FALSE,
   dynlrCtrl = list(
-    niter = 10 * nBlockIter,
+    niter = 20 * nBlockIter,
     reset = 5 * nBlockIter,
     refdn = 0.1,
     w = 0.9
