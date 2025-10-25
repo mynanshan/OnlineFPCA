@@ -254,7 +254,7 @@ for (noise_sd in noiseList) {
     ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
   )$grad_Theta
   grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
-  g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
+  g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init) / q)
   sgd_lr0 <- stepsize0 / g_Theta_init_norm
   message("> Step size = ", stepsize0)
 
@@ -293,7 +293,7 @@ for (noise_sd in noiseList) {
       period.decay = 5 * nBlockIter,
       nIter.slowerdecay = nIter1pass,
       # stepsize.decayrate.slow = 0.51,
-      stepsize.decayrate.slow = 0.3,
+      stepsize.decayrate.slow = 0.25,
       dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
       dynlrCtrl = list(
         niter = 20 * nBlockIter,
