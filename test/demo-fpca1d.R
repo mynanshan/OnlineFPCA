@@ -11,9 +11,9 @@ source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
 
-# set.seed(6)
+set.seed(1)
 
-noise_sd <- 0.5
+noise_sd <- 0.1
 nBatch <- 5
 nParams <- 6
 nPass <- 2
@@ -160,6 +160,7 @@ inits <- list(
 #   does adagrad alleviate this issue?
 
 sgdtype <- "sgd"
+sgdtype <- "adam"
 
 fit <- fpca.sgd(
   fdata_generator,
@@ -175,16 +176,16 @@ fit <- fpca.sgd(
   ),
   nbatch = nBatch,
   maxIter = nPass * nIter1pass,
-  # stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
-  stepsize = 0.1,
+  stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
+  # stepsize = sgd_lr0,
   nIter.constStepSize = 0,
   stepsize.decayrate = 0.51,
   stepsize.min = stepsize.min,
   period.decay = 5 * nBlockIter,
   nIter.slowerdecay = nIter1pass,
-  stepsize.decayrate.slow = 0.3,
+  stepsize.decayrate.slow = 0.25,
   dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
-  # dynlr = FALSE,
+  # dynlr = TRUE,
   dynlrCtrl = list(
     niter = 20 * nBlockIter,
     reset = 5 * nBlockIter,
@@ -194,9 +195,12 @@ fit <- fpca.sgd(
   sgdtype = sgdtype,
   adamw = TRUE,
   adam.rescale = TRUE,
+  # ada.start = 5 * nBlockIter,
+  ada.start = 20 * nBlockIter + 1,
   adareset = 10 * nBlockIter,
-  adareset.end = nIter1pass,
-  asgd.start = 10 * nBlockIter,
+  # adareset.end = nIter1pass,
+  adareset.end = 10 * nBlockIter,
+  asgd.start = 10 * nBlockIter + 1,
   asgd.reset = 20 * nBlockIter,
   asgd.reset.end = nIter1pass,
   asgd.end = Inf,

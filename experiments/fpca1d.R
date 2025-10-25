@@ -228,18 +228,12 @@ for (noise_sd in noiseList) {
       ),
       nbatch = nBatch,
       maxIter = nPass * nIter1pass,
-      stepsize = if(sgdtype %in% c("sgd", "sgdm")) {
-        sgd_lr0
-      } else if (sgdtype %in% c("adagrad", "adam", "rasa")) {
-        stepsize0
-      },
-      # nIter.constStepSize = nIter1pass,
+      stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
       nIter.constStepSize = 0,
       stepsize.decayrate = 0.51,
       stepsize.min = stepsize.min,
       period.decay = 5 * nBlockIter,
       nIter.slowerdecay = nIter1pass,
-      # stepsize.decayrate.slow = 0.51,
       stepsize.decayrate.slow = 0.25,
       dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
       dynlrCtrl = list(
@@ -251,9 +245,11 @@ for (noise_sd in noiseList) {
       sgdtype = sgdtype,
       adamw = TRUE,
       adam.rescale = TRUE,
+      ada.start = 20 * nBlockIter + 1,
       adareset = 10 * nBlockIter,
-      adareset.end = nIter1pass,
-      asgd.start = 10 * nBlockIter,
+      # adareset.end = nIter1pass,
+      adareset.end = 10 * nBlockIter,
+      asgd.start = 10 * nBlockIter + 1,
       asgd.reset = 20 * nBlockIter,
       asgd.reset.end = nIter1pass,
       asgd.end = Inf,

@@ -9,7 +9,8 @@ fpca.sgd <- function(
   tau = NULL,
   tau.control = list(),
   nbatch = 1,
-  stepsize = 1e-3,
+  stepsize = 1e-1,
+  stepsize.sgd = 1e-1,
   maxIter = 1000,
   nIter.constStepSize = 0,
   stepsize.decayrate = 0.5,
@@ -485,7 +486,7 @@ fpca.sgd <- function(
       if (stringr::str_detect(sgdtype, "adam")) {
         mn_dTheta <- sum(direc[['Theta']] * G %*% direc[['Theta']]) / q
         ewadn[l] <- ifelse(
-          ada_counter == 0,
+          ada_counter == 0 && i >= ada.start,
           mn_dTheta,
           ewadn[l] * 0.9 + 0.1 * mn_dTheta
         )
