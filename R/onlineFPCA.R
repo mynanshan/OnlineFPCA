@@ -10,7 +10,6 @@ fpca.sgd <- function(
   tau.control = list(),
   nbatch = 1,
   stepsize = 1e-1,
-  stepsize.sgd = 1e-1,
   maxIter = 1000,
   nIter.constStepSize = 0,
   stepsize.decayrate = 0.5,

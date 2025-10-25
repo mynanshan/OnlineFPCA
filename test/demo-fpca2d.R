@@ -10,7 +10,7 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
-# seed <- 23
+seed <- 23
 seed <- ceiling(runif(1) * 9999)
 
 RhpcBLASctl::blas_set_num_threads(12)
@@ -30,7 +30,7 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize0 <- 0.5
+stepsize0 <- 0.1
 stepsize.min <- 1e-5
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
@@ -291,15 +291,13 @@ fit <- fpca.sgd(
   ),
   nbatch = nBatch,
   maxIter = nPass * nIter1pass,
-  stepsize = if(sgdtype %in% c("sgd", "sgdm")) {sgd_lr0} else { # stepsize0
-    0.1
-  },
+  stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
   nIter.constStepSize = 0,
-  stepsize.decayrate = 0.51, # 0.51,
+  stepsize.decayrate = 0.51,,
   stepsize.min = stepsize.min,
   period.decay = 5 * nBlockIter,
   nIter.slowerdecay = nIter1pass, # 10 * nBlockIter, # same as adareset
-  stepsize.decayrate.slow = 0.3,
+  stepsize.decayrate.slow = 0.25,
   dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
   # dynlr = FALSE,
   dynlrCtrl = list(
@@ -311,19 +309,22 @@ fit <- fpca.sgd(
   sgdtype = sgdtype,
   adamw = TRUE,
   adam.rescale = TRUE,
+  # ada.start = 20 * nBlockIter + 1,
+  ada.start = Inf,
   adareset = 10 * nBlockIter,
-  adareset.end = nIter1pass,
-  asgd.start = 10 * nBlockIter,
+  # adareset.end = nIter1pass,
+  adareset.end = 10 * nBlockIter,
+  asgd.start = 10 * nBlockIter + 1,
   asgd.reset = 20 * nBlockIter,
   asgd.reset.end = nIter1pass,
   asgd.end = Inf,
-  # weight = "subj",
   nIter.1stTune = nRoundNoTune * nBlockIter,
   nIter.lastTune = nIter1pass,
   nIter.tauNoIncrease = floor(0.3 * nIter1pass),
   period.tune = nBlockIter,
   period.record = nBlockIter,
-  verbose = TRUE
+  verbose = TRUE,
+  period.message = 100
 )
 
 check <- fit$check

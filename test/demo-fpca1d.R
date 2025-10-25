@@ -55,6 +55,7 @@ lambdaTrue <- rp$eigval
 
 q <- npc <- 3
 
+set.seed(1)
 dat <- get_measurements(
   rp,
   n = N,

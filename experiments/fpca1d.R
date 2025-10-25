@@ -52,7 +52,7 @@ nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 stepsize0 <- 0.1
-stepsize.min <- 1e-3
+stepsize.min <- 1e-4
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
 
