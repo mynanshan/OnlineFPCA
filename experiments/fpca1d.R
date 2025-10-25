@@ -39,7 +39,8 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
-noiseList <- c(0.1, 0.5, 1.)
+# noiseList <- c(0.1, 0.5, 1.)
+noiseList <- c(0.1)
 nBatch <- 5
 nParams <- 6
 nPass <- 3
@@ -211,7 +212,7 @@ for (noise_sd in noiseList) {
     sigma2 = sigma2Init
   )
 
-  for (sgdtype in c("sgd", "adagrad", "adam")) {
+  for (sgdtype in c("sgd", "adam")) {
     message(">>> sgdtype = ", sgdtype)
 
     fit <- fpca.sgd(
