@@ -27,6 +27,8 @@ args <- parser$parse_args()
 seed <- as.integer(args[["seed"]])
 compare <- as.logical(args[["compare"]])
 
+cat("========= Start Experiment ( Seed =", seed, ")\n")
+
 library(fda)
 library(Matrix)
 
