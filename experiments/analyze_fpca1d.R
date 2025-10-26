@@ -43,6 +43,12 @@ q <- 3
 N0 <- c(5000, 10000, 15000)
 N1 = 5000
 
+View(
+  res |> filter(N %in% N0) |> 
+    select(noise, seed, Method, N, starts_with("RMSEphi")),
+  "Results"
+)
+
 # PACE is optimized by C codes. Performance too different
 meth_ord = c(
   paste0("OnlineFPCA-", c("sgd", "adagrad", "adam")),
