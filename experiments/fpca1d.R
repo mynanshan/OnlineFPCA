@@ -246,8 +246,7 @@ for (noise_sd in noiseList) {
       sgdtype = sgdtype,
       adamw = TRUE,
       adam.rescale = TRUE,
-      # ada.start = 20 * nBlockIter + 1,
-      ada.start = Inf, # TODO: temporarily try normalized SGD
+      ada.start = 20 * nBlockIter + 1,
       adareset = 10 * nBlockIter,
       # adareset.end = nIter1pass,
       adareset.end = 10 * nBlockIter,
