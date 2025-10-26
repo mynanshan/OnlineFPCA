@@ -212,7 +212,7 @@ for (noise_sd in noiseList) {
     sigma2 = sigma2Init
   )
 
-  for (sgdtype in c("sgd", "adam")) {
+  for (sgdtype in c("sgd", "adagrad", "adam")) {
     message(">>> sgdtype = ", sgdtype)
 
     fit <- fpca.sgd(
@@ -233,7 +233,8 @@ for (noise_sd in noiseList) {
       nIter.constStepSize = 0,
       stepsize.decayrate = 0.51,
       stepsize.min = stepsize.min,
-      period.decay = 5 * nBlockIter,
+      # period.decay = 5 * nBlockIter,
+      period.decay = 2 * nBlockIter,
       nIter.slowerdecay = nIter1pass,
       stepsize.decayrate.slow = 0.25,
       dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
@@ -251,7 +252,7 @@ for (noise_sd in noiseList) {
       # adareset.end = nIter1pass,
       adareset.end = 10 * nBlockIter,
       asgd.start = 10 * nBlockIter + 1,
-      asgd.reset = 30 * nBlockIter,
+      asgd.reset = 40 * nBlockIter,
       asgd.reset.end = nIter1pass,
       asgd.end = Inf,
       nIter.1stTune = nRoundNoTune * nBlockIter,

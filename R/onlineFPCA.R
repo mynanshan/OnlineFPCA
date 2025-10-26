@@ -295,6 +295,8 @@ fpca.sgd <- function(
       message("- Iteration ", i)
     }
 
+    # if (i %in% c(1000, 1001, 1002)) browser()
+
     # Stepsize decaying factor
     if (i == nIter.constStepSize + 1) {
       decay_counter <- 0
@@ -482,7 +484,7 @@ fpca.sgd <- function(
         ))
       }
       # TODO: testing ewadn. This looks like a dirty fix. Can we get rid of it?
-      if (stringr::str_detect(sgdtype, "adam")) {
+      if (stringr::str_detect(sgdtype, "adam") || (i < ada.start)) {
         mn_dTheta <- sum(direc[['Theta']] * G %*% direc[['Theta']]) / q
         ewadn[l] <- ifelse(
           ada_counter == 0 && i >= ada.start,
