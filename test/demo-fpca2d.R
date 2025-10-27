@@ -11,7 +11,7 @@ source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
 seed <- 23
-seed <- ceiling(runif(1) * 9999)
+# seed <- ceiling(runif(1) * 9999)
 
 RhpcBLASctl::blas_set_num_threads(12)
 
@@ -293,9 +293,10 @@ fit <- fpca.sgd(
   maxIter = nPass * nIter1pass,
   stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
   nIter.constStepSize = 0,
-  stepsize.decayrate = 0.51,,
+  stepsize.decayrate = 0.51,
   stepsize.min = stepsize.min,
-  period.decay = 5 * nBlockIter,
+  # period.decay = 5 * nBlockIter,
+  period.decay = 2 * nBlockIter,
   nIter.slowerdecay = nIter1pass, # 10 * nBlockIter, # same as adareset
   stepsize.decayrate.slow = 0.25,
   dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
@@ -303,19 +304,22 @@ fit <- fpca.sgd(
   dynlrCtrl = list(
     niter = 20 * nBlockIter,
     reset = 5 * nBlockIter,
-    refdn = 0.1,
+    refdn = stepsize0,
     w = 0.9
   ),
   sgdtype = sgdtype,
   adamw = TRUE,
   adam.rescale = TRUE,
   # ada.start = 20 * nBlockIter + 1,
-  ada.start = Inf,
-  adareset = 10 * nBlockIter,
-  # adareset.end = nIter1pass,
-  adareset.end = 10 * nBlockIter,
+  ada.start = 25 * nBlockIter + 1,
+  # ada.start = Inf,
+  # adareset = 10 * nBlockIter,
+  adareset = 20 * nBlockIter,
+  # adareset.end = 10 * nBlockIter,
+  adareset.end = nIter1pass,
   asgd.start = 10 * nBlockIter + 1,
-  asgd.reset = 20 * nBlockIter,
+  # asgd.reset = 20 * nBlockIter,
+  asgd.reset = 40 * nBlockIter,
   asgd.reset.end = nIter1pass,
   asgd.end = Inf,
   nIter.1stTune = nRoundNoTune * nBlockIter,
