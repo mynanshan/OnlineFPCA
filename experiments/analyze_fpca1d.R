@@ -33,10 +33,10 @@ res <- res |>
   )
 
 sumres <- res |> 
-  group_by(Method, noise, Ninit, npc, initMethod, N) |> 
+  group_by(Method, noise, StepSize, Ninit, npc, initMethod, N) |> 
   summarise_at(vars(Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg), list(mean=mean)) |> 
   ungroup() |> 
-  group_by(Method, noise, Ninit, npc, initMethod) |> 
+  group_by(Method, noise, StepSize, Ninit, npc, initMethod) |> 
   mutate(SumTime = cumsum(Time_mean))
 
 q <- 3
@@ -45,7 +45,7 @@ N1 = 5000
 
 View(
   res |> filter(N %in% N0) |> 
-    select(noise, seed, Method, N, starts_with("RMSEphi")),
+    dplyr::select(noise, seed, Method, StepSize, N, starts_with("RMSEphi")),
   "Results"
 )
 
@@ -59,7 +59,7 @@ meth_ord = c(
 tabres <- ungroup(sumres) |>
   filter(stringr::str_detect(Method, "Batch") | N %in% N0) |>
   dplyr::select(
-    Method, N, noise, SumTime,
+    Method, N, noise, StepSize, SumTime,
     RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
   ) |>
   mutate(Method = factor(Method, levels=meth_ord)) |> 
