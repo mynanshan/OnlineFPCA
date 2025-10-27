@@ -300,9 +300,12 @@ fpca.sgd <- function(
       decay_counter <- 0
     } else if (i == nIter.slowerdecay + 1) {
       ii <- max(decay_counter - 1, 1) %/% period.decay + 1
-      stepsize <- stepsize / ii^stepsize.decayrate.slow
-      decay_counter <- 0
+      # lr_new / ii^alpha = lr / ii^alpha.slow
+      # ==> lr_new = lr / ii^alpha.slow * ii^alpha
+      stepsize <- stepsize * ii^(stepsize.decayrate - stepsize.decayrate.slow) 
+      # decay_counter <- 0
     }
+    # TODO: this decaying logic is incorrect as well
     decay_counter <- decay_counter + 1
     decay <- 1 / (max(decay_counter - 1, 1) %/% period.decay + 1)^
       if (i <= nIter.constStepSize) {

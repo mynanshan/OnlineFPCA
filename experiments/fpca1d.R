@@ -41,8 +41,8 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
-noiseList <- c(0.1, 0.5, 1.)
-# noiseList <- c(0.1)
+# noiseList <- c(0.1, 0.5, 1.)
+noiseList <- c(0.1)
 nBatch <- 5
 nParams <- 6
 nPass <- 3
@@ -54,7 +54,8 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize0 <- 0.1
+stepsizeList <- c(0.1, 0.05, 0.02)
+# stepsize0 <- 0.1
 stepsize.min <- 1e-4
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
@@ -217,6 +218,8 @@ for (noise_sd in noiseList) {
   for (sgdtype in c("sgd", "adagrad", "adam")) {
     message(">>> sgdtype = ", sgdtype)
 
+    for (stepsize0 in stepsizeList) {
+
     fit <- fpca.sgd(
       fdata_generator,
       tgrid,
@@ -235,9 +238,11 @@ for (noise_sd in noiseList) {
       nIter.constStepSize = 0,
       stepsize.decayrate = 0.51,
       stepsize.min = stepsize.min,
-      period.decay = 5 * nBlockIter,
-      # period.decay = 2 * nBlockIter,
+      # period.decay = 5 * nBlockIter,
+      period.decay = 2 * nBlockIter,
+      # period.decay = 1,
       nIter.slowerdecay = nIter1pass,
+      # stepsize.decayrate.slow = 0.5,
       stepsize.decayrate.slow = 0.25,
       dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
       dynlrCtrl = list(
@@ -249,10 +254,13 @@ for (noise_sd in noiseList) {
       sgdtype = sgdtype,
       adamw = TRUE,
       adam.rescale = TRUE,
-      ada.start = 20 * nBlockIter + 1,
-      adareset = 10 * nBlockIter,
-      # adareset.end = nIter1pass,
-      adareset.end = 10 * nBlockIter,
+      # ada.start = 20 * nBlockIter + 1,
+      ada.start = 25 * nBlockIter + 1,
+      # ada.start = 1,
+      # adareset = 10 * nBlockIter,
+      adareset = 20 * nBlockIter,
+      adareset.end = nIter1pass,
+      # adareset.end = 10 * nBlockIter,
       asgd.start = 10 * nBlockIter + 1,
       asgd.reset = 40 * nBlockIter,
       asgd.reset.end = nIter1pass,
@@ -264,6 +272,8 @@ for (noise_sd in noiseList) {
       period.record = nBlockIter,
       verbose = TRUE
     )
+
+    check <- fit$check
 
     tau.min <- fit$tau.min
     l <- which(fit$tau == tau.min)[1]
@@ -342,7 +352,9 @@ for (noise_sd in noiseList) {
         RMSEphi3.avg = rmseAll.avg[, 3]
       )
     )
-  }
+
+    } # end of all step sizes
+  }  # end of all sgdtype
 
   if (compare) {
 
