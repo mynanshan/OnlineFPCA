@@ -47,7 +47,7 @@ nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 # stepsizeList <- c(0.1, 0.05, 0.02)
-stepsizeList <- c(0.1, 0.05)
+stepsizeList <- c(0.2, 0.1, 0.05, 0.02)
 # stepsize0 <- 0.1
 stepsize.min <- 1e-4
 nRoundNoTune <- 1
@@ -285,7 +285,8 @@ for (noise_sd in noiseList) {
         ),
         nbatch = nBatch,
         maxIter = nPass * nIter1pass,
-        stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
+        # stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
+        stepsize = sgd_lr0,
         # nIter.constStepSize = nIter1pass,
         nIter.constStepSize = 0,
         stepsize.decayrate = 0.51,
@@ -294,8 +295,10 @@ for (noise_sd in noiseList) {
         # period.decay = 2 * nBlockIter,
         nIter.slowerdecay = nIter1pass,
         stepsize.decayrate.slow = 0.25,
-        dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
+        # dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
+        dynlr = TRUE,
         dynlrCtrl = list(
+          # niter = 10 * nBlockIter,
           niter = 20 * nBlockIter,
           reset = 5 * nBlockIter,
           refdn = stepsize0,
@@ -304,14 +307,16 @@ for (noise_sd in noiseList) {
         sgdtype = sgdtype,
         adamw = TRUE,
         adam.rescale = TRUE,
-        ada.start = 1,
-        # ada.start = 25 * nBlockIter + 1,
+        # ada.start = 1,
+        # ada.start = 5 * nBlockIter + 1,
+        ada.start = 25 * nBlockIter + 1,
         # adareset = 10 * nBlockIter,
         adareset = 20 * nBlockIter,
         adareset.end = nIter1pass,
+        # adareset.end = Inf,
         asgd.start = 10 * nBlockIter + 1,
-        asgd.reset = 20 * nBlockIter,
-        # asgd.reset = 40 * nBlockIter,
+        # asgd.reset = 20 * nBlockIter,
+        asgd.reset = 40 * nBlockIter,
         asgd.reset.end = nIter1pass,
         asgd.end = Inf,
         nIter.1stTune = nRoundNoTune * nBlockIter,

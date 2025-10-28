@@ -231,8 +231,10 @@ fpca.sgd <- function(
     }
   }
   ada_counter <- as.integer(0 + init_grad)
+
   # exponential moving average of updating directions' norms
   ewadn <- numeric(ntau)
+  ewadn_count <- 0
 
   # step size settings
   if (dynlr) {
@@ -295,14 +297,6 @@ fpca.sgd <- function(
       message("- Iteration ", i)
     }
 
-    if (i == ada.start && !stringr::str_detect(sgdtype, "sgd")) {
-      cat("Start adagrad-type optimization.\n")
-      if (dynlr) {
-        stepsize <- dynlrCtrl$refdn
-        cat("Changing the step size to", stepsize, "\n")
-      }
-    }
-
     # Stepsize decaying factor
     if (i == nIter.constStepSize + 1) {
       decay_counter <- 0
@@ -313,6 +307,7 @@ fpca.sgd <- function(
       stepsize <- stepsize * ii^(stepsize.decayrate - stepsize.decayrate.slow) 
       # decay_counter <- 0
     }
+    # TODO: this decaying logic is incorrect as well
     decay_counter <- decay_counter + 1
     decay <- 1 / (max(decay_counter - 1, 1) %/% period.decay + 1)^
       if (i <= nIter.constStepSize) {
@@ -333,6 +328,8 @@ fpca.sgd <- function(
       lambda.avg <- lambda
       sigma2.avg <- sigma2
     }
+
+    if (i == ada.start) { ewadn_count <- 0 }
 
     # receive new data
     obs <- data_generator(nbatch, total_count)
@@ -413,6 +410,7 @@ fpca.sgd <- function(
         Theta <- Theta[,, parentId, drop = F]
         lambda <- lambda[, parentId, drop = F]
         sigma2 <- sigma2[parentId]
+        ewadn <- ewadn[parentId]
         tau.control <- setParams.tau(
           tau,
           tau.control,
@@ -483,7 +481,7 @@ fpca.sgd <- function(
         sgdtype = ifelse(i >= ada.start, sgdtype, "sgd"),
         adamw = adamw
       )
-      if (sgdtype != "sgd" && i >= ada.start) {
+      if (sgdtype != "sgd") {
         # if not sgd, the direction may be not a tangent element
         direc[['Theta']] <- as.matrix(manifold.Stiefel.project(
           direc[['Theta']],
@@ -491,16 +489,27 @@ fpca.sgd <- function(
           G
         ))
       }
-      # TODO: testing ewadn. This looks like a dirty fix. Can we get rid of it?
+
+      # # TODO: hard clipping of the direc
+      # if (!stringr::str_detect(sgdtype, "sgd")) {
+      #   mn_dTheta <- sum(direc[['Theta']] * G %*% direc[['Theta']]) / q
+      #   if (mn_dTheta > 25) {
+      #     direc[['Theta']] <- direc[['Theta']] * 5 / sqrt(mn_dTheta)
+      #   }
+      # }
+
+      # Exponential moving average of updating direc norms
+      mn_dTheta <- sum(direc[['Theta']] * G %*% direc[['Theta']]) / q
+      ewadn[l] <- ifelse(
+        # ada_counter == 0 && i >= ada.start,
+        ewadn_count == 0,
+        mn_dTheta,
+        ewadn[l] * 0.9 + 0.1 * mn_dTheta
+      )
       if (
-        stringr::str_detect(sgdtype, "adam") && i >= ada.start  # Adam always need a direction standardization
+        stringr::str_detect(sgdtype, "adam") ||  # Adam always need a direction standardization
+        (!stringr::str_detect(sgdtype, "sgd") && i < ada.start)  # The SGD-warm-up before other AdaGrad methods
       ) {
-        mn_dTheta <- sum(direc[['Theta']] * G %*% direc[['Theta']]) / q
-        ewadn[l] <- ifelse(
-          ada_counter == 0 && i >= ada.start,
-          mn_dTheta,
-          ewadn[l] * 0.9 + 0.1 * mn_dTheta
-        )
         direc[['Theta']] <- direc[['Theta']] / sqrt(ewadn[l])
       }
 
@@ -654,6 +663,12 @@ fpca.sgd <- function(
       } else {
         asgd_counter <- asgd_counter + 1
       }
+    }
+
+    # update ewadn counter
+    # TODO: set the reset period as an argument
+    if (i %% 50 == 0) {
+      ewadn_count <- 0
     }
 
     # record parameters

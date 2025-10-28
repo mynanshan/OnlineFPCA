@@ -32,15 +32,21 @@ res <- res |>
   )
 
 sumres <- res |> 
-  group_by(Method, noise, N) |> 
+  group_by(Method, noise, StepSize, N) |> 
   summarise_at(vars(Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg), list(mean=mean)) |> 
   ungroup() |> 
-  group_by(Method, noise) |> 
+  group_by(Method, noise, StepSize) |> 
   mutate(SumTime = cumsum(Time_mean))
 
 q <- 5
 N1 = 5000
 N0 <- N1 * (1:q)
+
+View(
+  res |> filter(N %in% N0) |> 
+    dplyr::select(noise, seed, Method, StepSize, N, starts_with("RMSEphi")),
+  "Results"
+)
 
 # PACE is optimized by C codes. Performance too different
 meth_ord = c("OnlineFPCA-sgd", "OnlineFPCA-adagrad", "OnlineFPCA-adam", "Batch-SOAP")
@@ -48,7 +54,7 @@ meth_ord = c("OnlineFPCA-sgd", "OnlineFPCA-adagrad", "OnlineFPCA-adam", "Batch-S
 tabres <- ungroup(sumres) |>
   filter(stringr::str_detect(Method, "Batch") | N %in% N0) |>
   dplyr::select(
-    Method, N, noise, SumTime,
+    Method, N, noise, StepSize, SumTime,
     RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
   ) |>
   mutate(Method = factor(Method, levels=meth_ord)) |> 
@@ -74,22 +80,22 @@ tabres <- ungroup(sumres) |>
 
 knitr::kable(tabres, "latex", digits = 3)
 
-library(ggplot2)
+# library(ggplot2)
 
-ggplot(
-  data = res |> 
-    rename(
-      phi1 = RMSEphi1.avg,
-      phi2 = RMSEphi2.avg,
-      phi3 = RMSEphi3.avg
-    ) |>
-    filter(N == N0 * 5) |> 
-    pivot_longer(
-      cols = paste0("phi", 1:3),
-      names_to = "phi",
-      values_to = "rmse"
-    ),
-  aes(x = rmse)
-) +
-  geom_histogram(bins = 30) +
-  facet_grid(Method ~ phi)
+# ggplot(
+#   data = res |> 
+#     rename(
+#       phi1 = RMSEphi1.avg,
+#       phi2 = RMSEphi2.avg,
+#       phi3 = RMSEphi3.avg
+#     ) |>
+#     filter(N == N0 * 5) |> 
+#     pivot_longer(
+#       cols = paste0("phi", 1:3),
+#       names_to = "phi",
+#       values_to = "rmse"
+#     ),
+#   aes(x = rmse)
+# ) +
+#   geom_histogram(bins = 30) +
+#   facet_grid(Method ~ phi)
