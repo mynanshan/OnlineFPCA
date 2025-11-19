@@ -41,8 +41,8 @@ nBlockList <- c(10, 20, 50, 100)
 Ninit <- 100
 initMethod <- "face"
 N <- 5000
-stepsize0 <- 0.5
-stepsize.min <- 1e-3
+stepsize0 <- 0.1
+stepsize.min <- 1e-4
 ewmabv.beta.list <- c(0.1, 0.3, 0.5, 0.7, 0.9)
 
 exprmt <- "abv1d"
@@ -77,6 +77,23 @@ lambdaTrue <- rp$eigval
 
 q <- npc <- 3
 
+nbasis <- 7
+basis <- create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
+p <- nbasis
+
+muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
+phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
+rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
+rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
+
+G <- get_basis_inprod_matrix(basis)
+GR <- Matrix::chol(G)
+invG <- chol2inv(GR)
+Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
+sqrtmObj <- pracma::sqrtm(as.matrix(G))
+sqrtG <- sqrtmObj$B
+sqrtGinv <- sqrtmObj$Binv
+
 dat <- get_measurements(
   rp,
   n = N,
@@ -89,6 +106,7 @@ dat <- get_measurements(
   sigma = noise_sd
 )
 tgrid <- dat$tgrid
+B <- eval_basis(tgrid, basis)
 
 fdata_generator <- function(n, total_count) {
   idx <- (total_count):(total_count + n - 1) %% N + 1
@@ -99,24 +117,6 @@ fdata_generator <- function(n, total_count) {
     Lmi = dat$Lmi[idx]
   )
 }
-
-nbasis <- 7
-basis <- create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
-p <- nbasis
-
-muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
-phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
-rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
-rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
-
-B <- eval_basis(tgrid, basis)
-G <- get_basis_inprod_matrix(basis)
-GR <- Matrix::chol(G)
-invG <- chol2inv(GR)
-Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
-sqrtmObj <- pracma::sqrtm(as.matrix(G))
-sqrtG <- sqrtmObj$B
-sqrtGinv <- sqrtmObj$Binv
 
 # Online FPCA  ------------------------------------------------------------
 
@@ -201,16 +201,28 @@ res <-
       ),
       nbatch = nBatch,
       maxIter = nPass * nIter1pass,
-      stepsize = stepsize0,
+      stepsize = sgd_lr0,
+      nIter.constStepSize = 0,
       stepsize.decayrate = 0.51,
       stepsize.min = stepsize.min,
-      nIter.slowerdecay = floor(0.8 * nIter1pass),
-      stepsize.decayrate.slow = 0.51,
+      period.decay = 5 * nBlockIter,
+      nIter.slowerdecay = nIter1pass,
+      stepsize.decayrate.slow = 0.25,
+      dynlr = TRUE,
+      dynlrCtrl = list(
+        niter = 20 * nBlockIter,
+        reset = 5 * nBlockIter,
+        refdn = stepsize0,
+        w = 0.9
+      ),
       sgdtype = "adagrad",
+      adamw = TRUE,
+      adam.rescale = TRUE,
+      ada.start = 25 * nBlockIter + 1,
       adareset = 20 * nBlockIter,
-      adareset.end = Inf,
-      asgd.start = 10 * nBlockIter,
-      asgd.reset = 20 * nBlockIter,
+      adareset.end = nIter1pass,
+      asgd.start = 10 * nBlockIter + 1,
+      asgd.reset = 40 * nBlockIter,
       asgd.reset.end = nIter1pass,
       asgd.end = Inf,
       nIter.1stTune = nRoundNoTune * nBlockIter,
