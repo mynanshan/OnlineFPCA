@@ -268,7 +268,7 @@ for (noise_sd in noiseList) {
     sgd_lr0 <- stepsize0 / g_Theta_init_norm
     message("> Step size = ", stepsize0)
 
-    for (sgdtype in c("sgd", "adagrad", "adam")) {
+    for (sgdtype in c("sgd", "adagrad")) {
       message(">>> sgdtype = ", sgdtype)
 
       fit <- fpca.sgd(

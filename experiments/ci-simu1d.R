@@ -43,8 +43,8 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize0 <- 0.5
-stepsize.min <- 1e-3
+stepsize0 <- 0.1
+stepsize.min <- 1e-4
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
 
@@ -173,8 +173,6 @@ grad_Theta_init <- objfun(
 )$grad_Theta
 grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
 g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
-sgd_lr0 <- stepsize0 / g_Theta_init_norm
-message("> Step size = ", stepsize0)
 
 inits <- list(
   Theta = ThetaInit,
@@ -182,10 +180,13 @@ inits <- list(
   sigma2 = sigma2Init
 )
 
-resCI <- vector("list", 3)
-names(resCI) <- c("sgd", "adagrad", "adam")
+sgd_lr0 <- stepsize0 / g_Theta_init_norm
+message("> Step size = ", stepsize0)
 
-for (sgdtype in c("sgd", "adagrad", "adam")) {
+resCI <- vector("list", 3)
+names(resCI) <- c("sgd", "adagrad")
+
+for (sgdtype in c("sgd", "adagrad")) {
   message(">>> sgdtype = ", sgdtype)
 
   fit <- fpca.sgd(
@@ -202,18 +203,29 @@ for (sgdtype in c("sgd", "adagrad", "adam")) {
     ),
     nbatch = nBatch,
     maxIter = nPass * nIter1pass,
-    stepsize = ifelse(sgdtype=="sgd", sgd_lr0, stepsize0),
+    # stepsize = ifelse(sgdtype=="sgd", sgd_lr0, stepsize0),
+    stepsize = sgd_lr0,
+    nIter.constStepSize = 0,
     stepsize.decayrate = 0.51,
     stepsize.min = stepsize.min,
+    period.decay = 5 * nBlockIter,
     nIter.slowerdecay = nIter1pass,
-    stepsize.decayrate.slow = 0.51,
+    stepsize.decayrate.slow = 0.25,
+    dynlr = TRUE,
+    dynlrCtrl = list(
+      niter = 20 * nBlockIter,
+      reset = 5 * nBlockIter,
+      refdn = stepsize0,
+      w = 0.9
+    ),
     sgdtype = sgdtype,
     adamw = TRUE,
     adam.rescale = TRUE,
+    ada.start = 25 * nBlockIter + 1,
     adareset = 20 * nBlockIter,
     adareset.end = nIter1pass,
-    asgd.start = 10 * nBlockIter,
-    asgd.reset = 20 * nBlockIter,
+    asgd.start = 10 * nBlockIter + 1,
+    asgd.reset = 40 * nBlockIter,
     asgd.reset.end = nIter1pass,
     asgd.end = Inf,
     fpcCI = TRUE,

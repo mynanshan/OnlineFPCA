@@ -78,24 +78,9 @@ tabres <- ungroup(sumres) |>
   relocate(epoch, .before = SumTime) |> 
   dplyr::select(-N)
 
-knitr::kable(tabres, "latex", digits = 3)
-
-# library(ggplot2)
-
-# ggplot(
-#   data = res |> 
-#     rename(
-#       phi1 = RMSEphi1.avg,
-#       phi2 = RMSEphi2.avg,
-#       phi3 = RMSEphi3.avg
-#     ) |>
-#     filter(N == N0 * 5) |> 
-#     pivot_longer(
-#       cols = paste0("phi", 1:3),
-#       names_to = "phi",
-#       values_to = "rmse"
-#     ),
-#   aes(x = rmse)
-# ) +
-#   geom_histogram(bins = 30) +
-#   facet_grid(Method ~ phi)
+knitr::kable(
+  tabres |> 
+    filter(is.na(StepSize) | StepSize == 0.1) |> 
+    dplyr::select(-StepSize),
+  "latex", digits = 3
+)

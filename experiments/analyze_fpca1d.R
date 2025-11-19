@@ -87,4 +87,9 @@ tabres <- ungroup(sumres) |>
   relocate(epoch, .before = SumTime) |> 
   dplyr::select(-N)
 
-knitr::kable(tabres, "latex", digits = 3)
+knitr::kable(
+  tabres |>
+    filter(is.na(StepSize) | StepSize == 0.1) |> 
+    dplyr::select(-StepSize),
+  "latex", digits = 3
+)
