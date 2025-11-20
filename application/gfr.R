@@ -161,6 +161,8 @@ inits <- list(
   sigma2 = sigma2Init
 )
 
+sgdtype <- "adagrad"
+
 message("Start AdaGrad FPCA")
 
 fit <- fpca.sgd(

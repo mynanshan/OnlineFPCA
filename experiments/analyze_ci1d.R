@@ -13,13 +13,6 @@ nt <- 51
 t0 <- 0; t1 <- 1
 tgrid <- seq(t0,t1,length.out=nt)
 
-nbasis <- 7
-basis <- fda::create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
-B <- eval_basis(tgrid, basis)
-
-rp <- get_rp.yang2021(alpha = 2, npc = 10)
-PhiTrue <- rp$eigfun(tgrid)
-
 idx.start <- 11
 idx.end <- 151
 
@@ -29,15 +22,18 @@ sgdtype <- "sgd"
 
 # Plot CIs ---------------------------------------------------------------
 
+seed <- 1
 n_digit_seed = ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("ci_", exprmt, "_sd", seedtext, ".RData")
 
 load(file.path(dirpath, filename))
-CIs <- saveObj$CIs[[sgdtype]]
-PhiStar <- as.matrix(B %*% saveObj$sol$Theta)
+CIs <- CIobj$CIs
+PhiStar <- CIobj$PhiStar
+PhiTrue <- CIobj$PhiTrue
 
-idx <- c(21, 51, 101)
+idx <- c(21, 31, 41)
+idx <- c(51, 101, 151)
 
 pa <- par(no.readonly = TRUE)
 par(mfrow = c(3, 3), mar = c(3, 3, 2, 1), oma = c(2, 2, 1, 0))
@@ -47,13 +43,14 @@ for (i in seq_along(idx)) {
     phik <- PhiTrue[, k]
     phikstar <- PhiStar[, k]
     phik.l <- CIs[, k, 1, idx[i]]
+    phik.est <- CIs[, k, 2, idx[i]]
     phik.u <- CIs[, k, 3, idx[i]]
     plot(
       tgrid,
-      phik,
+      phikstar,
       type = "l",
       lty = 2,
-      lwd = 1.2,
+      lwd = 2,
       xlab = "",
       ylab = "",
       main = NULL,
@@ -67,7 +64,8 @@ for (i in seq_along(idx)) {
       col = rgb(0.2, 0.3, 0.9, alpha = 0.2),
       border = NA
     )
-    lines(tgrid, phikstar, lwd = 2)
+    # lines(tgrid, phik, lwd = 1.2, lty = 2)
+    lines(tgrid, phik.est, lwd = 2, col = 2)
     # lines(evalGrid, phik.l, lty=4, col="#1A73A0", lwd=3)
     if (k == 1) {
       mtext(paste0("n=", (idx[i] - 1) * 100), side = 2, line = 3)
