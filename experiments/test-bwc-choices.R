@@ -44,12 +44,10 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize <- 2e-1
-stepsize.min <- 5e-2
-sgd.step.scale <- 1 # use a smaller step size for sgd
+stepsize0 <- 1e-1
+stepsize.min <- 1e-4
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
-asgd.use <- TRUE
 
 bwcSet <- data.frame(
   C = c(3, 6, 6, 6, 8, 8, 8),
@@ -91,6 +89,8 @@ res <- data.frame(
 )
 
 tau_paths_mat <- c()
+
+set.seed(seed)
 
 rp <- get_rp.yang2021(alpha = alpha, npc = 10)
 m_min <- NULL
@@ -182,15 +182,27 @@ ThetaInit <- sweep(ThetaInit, 2, sqrt(norm_factor), "/")
 lambdaInit <- lambdaInit * norm_factor
 PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
 
+ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
+grad_Theta_init <- objfun(
+  dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
+  ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
+)$grad_Theta
+grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
+g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init) / q)
+sgd_lr0 <- stepsize0 / g_Theta_init_norm
+message("> Step size = ", stepsize0)
+
 nBlockIter <- nBlock / nBatch
 nIter1pass <- N / nBatch
-asgdIterStart <- round(nRecord.1pass * 0.7 * nBlockIter)
-adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 
-inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
+inits <- list(
+  Theta = ThetaInit,
+  lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
+  sigma2 = sigma2Init
+)
 
-for (optMethod in c("SGD", "Adam")) {
-  message("Method:", optMethod)
+for (sgdtype in c("SGD", "adagrad")) {
+  message("Method:", sgdtype)
 
   for (i in seq_len(nrow(bwcSet))) {
     message(">>>", "C:", bwcSet$C[i], ", W:", bwcSet$W[i])
@@ -209,18 +221,33 @@ for (optMethod in c("SGD", "Adam")) {
       ),
       nbatch = nBatch,
       maxIter = nPass * nIter1pass,
-      stepsize = stepsize,
-      stepsize.decayrate = 0.6,
+      stepsize = sgd_lr0,
+      nIter.constStepSize = 0,
+      stepsize.decayrate = 0.51,
       stepsize.min = stepsize.min,
-      nIter.slowerdecay = floor(0.8 * nIter1pass),
-      stepsize.decayrate.slow = 0.3,
-      nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
-      asgd.use = TRUE,
-      asgd.start = asgdIterStart,
-      coord.scaling = FALSE,
+      period.decay = 5 * nBlockIter,
+      nIter.slowerdecay = nIter1pass,
+      stepsize.decayrate.slow = 0.25,
+      dynlr = TRUE,
+      dynlrCtrl = list(
+        niter = 20 * nBlockIter,
+        reset = 5 * nBlockIter,
+        refdn = stepsize0,
+        w = 0.9
+      ),
+      sgdtype = sgdtype,
+      adamw = TRUE,
+      adam.rescale = TRUE,
+      ada.start = 25 * nBlockIter + 1,
+      adareset = 20 * nBlockIter,
+      adareset.end = nIter1pass,
+      asgd.start = 10 * nBlockIter + 1,
+      asgd.reset = 40 * nBlockIter,
+      asgd.reset.end = nIter1pass,
+      asgd.end = Inf,
       nIter.1stTune = nRoundNoTune * nBlockIter,
       nIter.lastTune = nIter1pass,
-      nIter.tauNoIncrease = floor(0.7 * nIter1pass),
+      nIter.tauNoIncrease = floor(0.3 * nIter1pass),
       period.tune = nBlockIter,
       period.record = nBlockIter,
       verbose = FALSE
