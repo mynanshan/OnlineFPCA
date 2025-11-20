@@ -61,7 +61,7 @@ if (!dir.exists(dirpath)) {
 }
 
 if (seed == 1) {
-  readr::write_csv(bwcSet, file.path(dirpath, "bwcSet_.csv"))
+  readr::write_csv(bwcSet, file.path(dirpath, "bwcSet.csv"))
 }
 
 n_digit_seed = ceiling(log10(seed + 1))
