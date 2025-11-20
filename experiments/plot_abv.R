@@ -6,8 +6,6 @@ source("./R/helper.R")
 source("./R/manifoldUtils.R")
 source("./R/kernelUtils.R")
 source("./R/onlineFPCA.R")
-source("./R/onlineFDAlocalpoly.R")
-source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
 noise_sd <- 0.5
@@ -18,10 +16,9 @@ nBlock <- 100
 Ninit <- 100
 initMethod <- "face"
 N <- 5000
-stepsize <- 2e-1
-stepsize.min <- 5e-2
+stepsize0 <- 0.1
+stepsize.min <- 1e-4
 sgd.step.scale <- 1 # use a smaller step size for sgd
-asgd.use <- TRUE
 ewmabv.beta.list <- c(0.1, 0.3, 0.5, 0.7, 0.9)
 
 exprmt <- "abv1d"
@@ -56,19 +53,6 @@ lambdaTrue <- rp$eigval
 
 q <- npc <- 3
 
-dat <- get_measurements(
-  rp,
-  n = N,
-  m_min = m_min,
-  m_max = m_max,
-  m_mean = m_mean,
-  m_sd = m_sd,
-  design_type = "random",
-  m_type = m_type,
-  sigma = noise_sd
-)
-tgrid <- dat$tgrid
-
 fdata_generator <- function(n, total_count) {
   idx <- (total_count):(total_count + n - 1) %% N + 1
   list(
@@ -88,9 +72,31 @@ phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
 rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
 rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
 
-B <- eval_basis(tgrid, basis)
 G <- get_basis_inprod_matrix(basis)
+GR <- Matrix::chol(G)
+invG <- chol2inv(GR)
 Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
+sqrtmObj <- pracma::sqrtm(as.matrix(G))
+sqrtG <- sqrtmObj$B
+sqrtGinv <- sqrtmObj$Binv
+
+perm <- get_commute_index(p, q)
+
+set.seed(1234)
+
+dat <- get_measurements(
+  rp,
+  n = N,
+  m_min = m_min,
+  m_max = m_max,
+  m_mean = m_mean,
+  m_sd = m_sd,
+  design_type = "random",
+  m_type = m_type,
+  sigma = noise_sd
+)
+tgrid <- dat$tgrid
+B <- eval_basis(tgrid, basis)
 
 # Online FPCA  ------------------------------------------------------------
 
@@ -128,9 +134,19 @@ ThetaInit <- sweep(ThetaInit, 2, sqrt(norm_factor), "/")
 lambdaInit <- lambdaInit * norm_factor
 PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
 
-inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
+ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
+grad_Theta_init <- objfun(
+  dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
+  ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
+)$grad_Theta
+grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
+g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init) / q)
 
-optMethod <- "Adam"
+inits <- list(
+  Theta = ThetaInit,
+  lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
+  sigma2 = sigma2Init
+)
 
 nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
@@ -142,6 +158,9 @@ nBlockIter <- nBlock / nBatch
 nIter1pass <- N / nBatch
 asgdIterStart <- round(nRecord.1pass * 0.7 * nBlockIter)
 adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
+
+sgdtype <- "sgd"
+sgd_lr0 <- stepsize0 / g_Theta_init_norm
 
 ewmabv.mat <- c()
 for (ewmabv.beta in ewmabv.beta.list) {
@@ -162,18 +181,32 @@ for (ewmabv.beta in ewmabv.beta.list) {
         ),
         nbatch = nBatch,
         maxIter = nPass * nIter1pass,
-        stepsize = stepsize,
-        stepsize.decayrate = 0.6,
+        stepsize = sgd_lr0,
+        nIter.constStepSize = 0,
+        stepsize.decayrate = 0.51,
         stepsize.min = stepsize.min,
-        nIter.slowerdecay = floor(0.8 * nIter1pass),
-        stepsize.decayrate.slow = 0.3,
-        nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
-        asgd.use = TRUE,
-        asgd.start = asgdIterStart,
-        coord.scaling = FALSE,
+        nIter.slowerdecay = nIter1pass,
+        stepsize.decayrate.slow = 0.25,
+        dynlr = TRUE,
+        dynlrCtrl = list(
+          niter = 20 * nBlockIter,
+          reset = 5 * nBlockIter,
+          refdn = stepsize0,
+          w = 0.9
+        ),
+        sgdtype = sgdtype,
+        adamw = TRUE,
+        adam.rescale = TRUE,
+        ada.start = 25 * nBlockIter + 1,
+        adareset = 20 * nBlockIter,
+        adareset.end = nIter1pass,
+        asgd.start = 10 * nBlockIter + 1,
+        asgd.reset = 40 * nBlockIter,
+        asgd.reset.end = nIter1pass,
+        asgd.end = Inf,
         nIter.1stTune = nRoundNoTune * nBlockIter,
         nIter.lastTune = nIter1pass,
-        nIter.tauNoIncrease = floor(0.7 * nIter1pass),
+        nIter.tauNoIncrease = floor(0.3 * nIter1pass),
         period.tune = nBlockIter,
         period.record = nBlockIter,
         ewmabv.beta = ewmabv.beta,
