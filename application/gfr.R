@@ -59,9 +59,9 @@ dat$Lmi <- sapply(dat$Ltid, length)
 #   xlab = "Number of Records",
 #   ylab = "Percent of Recipients (%)"
 # )
-mean(dat$Lmi == 7)
-mean(dat$Lmi == 6)
-mean(dat$Lmi < 6)
+# mean(dat$Lmi == 7)
+# mean(dat$Lmi == 6)
+# mean(dat$Lmi < 6)
 
 # re-scale
 dat$Lt <- lapply(dat$Lt, \(t) (t - 1) / (7 - 1))
@@ -89,8 +89,8 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize <- 2e-1
-stepsize.min <- 5e-2
+stepsize0 <- 1e-1
+stepsize.min <- 1e-4
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
 asgd.use <- TRUE
