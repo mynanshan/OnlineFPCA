@@ -8,6 +8,8 @@ source("./R/kernelUtils.R")
 source("./R/onlineFPCA.R")
 source("./data_generation/generator.R")
 
+seed <- 1234
+
 noise_sd <- 0.5
 nBatch <- 5
 nParams <- 6

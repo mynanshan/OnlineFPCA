@@ -324,7 +324,7 @@ for (sgdtype in c("sgd", "adagrad")) {
       res,
       data.frame(
         seed = rep(seed, nRecord + 1),
-        Method = rep(paste0("OnlineFPCA-", optMethod), nRecord + 1),
+        Method = rep(paste0("OnlineFPCA-", sgdtype), nRecord + 1),
         StepSize = rep(stepsize, nRecord + 1),
         N = c(0, nIters),
         Ninit = rep(Ninit, nRecord + 1),
@@ -344,7 +344,7 @@ for (sgdtype in c("sgd", "adagrad")) {
     )
 
     tau_paths_mat <- rbind(tau_paths_mat, tau_path)
-    rownames(tau_paths_mat)[nrow(tau_paths_mat)] <- paste0(optMethod, "-C", bwcSet$C[i], "W", bwcSet$W[i])
+    rownames(tau_paths_mat)[nrow(tau_paths_mat)] <- paste0(sgdtype, "-C", bwcSet$C[i], "W", bwcSet$W[i])
   }
 }
 
