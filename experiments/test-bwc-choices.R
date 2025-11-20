@@ -325,7 +325,7 @@ for (sgdtype in c("sgd", "adagrad")) {
       data.frame(
         seed = rep(seed, nRecord + 1),
         Method = rep(paste0("OnlineFPCA-", sgdtype), nRecord + 1),
-        StepSize = rep(stepsize, nRecord + 1),
+        StepSize = rep(stepsize0, nRecord + 1),
         N = c(0, nIters),
         Ninit = rep(Ninit, nRecord + 1),
         initMethod = rep(initMethod, nRecord + 1),
