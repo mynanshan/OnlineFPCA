@@ -206,7 +206,7 @@ inits <- list(
   sigma2 = sigma2Init
 )
 
-for (sgdtype in c("SGD", "adagrad")) {
+for (sgdtype in c("sgd", "adagrad")) {
   message("Method:", sgdtype)
 
   for (i in seq_len(nrow(bwcSet))) {
@@ -324,7 +324,7 @@ for (sgdtype in c("SGD", "adagrad")) {
       res,
       data.frame(
         seed = rep(seed, nRecord + 1),
-        Method = rep(paste0("Pspline-", optMethod), nRecord + 1),
+        Method = rep(paste0("OnlineFPCA-", optMethod), nRecord + 1),
         StepSize = rep(stepsize, nRecord + 1),
         N = c(0, nIters),
         Ninit = rep(Ninit, nRecord + 1),
