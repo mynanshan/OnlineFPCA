@@ -183,74 +183,70 @@ inits <- list(
 sgd_lr0 <- stepsize0 / g_Theta_init_norm
 message("> Step size = ", stepsize0)
 
-resCI <- vector("list", 3)
-names(resCI) <- c("sgd", "adagrad")
+sgdtype <- "sgd"
+message(">>> sgdtype = ", sgdtype)
 
-for (sgdtype in c("sgd", "adagrad")) {
-  message(">>> sgdtype = ", sgdtype)
+fit <- fpca.sgd(
+  fdata_generator,
+  tgrid,
+  inits = inits,
+  meanfun = FALSE,
+  tau = NULL,
+  tau.control = list(
+    ntau = nParams,
+    nselect = 2,
+    maxtau = 1e-1,
+    mintau = 1e-6
+  ),
+  nbatch = nBatch,
+  maxIter = nPass * nIter1pass,
+  # stepsize = ifelse(sgdtype=="sgd", sgd_lr0, stepsize0),
+  stepsize = sgd_lr0,
+  nIter.constStepSize = 0,
+  stepsize.decayrate = 0.51,
+  stepsize.min = stepsize.min,
+  period.decay = 5 * nBlockIter,
+  nIter.slowerdecay = nIter1pass,
+  stepsize.decayrate.slow = 0.25,
+  dynlr = TRUE,
+  dynlrCtrl = list(
+    niter = 20 * nBlockIter,
+    reset = 5 * nBlockIter,
+    refdn = stepsize0,
+    w = 0.9
+  ),
+  sgdtype = sgdtype,
+  adamw = TRUE,
+  adam.rescale = TRUE,
+  ada.start = 25 * nBlockIter + 1,
+  adareset = 20 * nBlockIter,
+  adareset.end = nIter1pass,
+  asgd.start = 10 * nBlockIter + 1,
+  asgd.reset = Inf,
+  asgd.reset.end = Inf,
+  asgd.end = Inf,
+  fpcCI = TRUE,
+  nIter.1stTune = nRoundNoTune * nBlockIter,
+  nIter.lastTune = nIter1pass,
+  nIter.tauNoIncrease = floor(0.3 * nIter1pass),
+  period.tune = nBlockIter,
+  period.record = nBlockIter,
+  verbose = TRUE
+)
 
-  fit <- fpca.sgd(
-    fdata_generator,
-    tgrid,
-    inits = inits,
-    meanfun = FALSE,
-    tau = NULL,
-    tau.control = list(
-      ntau = nParams,
-      nselect = 2,
-      maxtau = 1e-1,
-      mintau = 1e-6
-    ),
-    nbatch = nBatch,
-    maxIter = nPass * nIter1pass,
-    # stepsize = ifelse(sgdtype=="sgd", sgd_lr0, stepsize0),
-    stepsize = sgd_lr0,
-    nIter.constStepSize = 0,
-    stepsize.decayrate = 0.51,
-    stepsize.min = stepsize.min,
-    period.decay = 5 * nBlockIter,
-    nIter.slowerdecay = nIter1pass,
-    stepsize.decayrate.slow = 0.25,
-    dynlr = TRUE,
-    dynlrCtrl = list(
-      niter = 20 * nBlockIter,
-      reset = 5 * nBlockIter,
-      refdn = stepsize0,
-      w = 0.9
-    ),
-    sgdtype = sgdtype,
-    adamw = TRUE,
-    adam.rescale = TRUE,
-    ada.start = 25 * nBlockIter + 1,
-    adareset = 20 * nBlockIter,
-    adareset.end = nIter1pass,
-    asgd.start = 10 * nBlockIter + 1,
-    asgd.reset = 40 * nBlockIter,
-    asgd.reset.end = nIter1pass,
-    asgd.end = Inf,
-    fpcCI = TRUE,
-    nIter.1stTune = nRoundNoTune * nBlockIter,
-    nIter.lastTune = nIter1pass,
-    nIter.tauNoIncrease = floor(0.3 * nIter1pass),
-    period.tune = nBlockIter,
-    period.record = nBlockIter,
-    verbose = TRUE
-  )
+resCI <- fit$CI
 
-  resCI[[sgdtype]] <- fit$CI
+tau.min <- fit$tau.min
+l <- which(fit$tau == tau.min)[1]
+Theta.avg <- fit$Theta.avg[,, l]
 
-  tau.min <- fit$tau.min
-  l <- which(fit$tau == tau.min)[1]
-  Theta.avg <- fit$Theta.avg[,, l]
-
-  # match eigenfunctions
-  PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
-  PhiAvgEval <- match_fpc(PhiAvgEval, PhiTrueEval[, 1:q, drop = F])
-  resCI[[sgdtype]] <- resCI[[sgdtype]][,
-    attributes(PhiAvgEval)$match_id, , , drop = F ]
-  resCI[[sgdtype]][, attributes(PhiAvgEval)$flipped, , ] <-
-    -resCI[[sgdtype]][, attributes(PhiAvgEval)$flipped, , ]
-}
+# match eigenfunctions
+PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
+PhiAvgEval <- match_fpc(PhiAvgEval, PhiTrueEval[, 1:q, drop = F])
+resCI <- resCI[,
+  attributes(PhiAvgEval)$match_id, , , drop = F ]
+resCI[, attributes(PhiAvgEval)$flipped, , ] <-
+  -resCI[, attributes(PhiAvgEval)$flipped, , ]
 
 
 # ---------- Compute a global optimum ----------------
@@ -311,12 +307,13 @@ plot_CI_elu <- function(CIs, k, idx) {
 
 # End experiment ----------------------------------------------------------
 
-saveObj = list(
-  sol = list(Theta = ThetaStar, lambda = lambdaStar, sigma2 = sigma2Star),
+CIobj = list(
+  PhiStar = as.matrix(B %*% ThetaStar),
+  PhiTrue = as.matrix(B %*% phiTrueFunc$coefs[,1:npc]),
   CIs = resCI
 ) 
 
-save(saveObj, file = file.path(dirpath, filename))
+save(CIobj, file = file.path(dirpath, filename))
 
 message("Finishing replication: ", seed)
 set.seed(NULL)

@@ -17,10 +17,75 @@ nbasis <- 7
 basis <- fda::create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
 B <- eval_basis(tgrid, basis)
 
+rp <- get_rp.yang2021(alpha = 2, npc = 10)
+PhiTrue <- rp$eigfun(tgrid)
+
 idx.start <- 11
 idx.end <- 151
 
 sgdtype <- "sgd"
+
+
+
+# Plot CIs ---------------------------------------------------------------
+
+n_digit_seed = ceiling(log10(seed + 1))
+seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
+filename <- paste0("ci_", exprmt, "_sd", seedtext, ".RData")
+
+load(file.path(dirpath, filename))
+CIs <- saveObj$CIs[[sgdtype]]
+PhiStar <- as.matrix(B %*% saveObj$sol$Theta)
+
+idx <- c(21, 51, 101)
+
+pa <- par(no.readonly = TRUE)
+par(mfrow = c(3, 3), mar = c(3, 3, 2, 1), oma = c(2, 2, 1, 0))
+yranges <- sapply( 1:npc, \(k) range(CIs[,k,,idx]))
+for (i in seq_along(idx)) {
+  for (k in seq_len(npc)) {
+    phik <- PhiTrue[, k]
+    phikstar <- PhiStar[, k]
+    phik.l <- CIs[, k, 1, idx[i]]
+    phik.u <- CIs[, k, 3, idx[i]]
+    plot(
+      tgrid,
+      phik,
+      type = "l",
+      lty = 2,
+      lwd = 1.2,
+      xlab = "",
+      ylab = "",
+      main = NULL,
+      ylim = yranges[, k]
+    )
+    # lines(evalGrid, phik.l)
+    # lines(evalGrid, phik.u)
+    polygon(
+      c(tgrid, rev(tgrid)),
+      c(phik.l, rev(phik.u)),
+      col = rgb(0.2, 0.3, 0.9, alpha = 0.2),
+      border = NA
+    )
+    lines(tgrid, phikstar, lwd = 2)
+    # lines(evalGrid, phik.l, lty=4, col="#1A73A0", lwd=3)
+    if (k == 1) {
+      mtext(paste0("n=", (idx[i] - 1) * 100), side = 2, line = 3)
+    }
+    if (i == 1) {
+      mtext(paste0("FPC ", k), side = 3, line = 1, font = 2)
+    }
+    if (i == length(idx)) {
+      mtext("t", side = 1, line = 3, font = 2)
+    }
+  }
+}
+par(pa)
+
+# Check coverage rates ---------------------------------------------------
+
+# Current, the coverage rates still deviate observable from the nominal values
+
 
 cr <- array(0, dim = c(nt, npc, idx.end))
 
@@ -57,127 +122,3 @@ for (seed in seq_len(nrep)) {
   }
 }
 
-
-
-
-
-read.CI <- function(seed, sgdtype) {
-
-  n_digit_seed = ceiling(log10(seed + 1))
-  seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
-  filename <- paste0("ci_", exprmt, "_sd", seedtext, ".RData")
-
-  errflag <- FALSE
-  tryCatch(
-    CIs <- readRDS(file.path(dirpath, paste0(filebasename, sgdtype, ".rds"))),
-    error = function(e) {
-      cat("Combination unfound:", sgdtype, seed, "\n")
-      errflag <<- TRUE
-    }
-  )
-  if (errflag) return(NULL)
-
-  for (j in seq(idx.start, idx.end)) {
-    PhiEstFlipped <- match_fpc(CIs[,,2,j], PhiTrueGrid[,1:npc])
-    CIs[,,,j] <- CIs[,attributes(PhiEstFlipped)$match_id,,j]
-    CIs[,attributes(PhiEstFlipped)$flipped,,j] <-
-      -CIs[,attributes(PhiEstFlipped)$flipped,,j]
-  }
-
-  CIs <- CIs[,,,idx.start:idx.end]
-  CIs
-}
-
-
-CI.to.cvrg <- function(CIs, PhiTrue, npc = 3) {
-  nt <- dim(CIs)[1]
-  cvrg <- array(dim = c(nt, npc, idx.end - idx.start + 1))
-  for (k in seq_len(npc)) {
-    phi_true <- PhiTrueGrid[,k]
-    inprds <- colMeans(CIs[,k,2,] * PhiTrueGrid[,k])  # (nt, niter)
-    neg.ind <- inprds < 0
-    CIs[,k,,neg.ind] <- -CIs[,k,,neg.ind]
-    phi_l0 <- CIs[,k,1,]
-    phi_u0 <- CIs[,k,3,]
-    phi_l <- pmin(phi_l0, phi_u0)
-    phi_u <- pmax(phi_l0, phi_u0)
-    # bias correction:
-    cvrg[,k,] <- (phi_true > phi_l) & (phi_true < phi_u)
-  }
-  cvrg
-}
-
-nrep <- 1000
-
-cvrg.rate <- array(0, dim = c(nt, npc, idx.end - idx.start + 1))
-
-for (ir in seq_len(nrep)) {
-  seed <- ir
-  n_digit_seed = ceiling(log10(seed + 1))
-  seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
-  filebasename <- paste0("ci_", exprmt, "_sd", seedtext, "_")
-  CIs <- read.CI(ir, sgdtype)
-  if (is.null(CIs)) next
-  cvrg <- CI.to.cvrg(CIs, PhiTrueGrid, npc)
-  cvrg.rate <- cvrg.rate + cvrg / nrep
-}
-
-CI.to.ocid <- function(CIs, PhiTrue, npc = 3) {
-  nt <- dim(CIs)[1]
-  ocid <- array(dim = c(nt, npc, idx.end - idx.start + 1))
-  for (k in seq_len(npc)) {
-    phi_true <- PhiTrueGrid[,k]
-    inprds <- colMeans(CIs[,k,2,] * PhiTrueGrid[,k])  # (nt, niter)
-    neg.ind <- inprds < 0
-    CIs[,k,,neg.ind] <- -CIs[,k,,neg.ind]
-    phi_l0 <- CIs[,k,1,]
-    phi_u0 <- CIs[,k,3,]
-    phi_l <- pmin(phi_l0, phi_u0)
-    phi_u <- pmax(phi_l0, phi_u0)
-    # bias correction:
-    phi_l <- phi_l - bias[,k,]
-    phi_u <- phi_u - bias[,k,]
-    inCIind <- (phi_true > phi_l) & (phi_true < phi_u)
-    ocid[,k,] <- inCIind * 0 +
-      (1 - inCIind) * (
-        pmin(phi_true - phi_l, 0) + pmax(phi_true - phi_u, 0)
-      )
-  }
-  ocid
-}
-
-ocid <- array(0, dim = c(nt, npc, idx.end - idx.start + 1, nrep))
-
-for (ir in seq_len(nrep)) {
-  seed <- ir
-  n_digit_seed = ceiling(log10(seed + 1))
-  seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
-  filebasename <- paste0("ci_", exprmt, "_sd", seedtext, "_")
-  CIs <- read.CI(ir, sgdtype)
-  if (is.null(CIs)) next
-  ocid[,,,ir] <- CI.to.ocid(CIs, PhiTrueGrid, npc)
-}
-CIs <- read.CI(10, sgdtype)
-
-
-# Check bias -------------------------------------------------------------
-
-PhiEstMean <- array(0, dim = c(nt, npc, idx.end - idx.start + 1))
-
-for (ir in seq_len(nrep)) {
-  seed <- ir
-  n_digit_seed = ceiling(log10(seed + 1))
-  seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
-  filebasename <- paste0("ci_", exprmt, "_sd", seedtext, "_")
-  CIs <- read.CI(ir, sgdtype)
-  if (is.null(CIs)) next
-
-  PhiEstMean <- PhiEstMean + CIs[,,2,] / nrep
-}
-
-bias <- sweep(PhiEstMean, c(1,2), PhiTrueGrid[,1:npc], "-")
-bias_norm <- apply(
-  PhiEstMean, 3, \(Phi) {
-    colMeans((Phi - PhiTrueGrid[,1:npc])^2)
-  }
-)
