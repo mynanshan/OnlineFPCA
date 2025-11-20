@@ -112,6 +112,24 @@ muTrueEval <- rp$meanfun(evalGrid)
 PhiTrueEval <- rp$eigfun(evalGrid)
 lambdaTrue <- rp$eigval
 
+# set B-spline basis
+nbasis <- 7
+basis <- create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
+p <- nbasis
+
+muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
+phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
+rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
+rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
+
+G <- get_basis_inprod_matrix(basis)
+GR <- Matrix::chol(G)
+invG <- chol2inv(GR)
+Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
+sqrtmObj <- pracma::sqrtm(as.matrix(G))
+sqrtG <- sqrtmObj$B
+sqrtGinv <- sqrtmObj$Binv
+
 set.seed(seed)
 
 dat <- get_measurements(
@@ -135,20 +153,7 @@ fdata_generator <- function(n, total_count) {
   ))
 }
 tgrid <- dat$tgrid
-
-# set B-spline basis
-nbasis <- 7
-basis <- create.bspline.basis(c(t0, t1), nbasis = nbasis, norder = 4)
-p <- nbasis
-
-muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
-phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
-rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
-rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
-
 B <- eval_basis(tgrid, basis)
-G <- get_basis_inprod_matrix(basis)
-Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
 
 
 # Online FPCA  ------------------------------------------------------------
