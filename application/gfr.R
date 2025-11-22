@@ -200,7 +200,7 @@ fit <- fpca.sgd(
   asgd.end = Inf,
   nIter.1stTune = nRoundNoTune * nBlockIter,
   nIter.lastTune = nIter1pass,
-  nIter.tauNoIncrease = floor(0.7 * nIter1pass),
+  nIter.tauNoIncrease = floor(1 * nIter1pass),
   period.tune = nBlockIter,
   period.record = nBlockIter,
   verbose = FALSE
