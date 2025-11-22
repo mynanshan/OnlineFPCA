@@ -1,12 +1,17 @@
+#!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
+#SBATCH --job-name=aqi
+#SBATCH --output=logs/aqi_%j.out
+#SBATCH --time=3:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem-per-cpu=4G
+
 library(tidyr)
 library(dplyr)
 library(readr)
 library(stringr)
-# library(ggplot2)
 library(lubridate)
-# library(giscoR)
-# library(sf)
-# library(spData)
 
 library(fda)
 library(Matrix)
@@ -188,6 +193,7 @@ adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 # time_init = difftime(end_init, start_init)
 # save(PhiInitEvalFull, PhiInitEval, lambdaInit, time_init, file=file.path("application/aqi_init.Rdata"))
 load(file.path("application/aqi_init.Rdata"))
+Ninit <- 100
 ThetaInit <- smooth_basis(evalGrid, PhiInitEval, basis, lambda = 1e-8)$coefs
 norm_factor <- diag(t(ThetaInit) %*% G %*% ThetaInit)
 ThetaInit <- sweep(ThetaInit, 2, sqrt(norm_factor), "/")
@@ -243,7 +249,7 @@ fit <- fpca.sgd(
   tgrid,
   inits = inits,
   meanfun = FALSE,
-  npc = 4,
+  npc = 6,
   tau = NULL,
   tau.control = list(
     ntau = nParams,

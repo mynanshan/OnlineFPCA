@@ -44,30 +44,30 @@ N0 <- 5000 * (1:3)
 N1 = 5000
 
 
-sumres |> 
-  filter(N == N1) |> 
-  group_by(Method, C, W) |> 
-  summarise_at(vars(
-    RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
-  ), list(mean=mean))
+# sumres |> 
+#   filter(N == N1) |> 
+#   group_by(Method, C, W) |> 
+#   summarise_at(vars(
+#     RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
+#   ), list(mean=mean))
 
-sumres |> 
-  filter(N == 2 * N1) |> 
-  group_by(Method, C, W) |> 
-  summarise_at(vars(
-    RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
-  ), list(mean=mean))
+# sumres |> 
+#   filter(N == 2 * N1) |> 
+#   group_by(Method, C, W) |> 
+#   summarise_at(vars(
+#     RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
+#   ), list(mean=mean))
 
-sumres |> 
-  filter(N == 3 * N1) |> 
-  group_by(Method, C, W) |> 
-  summarise_at(vars(
-    RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
-  ), list(mean=mean))
+# sumres |> 
+#   filter(N == 3 * N1) |> 
+#   group_by(Method, C, W) |> 
+#   summarise_at(vars(
+#     RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
+#   ), list(mean=mean))
 
 
 tabres <- sumres |> 
-  filter(N %in% N0, Method == "Pspline-Adam") |> 
+  filter(N %in% N0, Method == "OnlineFPCA-adagrad") |> 
   group_by(Method, N, C, W) |> 
   summarise_at(vars(
     RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
@@ -84,7 +84,7 @@ tabres <- sumres |>
   ) |> 
   relocate(B, .before = phi1) |> 
   relocate(Epoch, .before = C) |> 
-  select(-N, -Method) |>
+  dplyr::select(-N, -Method) |>
   pivot_wider(
     id_cols = c("C", "W", "B"),
     names_from = "Epoch",
