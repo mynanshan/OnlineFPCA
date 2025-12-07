@@ -44,6 +44,7 @@ fpca.sgd <- function(
   fpcCI = FALSE,
   nIter.1stTune = floor(0.1 * maxIter),
   nIter.lastTune = maxIter,
+  dyntune.rate = 1,
   period.tune = 100,
   vcrit.tune = c("ewmabv", "av"),
   ewmabv.beta = NULL,
@@ -60,7 +61,7 @@ fpca.sgd <- function(
   # Set params and initializations -----------------------------------------
 
   inits <- setParams.inits(inits, meanfun)
-  optns.tau <- setParams.tau(tau, tau.control)
+  optns.tau <- setParams.tau(tau, tau.control, k = 1, rate = dyntune.rate)
   tau <- sort(optns.tau$tau, decreasing = TRUE)
   taurange0 <- ifelse(length(tau) > 1, diff(range(log(tau))), 1)
   tau.control <- optns.tau$tau.control
@@ -416,7 +417,9 @@ fpca.sgd <- function(
         tau.control <- setParams.tau(
           tau,
           tau.control,
-          delta.min = taurange0 / max(1, ntau - 2) / (itune^0.7)
+          delta.min = taurange0 / max(1, ntau - 2) / (itune^0.7),
+          k = itune,
+          rate = dyntune.rate 
         )$tau.control
         tau <- explore_newtau(
           tau[lstar],
@@ -1667,7 +1670,7 @@ setParams.tau <- function(
     }
     if (length(tau) > 1) {
       # tau.control$delta <- max(delta.min, mean(diff(sort(log(tau)))) / 3)
-      tau.control$delta <- max(delta.min, log(10) / 2 / k^rate)
+      tau.control$delta <- max(delta.min, log(10) / k^rate)
     } else {
       tau.control$delta <- 0
     }
