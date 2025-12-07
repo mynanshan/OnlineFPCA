@@ -24,6 +24,12 @@ parser$add_argument(
   help = "Whether to run competing methods."
 )
 parser$add_argument(
+  "--ninit",
+  type = "integer",
+  default = 100,
+  help = "Number of subjects for initialization."
+)
+parser$add_argument(
   "--simple",
   type = "integer",
   default = 0,
@@ -32,6 +38,7 @@ parser$add_argument(
 )
 args <- parser$parse_args()
 seed <- as.integer(args[["seed"]])
+Ninit <- as.integer(args[["ninit"]])
 compare <- as.logical(args[["compare"]])
 simple <- as.logical(args[["simple"]])
 
@@ -55,7 +62,6 @@ nBatch <- 5
 nParams <- 6
 nPass <- 3
 nBlock <- 100
-Ninit <- 100
 initMethod <- "face"
 N <- 5000
 nIters.1pass <- seq(nBlock, N, nBlock)
@@ -367,10 +373,11 @@ for (noise_sd in noiseList) {
         do.call(
           plot.tau_path2,
           list(
-          tau.history = fit$tau.select$tau.history, 
-          tau.selectId = fit$tau.select$tau.selectId,
-          final.id = l, nbatch_per_block = nBlock / nBatch
-        ))
+            tau.history = fit$tau.select$tau.history, 
+            tau.selectId = fit$tau.select$tau.selectId,
+            final.id = l, nbatch_per_block = nBlock / nBatch
+          )
+        )
         dev.off()
       }
 
@@ -698,7 +705,7 @@ for (noise_sd in noiseList) {
 
 # End experiment ----------------------------------------------------------
 
-readr::write_csv(res, file.path(dirpath, filename))
+if (!simple) readr::write_csv(res, file.path(dirpath, filename))
 
 message("Finishing replication: ", seed)
 set.seed(NULL)

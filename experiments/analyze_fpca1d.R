@@ -45,7 +45,7 @@ N1 = 5000
 
 View(
   res |> filter(N %in% N0) |> 
-    dplyr::select(noise, seed, Method, StepSize, N, starts_with("RMSEphi")),
+    dplyr::select(noise, seed, Method, StepSize, N, tau, starts_with("RMSEphi")),
   "Results"
 )
 
