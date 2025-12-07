@@ -1667,7 +1667,7 @@ setParams.tau <- function(
     }
     if (length(tau) > 1) {
       # tau.control$delta <- max(delta.min, mean(diff(sort(log(tau)))) / 3)
-      tau.control$delta <- max(delta.min, log(10) / k^rate)
+      tau.control$delta <- max(delta.min, log(10) / 2 / k^rate)
     } else {
       tau.control$delta <- 0
     }
