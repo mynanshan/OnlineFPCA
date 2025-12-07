@@ -298,14 +298,6 @@ sigma2Star <- exp(opt$xopt[sig_id])
 # matplot(evalGrid, PhiTrueEval[,1:q], type="l", lty=1)
 # matplot(evalGrid, eval_fd(evalGrid, FuncData(ThetaStar, basis)), type="l", add=T, lty=2)
 
-plot_CI_elu <- function(CIs, k, idx) {
-  rg <- range(c(CIs[,k,,idx]))
-  plot(CIs[,k,2,idx], type="l", ylim = rg, ylab = bquote(phi[.(k)]), lwd = 2)
-  lines(CIs[,k,1,idx], lty=2, lwd = 2)
-  lines(CIs[,k,3,idx], lty=2, lwd = 2)
-  lines(as.vector(B %*% ThetaStar[,k]), col=2)
-}
-
 # End experiment ----------------------------------------------------------
 
 CIobj = list(

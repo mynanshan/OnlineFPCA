@@ -195,22 +195,23 @@ fit <- fpca.sgd(
   adareset = 20 * nBlockIter,
   adareset.end = nIter1pass,
   asgd.start = 10 * nBlockIter + 1,
-  asgd.reset = 40 * nBlockIter,
+  asgd.reset = Inf,
   asgd.reset.end = nIter1pass,
   asgd.end = Inf,
+  fpcCI = TRUE,
   nIter.1stTune = nRoundNoTune * nBlockIter,
   nIter.lastTune = nIter1pass,
   nIter.tauNoIncrease = floor(1 * nIter1pass),
+  dyntune.rate = 1.25,
   period.tune = nBlockIter,
   period.record = nBlockIter,
   verbose = FALSE
 )
 
+resCI <- fit$CI
+
 tau.min <- fit$tau.min
 l <- which(fit$tau == tau.min)[1]
-# Theta <- fit$Theta[,,l]
-# lambda <- fit$lambda[,l]
-# sigma2 <- fit$sigma2[l]
 Theta.avg <- fit$Theta.avg[,, l]
 lambda.avg <- fit$lambda.avg[, l]
 sigma2.avg <- fit$sigma2.avg[l]
@@ -228,15 +229,11 @@ tau_path_id <- c(tau_path$tau_path_id, rep(1, (nPass - 1) * round(N / nBlock)))
 tau_path_id_extend <- c(rep(tau_path_id[1], nRoundNoTune), tau_path_id)
 tau.select = fit$tau.select
 
-# ThetaAll <- sapply(seq_along(fit$params.history$iter.params),
-#                    \(i) params$Theta[,,tau_path_id_extend[i],i],
-#                    simplify = "array")
 ThetaAll.avg <- sapply(
   seq_along(fit$params.history$iter.params),
   \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
   simplify = "array"
 )
-# PhiAvgAll <- eval_fd(evalGrid, FuncData(ThetaAll.avg, basis))
 
 sgd_time <- colSums(fit$time.history[, 1:nIter1pass])
 sgd_time <- colSums(matrix(sgd_time, nrow = nBlockIter))
@@ -320,5 +317,7 @@ save(
   sgd_time,
   loclin_time,
   tau.select,
+  tau_path,
+  resCI,
   file = file.path("application", "result_gfr.Rdata")
 )
