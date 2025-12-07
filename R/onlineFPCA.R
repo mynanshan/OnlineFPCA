@@ -1620,7 +1620,12 @@ setParams.inits <- function(inits, meanfun = FALSE) {
 
 # Dynamic tuning helpers -------------------------------------------------
 
-setParams.tau <- function(tau = NULL, tau.control = list(), delta.min = NULL) {
+setParams.tau <- function(
+  tau = NULL, tau.control = list(),
+  delta.min = NULL,
+  k = 1,
+  rate = 1
+) {
   if (!is.null(tau)) {
     tau.control$ntau <- length(tau)
   } else {
@@ -1661,7 +1666,8 @@ setParams.tau <- function(tau = NULL, tau.control = list(), delta.min = NULL) {
       delta.min <- max(delta.min, delta.min.default)
     }
     if (length(tau) > 1) {
-      tau.control$delta <- max(delta.min, mean(diff(sort(log(tau)))) / 3)
+      # tau.control$delta <- max(delta.min, mean(diff(sort(log(tau)))) / 3)
+      tau.control$delta <- max(delta.min, log(10) / k^rate)
     } else {
       tau.control$delta <- 0
     }

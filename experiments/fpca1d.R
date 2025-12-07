@@ -23,9 +23,17 @@ parser$add_argument(
   choices = c(0,1),
   help = "Whether to run competing methods."
 )
+parser$add_argument(
+  "--simple",
+  type = "integer",
+  default = 0,
+  choices = c(0,1),
+  help = "Whether to simplify experiment settings."
+)
 args <- parser$parse_args()
 seed <- as.integer(args[["seed"]])
 compare <- as.logical(args[["compare"]])
+simple <- as.logical(args[["simple"]])
 
 cat("========= Start Experiment ( Seed =", seed, ")\n")
 
@@ -42,7 +50,7 @@ source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
 noiseList <- c(0.1, 0.5, 1.)
-# noiseList <- c(0.1)
+if (simple) noiseList <- c(0.5)
 nBatch <- 5
 nParams <- 6
 nPass <- 3
@@ -56,7 +64,6 @@ nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 stepsizeList <- c(0.1)
 # stepsizeList <- c(0.1, 0.05, 0.02)
-# stepsize0 <- 0.1
 stepsize.min <- 1e-4
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
@@ -262,8 +269,8 @@ for (noise_sd in noiseList) {
         asgd.end = Inf,
         nIter.1stTune = nRoundNoTune * nBlockIter,
         nIter.lastTune = nIter1pass,
-        # nIter.tauNoIncrease = floor(0.3 * nIter1pass),
-        nIter.tauNoIncrease = nIter1pass,
+        nIter.tauNoIncrease = floor(0.3 * nIter1pass),
+        # nIter.tauNoIncrease = nIter1pass,
         period.tune = nBlockIter,
         period.record = nBlockIter,
         verbose = TRUE
@@ -348,6 +355,22 @@ for (noise_sd in noiseList) {
           RMSEphi3.avg = rmseAll.avg[, 3]
         )
       )
+
+      if (seed == 1234 && noise_sd == 0.5) {
+        setEPS()
+        postscript(
+          file.path(dirpath, paste0("taupath-sim1d-",sgdtype,".eps")),
+          width = 8, height = 5
+        )
+        do.call(
+          plot.tau_path2,
+          list(
+          tau.history = fit$tau.select$tau.history, 
+          tau.selectId = fit$tau.select$tau.selectId,
+          final.id = l, nbatch_per_block = nBlock / nBatch
+        ))
+        dev.off()
+      }
 
     }  # end of all sgdtype
   } # end of all step sizes

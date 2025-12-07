@@ -14,14 +14,14 @@ source("./data_generation/generator.R")
 # 1D Simulation -----------------------------------------------------------
 
 
-dirpath <- "experiments"
+dirpath <- file.path("experiments", "example-taupath")
 
 if (!dir.exists(dirpath))
   dir.create(dirpath)
 
 tau_paths = list(
-  "1D" = list("RSGD" = NULL, "RAdam" = NULL),
-  "2D" = list("RSGD" = NULL, "RAdam" = NULL)
+  "1D" = list("RSGD" = NULL, "RAdaGrad" = NULL),
+  "2D" = list("RSGD" = NULL, "RAdaGrad" = NULL)
 )
 
 
@@ -32,9 +32,7 @@ nBatch <- 5
 nParams <- 6
 nPass <- 3
 nBlock <- 100
-# nBlock <- 40
-# Ninit <- 100
-Ninit <- 40
+Ninit <- 100
 initMethod <- "face"
 q <- 3
 N <- 5000
