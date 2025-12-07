@@ -94,7 +94,8 @@ res <- data.frame(
   RMSEphi3 = numeric(),
   RMSEphi1.avg = numeric(),
   RMSEphi2.avg = numeric(),
-  RMSEphi3.avg = numeric()
+  RMSEphi3.avg = numeric(),
+  tau = numeric()
 )
 
 set.seed(seed)
@@ -352,7 +353,8 @@ for (noise_sd in noiseList) {
           RMSEphi3 = rmseAll[, 3],
           RMSEphi1.avg = rmseAll.avg[, 1],
           RMSEphi2.avg = rmseAll.avg[, 2],
-          RMSEphi3.avg = rmseAll.avg[, 3]
+          RMSEphi3.avg = rmseAll.avg[, 3],
+          tau = tau_path$tau_path[1:nrow(rmseAll)]
         )
       )
 
@@ -452,7 +454,8 @@ for (noise_sd in noiseList) {
         RMSEphi3 = rmseAll.ll[, 3],
         RMSEphi1.avg = rmseAll.ll[, 1],
         RMSEphi2.avg = rmseAll.ll[, 2],
-        RMSEphi3.avg = rmseAll.ll[, 3]
+        RMSEphi3.avg = rmseAll.ll[, 3],
+        tau = NA
       )
     )
 
@@ -510,7 +513,8 @@ for (noise_sd in noiseList) {
         RMSEphi3 = rmseBatch[3],
         RMSEphi1.avg = rmseBatch[1],
         RMSEphi2.avg = rmseBatch[2],
-        RMSEphi3.avg = rmseBatch[3]
+        RMSEphi3.avg = rmseBatch[3],
+        tau = NA
       )
     )
 
@@ -573,7 +577,8 @@ for (noise_sd in noiseList) {
         RMSEphi3 = rmseBatch[3],
         RMSEphi1.avg = rmseBatch[1],
         RMSEphi2.avg = rmseBatch[2],
-        RMSEphi3.avg = rmseBatch[3]
+        RMSEphi3.avg = rmseBatch[3],
+        tau = NA
       )
     )
 
@@ -634,7 +639,8 @@ for (noise_sd in noiseList) {
         RMSEphi3 = rmseBatch[3],
         RMSEphi1.avg = rmseBatch[1],
         RMSEphi2.avg = rmseBatch[2],
-        RMSEphi3.avg = rmseBatch[3]
+        RMSEphi3.avg = rmseBatch[3],
+        tau = NA
       )
     )
 
@@ -681,7 +687,8 @@ for (noise_sd in noiseList) {
         RMSEphi3 = rmseBatch[3],
         RMSEphi1.avg = rmseBatch[1],
         RMSEphi2.avg = rmseBatch[2],
-        RMSEphi3.avg = rmseBatch[3]
+        RMSEphi3.avg = rmseBatch[3],
+        tau = NA
       )
     )
 
