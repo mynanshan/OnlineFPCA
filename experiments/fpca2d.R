@@ -311,7 +311,8 @@ for (noise_sd in noiseList) {
         asgd.end = Inf,
         nIter.1stTune = nRoundNoTune * nBlockIter,
         nIter.lastTune = nIter1pass,
-        nIter.tauNoIncrease = floor(0.3 * nIter1pass),
+        # nIter.tauNoIncrease = floor(0.3 * nIter1pass),
+        nIter.tauNoIncrease = nIter1pass,
         period.tune = nBlockIter,
         period.record = nBlockIter,
         verbose = TRUE

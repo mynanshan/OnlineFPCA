@@ -1653,10 +1653,12 @@ setParams.tau <- function(tau = NULL, tau.control = list(), delta.min = NULL) {
         "nselect > ntau/2 is not effective to explore the parameter space."
       )
     }
+    # delta.min.default <- 0.3
+    delta.min.default <- 0.1
     if (is.null(delta.min)) {
-      delta.min <- 0.3
+      delta.min <- delta.min.default
     } else {
-      delta.min <- max(delta.min, 0.3)
+      delta.min <- max(delta.min, delta.min.default)
     }
     if (length(tau) > 1) {
       tau.control$delta <- max(delta.min, mean(diff(sort(log(tau)))) / 3)
