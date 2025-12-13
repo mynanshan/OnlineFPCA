@@ -200,7 +200,6 @@ fit <- fpca.sgd(
   ),
   nbatch = nBatch,
   maxIter = nPass * nIter1pass,
-  # stepsize = ifelse(sgdtype=="sgd", sgd_lr0, stepsize0),
   stepsize = sgd_lr0,
   nIter.constStepSize = 0,
   stepsize.decayrate = 0.51,
