@@ -1,8 +1,8 @@
 par.old <- par(no.readonly = TRUE)
 
-load("application/result_gfr.Rdata")
+load(file.path("application", "result_gfr.Rdata"))
 
-fig_path <- "figures"
+fig_path <- "application"
 
 tgrid1 <- seq(1,7,length.out=101)
 tgrid2 <- seq(1,7,length.out=50)
