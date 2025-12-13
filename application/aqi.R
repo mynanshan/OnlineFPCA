@@ -23,7 +23,7 @@ source("./R/kernelUtils.R")
 source("./R/onlineFPCA.R")
 source("./R/fpcaReg.R")
 
-par.old <- par(no.readonly = TRUE)
+# par.old <- par(no.readonly = TRUE)
 
 
 datapath <- file.path("data", "epa-aqs")

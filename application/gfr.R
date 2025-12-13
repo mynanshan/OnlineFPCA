@@ -20,7 +20,7 @@ source("./R/onlineFPCA.R")
 source("./R/onlineFDAlocalpoly.R")
 
 
-par.old <- par(no.readonly = TRUE)
+# par.old <- par(no.readonly = TRUE)
 
 
 ## Read GFR data ============
