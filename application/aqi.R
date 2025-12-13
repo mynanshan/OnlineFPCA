@@ -26,7 +26,7 @@ source("./R/fpcaReg.R")
 par.old <- par(no.readonly = TRUE)
 
 
-datapath <- "data/epa-aqs"
+datapath <- file.path("data", "epa-aqs")
 respath <- "application"
 
 lonrange <- c(-125, -67)
@@ -35,12 +35,6 @@ yearrange <- 1982:2022
 
 load(file.path(datapath, "aqi-us.Rda"))
 siteinfo <- readxl::read_excel(file.path(datapath, "siteinfo.xlsx"))
-
-
-# dat <- dat |>
-#   left_join(siteinfo |>
-#               dplyr::select(Latitude, Longitude, Latitude.Binned, Longitude.Binned),
-#             by = c("Latitude", "Longitude"))
 
 dat = dat |> drop_na()
 sites <- dat |> distinct(Latitude.Binned, Longitude.Binned)
@@ -235,14 +229,8 @@ inits <- list(
 )
 
 
-# tmp = dat2list(dat.sub)
-# lik0 = objfun(tmp$Ly, tmp$Ltid, ThetaInit, lambdaInit,
-#               sigma2=0.1, theta_mu=NULL, tau=0, stats = "loss")$lik
-# pen = sum(ThetaInit * Omega %*% ThetaInit)
-# taumax = ceiling(log10(lik0 / pen))
 taumax = 1e-3
 
-sgdtype <- "adagrad"
 
 fit <- fpca.sgd(
   fdata_generator,
@@ -273,7 +261,7 @@ fit <- fpca.sgd(
     refdn = stepsize0,
     w = 0.9
   ),
-  sgdtype = sgdtype,
+  sgdtype = "adagrad",
   adamw = TRUE,
   adam.rescale = TRUE,
   ada.start = 25 * nBlockIter + 1,
@@ -291,47 +279,58 @@ fit <- fpca.sgd(
   verbose = TRUE
 )
 
-
 save(fit, time_init, file = file.path(respath, "fit_aqi.Rdata"))
 
+fit <- fpca.sgd(
+  fdata_generator,
+  tgrid,
+  inits = inits,
+  meanfun = FALSE,
+  npc = 6,
+  tau = NULL,
+  tau.control = list(
+    ntau = nParams,
+    nselect = 2,
+    maxtau = 10^taumax,
+    mintau = 10^(taumax - nParams + 1)
+  ),
+  nbatch = nBatch,
+  maxIter = nPass * nIter1pass,
+  stepsize = sgd_lr0,
+  nIter.constStepSize = 0,
+  stepsize.decayrate = 0.51,
+  stepsize.min = stepsize.min,
+  period.decay = 5 * nBlockIter,
+  nIter.slowerdecay = nIter1pass,
+  stepsize.decayrate.slow = 0.25,
+  dynlr = TRUE,
+  dynlrCtrl = list(
+    niter = 20 * nBlockIter,
+    reset = 5 * nBlockIter,
+    refdn = stepsize0,
+    w = 0.9
+  ),
+  sgdtype = "sgd",
+  adamw = TRUE,
+  adam.rescale = TRUE,
+  ada.start = 25 * nBlockIter + 1,
+  adareset = 20 * nBlockIter,
+  adareset.end = nIter1pass,
+  asgd.start = 10 * nBlockIter + 1,
+  asgd.reset = Inf,
+  asgd.reset.end = nIter1pass,
+  asgd.end = Inf,
+  fpcCI = TRUE,
+  nIter.1stTune = nRoundNoTune * nBlockIter,
+  nIter.lastTune = nIter1pass,
+  nIter.tauNoIncrease = floor(1 * nIter1pass),
+  dyntune.rate = 1.25,
+  period.tune = nBlockIter,
+  period.record = nBlockIter,
+  verbose = TRUE
+)
 
-## === compare to some covariance estimation ==========
-
-# YBatch <- dat$z
-# TBatch <- as.matrix(dat |> dplyr::select(s, t))
-# # covariance estimation
-# tmpdat = df2Ldata(TBatch, YBatch, Lmi)
-# covdat <- cov.form_covdat(tmpdat$Lt, tmpdat$Ly)
-# bam_start = Sys.time()
-# fit.cov <- mgcv::bam(z ~ t2(s1, s2, t1, t2), data = covdat)
-# end_start = Sys.time()
-# covdat <- cov.form_covdat(evalGridSmall, diag.rm = FALSE)
-# cov.hat <- as.numeric(predict(fit.cov, covdat))
-# cov.hat <- matrix(cov.hat,sqrt(length(cov.hat)))
-# cov.hat <- cov.symmetrize(cov.hat)
-# cov.true <- rp$eigfun(evalGridSmall) %*% diag(rp$eigval) %*% t(rp$eigfun(evalGridSmall))
-# image(as((cov.true - cov.hat)[seq(1,440,10),seq(1,440,10)], "dMatrix"))
-# # NOTE: no guarantee that cov.hat is positive defBatche
-# eigObj <- eigen(cov.hat, symmetric = TRUE)
-# eigvecs <- eigObj$vectors[,1:q]
-# ThetaBatch <- smooth_basis(evalGridSmall, eigvecs, basis, lambda = 1e-10)$coefs
-# lambdaBatch <- eigObj$values[1:q]
-# norm_factor <- diag(t(ThetaBatch) %*% G %*% ThetaBatch)
-# ThetaBatch <- sweep(ThetaBatch, 2, sqrt(norm_factor), "/")
-# lambdaBatch <- lambdaBatch * norm_factor
-# PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
-# PhiBatchEval <- flip_direc(PhiBatchEval, PhiTrueEval[,1:q])
-# flipId <- attributes(PhiBatchEval)$flipped
-# ThetaBatch[,flipId] <- -ThetaBatch[,flipId]
-# rm(covdat, cov.hat, cov.true, eigObj)
-# covdat <- data.frame(cbind(TBatch, TBatch), YBatch^2)
-# names(covdat) <- c(paste0("s", 1:D), paste0("t", 1:D), "z")
-# covdiag.hat <- as.numeric(predict(fit.cov, covdat))
-# sigma2Batch <- mean(covdat$z - covdiag.hat)
-# rm(fit.cov, covdat, covdiag.hat)
-# if (sigma2Batch <= 1e-3) sigma2Batch <- 1e-3
-#
-# fit.cov = stats::loess(z ~ s1 + s2 + t1 + t2, data = covdat)
+save(fit, time_init, file = file.path(respath, "fit_aqi_uq.Rdata"))
 
 ## === compare to soap 2d ==========
 

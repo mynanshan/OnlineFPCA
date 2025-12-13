@@ -161,8 +161,6 @@ inits <- list(
   sigma2 = sigma2Init
 )
 
-sgdtype <- "adagrad"
-
 message("Start AdaGrad FPCA")
 
 fit <- fpca.sgd(
@@ -188,7 +186,7 @@ fit <- fpca.sgd(
     refdn = stepsize0,
     w = 0.9
   ),
-  sgdtype = sgdtype,
+  sgdtype = "sgd",
   adamw = TRUE,
   adam.rescale = TRUE,
   ada.start = 25 * nBlockIter + 1,
