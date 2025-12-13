@@ -121,10 +121,14 @@ rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
 # some invariants: basis matrices
 B <- eval_basis(tgrid, basis)
 G <- get_basis_inprod_matrix(basis)
-RG <- Matrix::chol(G) # t(RG) %*% RG == G
-invRG <- Matrix::solve(RG)
+GR <- Matrix::chol(G)
+invG <- chol2inv(GR)
 Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
+sqrtmObj <- pracma::sqrtm(as.matrix(G))
+sqrtG <- sqrtmObj$B
+sqrtGinv <- sqrtmObj$Binv
 
+perm <- get_commute_index(p, q)
 
 # Online FPCA  ------------------------------------------------------------
 message("Start OnlineFPCA ---------------")
