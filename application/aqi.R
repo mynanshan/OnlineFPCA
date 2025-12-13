@@ -86,6 +86,8 @@ sqrtmObj <- pracma::sqrtm(as.matrix(G))
 sqrtG <- sqrtmObj$B
 sqrtGinv <- sqrtmObj$Binv
 
+perm <- get_commute_index(p, q)
+
 # numbering the locations
 lat_id = match(dat$Latitude.Binned, latgrid)
 lon_id = match(dat$Longitude.Binned, longrid)
