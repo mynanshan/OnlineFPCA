@@ -59,7 +59,7 @@ if (!dir.exists(dirpath)) {
 
 n_digit_seed = ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
-filename <- paste0("ci_", exprmt, "_sd", seedtext, ".csv")
+filename <- paste0("ci_", exprmt, "_sd", seedtext, ".RData")
 
 set.seed(seed)
 
