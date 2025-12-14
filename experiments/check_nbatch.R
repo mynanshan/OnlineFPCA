@@ -228,7 +228,6 @@ res <-
       nIter.tauNoIncrease = floor(0.3 * nIter1pass),
       period.tune = nBlockIter,
       period.record = nBlockIter,
-      ewmabv.beta = ewmabv.beta,
       verbose = FALSE
     )
 
@@ -297,7 +296,6 @@ res <-
       epoch = seq_len(nPass),
       nBatch = nBatch,
       nBlock = nBlock,
-      wBeta = ewmabv.beta,
       tau = tau.min,
       RMSEphi1 = rmseAll[idx, 1],
       RMSEphi2 = rmseAll[idx, 2],
