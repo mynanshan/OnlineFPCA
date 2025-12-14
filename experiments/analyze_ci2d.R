@@ -40,7 +40,7 @@ CIs <- CIobj$CIs
 PhiStar <- match_fpc(CIobj$PhiStar, PhiTrue)
 PhiTrue <- CIobj$PhiTrue
 
-idx <- c(51, 151, 251)
+idx <- c(21, 36, 51)
 
 pdf(file = file.path(dirpath, "ci2d-ci.pdf"), width = 7, height = 6.2)
 pa <- par(no.readonly = TRUE)
@@ -75,8 +75,7 @@ for (i in idx) {
       x = matrix(evalGrid[subId2, 1], nevalSub[1], nevalSub[2]),
       y = matrix(evalGrid[subId2, 2], nevalSub[1], nevalSub[2]),
       z = z.star,
-      # z = z,
-      col = rgb(1., 0.8, 0.3, alpha = 0.7),
+      col = rgb(0.133333, 0.592157, 0.901961, alpha=0.5),
       border = NA,
       xlab = "",
       ylab = "",
@@ -124,6 +123,15 @@ for (i in idx) {
       y = t2_range[1] - text_shift * t2_span,
       z = phi_range[2],
       as.expression(bquote(phi[.(k)])),
+      add = TRUE
+    )
+    # overlay the estimated surface
+    surf3D(
+      x = matrix(evalGrid[subId2, 1], nevalSub[1], nevalSub[2]),
+      y = matrix(evalGrid[subId2, 2], nevalSub[1], nevalSub[2]),
+      z = z.est,
+      col = rgb(0.874510, 0.325490, 0.419608, alpha = 0.5),
+      border = NA,
       add = TRUE
     )
     # overlay the lower‐CI surface

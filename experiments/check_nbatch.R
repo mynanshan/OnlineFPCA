@@ -44,7 +44,7 @@ N <- 5000
 stepsize0 <- 0.1
 stepsize.min <- 1e-4
 
-exprmt <- "abv1d"
+exprmt <- "nbatch1d"
 dirpath <- file.path("experiments", exprmt)
 if (!dir.exists(dirpath)) {
   dir.create(dirpath, recursive = TRUE)

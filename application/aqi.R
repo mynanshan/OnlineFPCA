@@ -1,7 +1,7 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
 #SBATCH --job-name=aqi
 #SBATCH --output=logs/aqi_%j.out
-#SBATCH --time=6:00:00
+#SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
