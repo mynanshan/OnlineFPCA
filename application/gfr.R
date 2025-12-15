@@ -231,9 +231,6 @@ lambda.avg <- fit$lambda.avg[, l]
 sigma2.avg <- fit$sigma2.avg[l]
 PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
 
-# check FPC PVE
-round(lambda.avg / sum(lambda.avg), 4)
-
 params <- fit$params.history$params
 vcrits <- fit$vcrit.history
 
@@ -247,6 +244,10 @@ ThetaAll.avg <- sapply(
   seq_along(fit$params.history$iter.params),
   \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
   simplify = "array"
+)
+PhiAvgAll <- array(
+  apply(ThetaAll.avg, 3, \(X) eval_fd(evalGrid, FuncData(X, basis))),
+  dim = c(length(evalGrid), q, dim(ThetaAll.avg)[3])
 )
 
 sgd_time <- colSums(fit$time.history[, 1:nIter1pass])
@@ -318,15 +319,10 @@ if (compare) {
   round((lambdaEst.ll.all[1:q] / sum(lambdaEst.ll.all)), 4)
   # 0.912 0.0750 0.0118
 
-
-  PhiAvgEval <- match_fpc(PhiAvgEval, PhiEst.ll[, 1:q])
-  ThetaAll.avg <- ThetaAll.avg[, attributes(PhiAvgEval)$match_id, , drop = F]
-  ThetaAll.avg[, attributes(PhiAvgEval)$flipped, ] <-
-    -ThetaAll.avg[, attributes(PhiAvgEval)$flipped, ]
-  PhiAvgAll <- array(
-    apply(ThetaAll.avg, 3, \(X) eval_fd(evalGrid, FuncData(X, basis))),
-    dim = c(length(evalGrid), q, dim(ThetaAll.avg)[3])
-  )
+  matched_pcs <- match_fpc(PhiEst.ll[, 1:q], PhiAvgEval)
+  PhiEst.ll[, 1:q] <- matched_pcs
+  PhiEstAll.ll <- PhiEstAll.ll[, attributes(matched_pcs)$match_id, , drop = F]
+  lambdaEst.ll[1:q] <- lambdaEst.ll[1:q][attributes(matched_pcs)$match_id]
 
   save(
     PhiEst.ll,
