@@ -119,7 +119,7 @@ Lmi <- dat |> group_by(Date.Local) |> summarise(Nobs = n()) |> pull(Nobs)
 N = length(unique(dat$Date.Local))
 nBatch <- 10
 nParams <- 6
-nPass <- 10
+nPass <- 5
 nBlock <- 100
 nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)

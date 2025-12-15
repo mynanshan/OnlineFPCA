@@ -35,3 +35,18 @@ res <- res |>
   arrange(epoch, nBatch) 
 
 knitr::kable(res, "latex", digits = 3)
+
+
+tabres <- res |> 
+  rename(
+    phi1 = RMSEphi1.avg,
+    phi2 = RMSEphi2.avg,
+    phi3 = RMSEphi3.avg
+  ) |> 
+  pivot_wider(
+    id_cols = c("nBatch"),
+    names_from = "epoch",
+    values_from = c("phi1", "phi2", "phi3")
+  )
+
+knitr::kable(tabres, format = "latex", digits = 3)

@@ -1,11 +1,11 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
 #SBATCH --job-name=simu_gfr              # Job name
 #SBATCH --output=logs/simu_gfr_%j.out    # Standard output file (%j expands to jobID)
-#SBATCH --time=2:00:00                   # Maximum runtime (hh:mm:ss)
+#SBATCH --time=3:00:00                   # Maximum runtime (hh:mm:ss)
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
-#SBATCH --mem-per-cpu=8G                 # Memory allocation
+#SBATCH --mem-per-cpu=4G                 # Memory allocation
 
 parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."
@@ -40,12 +40,10 @@ nIters.1pass <- seq(nBlock,N,nBlock)
 nIters <- seq(nBlock,nPass*N,nBlock)
 nRecord.1pass <- round(N/nBlock)
 nRecord <- length(nIters)
-stepsize <- 2e-1
-stepsize.min <- 5e-2
-sgd.step.scale <- 1 # use a smaller step size for sgd 
+stepsizeList <- c(0.1)
+stepsize.min <- 1e-4
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
-asgd.use <- TRUE
 
 exprmt <- "gfr"
 dirpath <- file.path("experiments", exprmt)
@@ -55,7 +53,8 @@ n_digit_seed = ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("simu_",exprmt,"_sd",seedtext,".csv")
 
-res <- data.frame(seed = numeric(),
+res <- data.frame(
+  seed = numeric(),
   Method = character(),
   StepSize = numeric(),
   N = numeric(),
@@ -64,8 +63,6 @@ res <- data.frame(seed = numeric(),
   npc = numeric(),
   nBatch = numeric(),
   Time = numeric(),
-  # AV = numeric(),
-  # EWMABV = numeric(),
   RMSEphi1 = numeric(),
   RMSEphi2 = numeric(),
   RMSEphi3 = numeric(),
@@ -106,7 +103,14 @@ rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
 
 B <- eval_basis(tgrid, basis)
 G <- get_basis_inprod_matrix(basis)
+GR <- Matrix::chol(G)
+invG <- chol2inv(GR)
 Omega <- get_basis_penalty_matrix(basis, penLfd = 2)
+sqrtmObj <- pracma::sqrtm(as.matrix(G))
+sqrtG <- sqrtmObj$B
+sqrtGinv <- sqrtmObj$Binv
+
+perm <- get_commute_index(p, q)
 
 
 # Online FPCA  ------------------------------------------------------------
@@ -135,32 +139,69 @@ PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
 
 nBlockIter <- nBlock / nBatch
 nIter1pass <- N / nBatch
-asgdIterStart <- round(nRecord.1pass*0.7*nBlockIter)
-adamIterEnd <- round(nRecord.1pass*1.7*nBlockIter)
 
-inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
+ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
+grad_Theta_init <- objfun(
+  dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
+  ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
+)$grad_Theta
+grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
+g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init) / q)
+sgd_lr0 <- stepsize0 / g_Theta_init_norm
 
-for (optMethod in c("SGD", "Adam")) {
-  message("Method:", optMethod)
+inits <- list(
+  Theta = ThetaInit,
+  lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
+  sigma2 = sigma2Init
+)
+
+for (sgdtype in c("sgd", "adagrad")) {
+  message(">>> sgdtype = ", sgdtype)
   
   fit <- fpca.sgd(
-    fdata_generator, tgrid,
+    fdata_generator,
+    tgrid,
     inits = inits,
     meanfun = FALSE,
-    tau = NULL, tau.control = list(
-      ntau=nParams, nselect=2, maxtau=1e-1, mintau=1e-6), 
-    nbatch = nBatch, maxIter = nPass*nIter1pass,
-    stepsize = stepsize, stepsize.decayrate = 0.6,
+    tau = NULL,
+    tau.control = list(
+      ntau = nParams,
+      nselect = 2,
+      maxtau = 1e-1,
+      mintau = 1e-6
+    ),
+    nbatch = nBatch,
+    maxIter = nPass*nIter1pass,
+    stepsize = sgd_lr0,
+    stepsize = stepsize,
+    nIter.constStepSize = 0,
+    stepsize.decayrate = 0.51,
     stepsize.min = stepsize.min,
-    nIter.slowerdecay = floor(0.8*nIter1pass),
-    stepsize.decayrate.slow = 0.3,
-    nIter.adam = ifelse(optMethod=="SGD", 0, adamIterEnd),
-    asgd.use = TRUE,
-    asgd.start = asgdIterStart,
-    coord.scaling = FALSE,
-    nIter.1stTune = nRoundNoTune*nBlockIter, nIter.lastTune = nIter1pass,
-    nIter.tauNoIncrease = floor(0.7*nIter1pass),
-    period.tune = nBlockIter, period.record = nBlockIter, verbose = FALSE)
+    period.decay = 5 * nBlockIter,
+    nIter.slowerdecay = nIter1pass,
+    stepsize.decayrate.slow = 0.25,
+    dynlr = TRUE,
+    dynlrCtrl = list(
+      niter = 20 * nBlockIter,
+      reset = 5 * nBlockIter,
+      refdn = stepsize0,
+      w = 0.9
+    ),
+    sgdtype = sgdtype,
+    ada.start = 25 * nBlockIter + 1,
+    adareset = 20 * nBlockIter,
+    adareset.end = nIter1pass,
+    asgd.start = 10 * nBlockIter + 1,
+    asgd.reset = 40 * nBlockIter,
+    asgd.reset.end = nIter1pass,
+    asgd.end = Inf,
+    nIter.1stTune = nRoundNoTune*nBlockIter,
+    nIter.lastTune = nIter1pass,
+    nIter.tauNoIncrease = floor(0.3*nIter1pass),
+    period.tune = nBlockIter,
+    period.record = nBlockIter,
+    verbose = TRUE
+  )
   
   tau.min <- fit$tau.min
   l <- which(fit$tau == tau.min)[1]
@@ -221,8 +262,6 @@ for (optMethod in c("SGD", "Adam")) {
       npc = rep(q, nRecord+1),
       nBatch = rep(nBatch, nRecord+1),
       Time = times,
-      # AV = c(NA,vscores[,"av"]),
-      # EWMABV = c(NA,vscores[,"ewmabv"]),
       RMSEphi1 = rmseAll[,1],
       RMSEphi2 = rmseAll[,2],
       RMSEphi3 = rmseAll[,3],

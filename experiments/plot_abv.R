@@ -164,7 +164,7 @@ adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 sgdtype <- "sgd"
 sgd_lr0 <- stepsize0 / g_Theta_init_norm
 
-ewmabv.mat <- c()
+ewmabv.mat <- ewmabv.avg.mat <- c()
 for (ewmabv.beta in ewmabv.beta.list) {
 
   suppressWarnings(
@@ -197,8 +197,6 @@ for (ewmabv.beta in ewmabv.beta.list) {
           w = 0.9
         ),
         sgdtype = sgdtype,
-        adamw = TRUE,
-        adam.rescale = TRUE,
         ada.start = 25 * nBlockIter + 1,
         adareset = 20 * nBlockIter,
         adareset.end = nIter1pass,
@@ -219,17 +217,14 @@ for (ewmabv.beta in ewmabv.beta.list) {
 
   vcrits <- fit$vcrit.history
 
-  bv <- vcrits$bv
-  ewmabv <- vcrits$ewmabv
-
-  bv <- as.vector(na.omit(c(bv)))
-  ewmabv <- as.vector(na.omit(c(ewmabv)))
-
+  ewmabv <- as.vector(na.omit(c(vcrits$ewmabv)))
   ewmabv.mat <- cbind(ewmabv.mat, ewmabv)
+  ewmabv.avg <- as.vector(na.omit(c(vcrits$ewmabv.avg)))
+  ewmabv.avg.mat <- cbind(ewmabv.avg.mat, ewmabv.avg)
 
 }
 
-colnames(ewmabv.mat) <- paste0("beta", ewmabv.beta.list*10)
+colnames(ewmabv.mat) <- colnames(ewmabv.avg.mat) <- paste0("beta", ewmabv.beta.list*10)
 
 pdf(file.path(dirpath, paste0("abv_paths.pdf")), width = 7, height = 4.2)
 # 1. save current par
@@ -240,7 +235,7 @@ par(mar = c(4, 4, 2, 2) + 0.1,
     font.lab = 2)    # bold axis labels
 # 3. do your matplot
 matplot(
-  ewmabv.mat,
+  ewmabv.avg.mat,
   lwd = 2,
   lty = rev(seq_along(ewmabv.beta.list)),
   col = rev(seq_along(ewmabv.beta.list)),

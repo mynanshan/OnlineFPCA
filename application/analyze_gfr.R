@@ -5,9 +5,10 @@ load(file.path("application", "result_gfr_olcov.Rdata"))
 
 fig_path <- "application"
 
-tgrid <- seq(1,7,length.out=51)
+tgrid <- seq(1,7,length.out=31)
 tgrid1 <- seq(1,7,length.out=101)
 tgrid2 <- seq(1,7,length.out=50)
+basis <- create.bspline.basis(c(1, 7), nbasis = 7, norder = 4)
 
 check_points <- c(20, 100, 500)
 q <- 3
@@ -26,6 +27,7 @@ for (idx in seq_along(nums)) {
 ord <- order(lambda.avg, decreasing = TRUE)
 PhiAvgEval <- PhiAvgEval[,ord]
 PhiAvgAll <- PhiAvgAll[,ord,]
+resCI = resCI[,ord,,]
 PhiEst.ll <- PhiEst.ll[,ord]
 PhiEstAll.ll <- PhiEstAll.ll[,ord,]
 lambda.avg <- lambda.avg[ord]
@@ -38,16 +40,21 @@ flip_idx = colMeans(PhiEstAll.ll[,,check_points[3]]) < 0
 PhiEstAll.ll[,flip_idx,] = -PhiEstAll.ll[,flip_idx,]
 
 phi_lims = sapply(1:q, \(k) {
-  range(c(PhiAvgAll[-(1:4),k,]) |> na.omit())
+  range(c(PhiAvgAll[-(1:4),k,-(1:check_points[1])]) |> na.omit())
 })
+all_lims = sapply(1:q, \(k) {
+  range(c(PhiAvgAll[-(1:4),k,-(1:check_points[1])],
+  PhiEstAll.ll[-(1:4),k,-(1:check_points[1])], resCI[-(1:4),k,,-(1:check_points[1])]) |> na.omit())
+})
+all_lims <- c(0.5, 1.3, -2.2, 4, -2.2, 4) |> 
+  matrix(nrow = 2)
 
 fve = lambda.avg / sum(lambda.avg)
 
 saveRDS(PhiAvgEval, file.path("application","eigf_gfr.rds"))
 saveRDS(lambda.avg, file.path("application","eigval_gfr.rds"))
 
-setEPS()
-postscript(file=file.path(fig_path, "gfr_eigfun.eps"), width=7, height=6.2)
+pdf(file=file.path(fig_path, "gfr_eigfun.pdf"), width=7, height=6.2)
 npanel = prod(c(q, length(check_points)))
 add_ci = TRUE
 layout(mat = matrix(c(1:npanel, rep(npanel+1, q)), byrow=TRUE,
@@ -58,13 +65,21 @@ for (idx in seq_along(check_points)) {
   for (k in 1:q) {
     phik.est <- PhiAvgAll[,k,check_points[idx]+1]
     phik.olcov <- PhiEstAll.ll[,k,check_points[idx]]
-    plot(tgrid1, phik.est, type="l", col="#A21B2D", lty=1, lwd=3,
-         xlab="", ylab="", main=NULL, ylim = phi_lims[,k])
+    plot(
+      tgrid1, phik.est, type="l", col="#A21B2D", lty=1, lwd=3,
+      xlab="", ylab="", main=NULL,
+      ylim = if (add_ci) all_lims[,k] else phi_lims[,k]
+    )
     lines(tgrid2, phik.olcov, lty=4, col="#1A73A0", lwd=3)
     if (add_ci) {
       phik.l <- resCI[, k, 1, check_points[idx]+1]
       phik.u <- resCI[, k, 3, check_points[idx]+1]
-      if (mean(resCI[, k, 2, check_points[idx]+1] *  phik.est[seq(1,101,2)]) < 0) {
+      if (
+        inprod(
+          smooth.basis(tgrid, resCI[, k, 2, check_points[idx]+1], basis)$fd,
+          smooth.basis(tgrid1, phik.est, basis)$fd
+        ) < 0
+      ) {
         phik.l <- -phik.l
         phik.u <- -phik.u
       }

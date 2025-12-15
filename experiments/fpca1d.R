@@ -69,7 +69,6 @@ nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 stepsizeList <- c(0.1)
-# stepsizeList <- c(0.1, 0.05, 0.02)
 stepsize.min <- 1e-4
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
@@ -249,7 +248,6 @@ for (noise_sd in noiseList) {
         ),
         nbatch = nBatch,
         maxIter = nPass * nIter1pass,
-        # stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
         stepsize = sgd_lr0,
         nIter.constStepSize = 0,
         stepsize.decayrate = 0.51,
@@ -265,8 +263,6 @@ for (noise_sd in noiseList) {
           w = 0.9
         ),
         sgdtype = sgdtype,
-        adamw = TRUE,
-        adam.rescale = TRUE,
         ada.start = 25 * nBlockIter + 1,
         adareset = 20 * nBlockIter,
         adareset.end = nIter1pass,
