@@ -53,6 +53,9 @@ dat$y <- log1p(dat$AQI)
 # par(mfrow=c(1,1))
 
 # Settings ==============================
+
+q <- 6
+
 latgrid <- seq(latrange[1] + 1, latrange[2], 2)
 longrid <- seq(lonrange[1] + 1, lonrange[2], 2)
 locGrid <- margins2grid(list(latgrid, longrid))
@@ -114,7 +117,6 @@ Lmi <- dat |> group_by(Date.Local) |> summarise(Nobs = n()) |> pull(Nobs)
 
 # algo settings ==================
 N = length(unique(dat$Date.Local))
-q <- 6
 nBatch <- 10
 nParams <- 6
 nPass <- 10
