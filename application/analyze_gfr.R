@@ -78,6 +78,6 @@ matplot((1:718) * 200 / 1000,
   cbind(cumsum(as.numeric(sgd_time[-1])), cumsum(as.numeric(loclin_time))) / 60,
   type="l", xlab="Number of Recipients (Thousand)", ylab="CPU Time (min)",
   col = c("#A21B2D", "#1A73A0"), lwd=3)
-legend("topleft", legend=c("onlineFPCA-RAdam", "onlineCov"),
+legend("topleft", legend=c("OnlineFPCA-RSGD", "OnlineCov"),
        lty=1:2, col = c("#A21B2D", "#1A73A0"), lwd=2)
 dev.off()

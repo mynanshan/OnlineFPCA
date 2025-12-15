@@ -29,7 +29,12 @@ parser$add_argument(
   choices = c(0,1),
   help = "Whether to run competing methods."
 )
+args <- parser$parse_args()
 compare <- as.logical(args[["compare"]])
+
+cat("Whether compare to OnlineCov:", compare, "\n")
+
+
 
 # par.old <- par(no.readonly = TRUE)
 
