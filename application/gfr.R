@@ -48,10 +48,12 @@ dat <- dat[!rm_idx, ]
 N <- 143600
 # N <- 50000
 # N <- 400
-m <- 7
+nyear <- 7
 t0 <- 0
 t1 <- 1
-tgrid <- seq(t0, t1, length.out = 7)
+nintvs <- 5 # 5 points every interval unit
+tgrid <- seq(t0, t1, length.out = (nyear-1) * nintvs + 1)
+nt <- length(tgrid)
 
 # de-mean
 gfr_mean <- colMeans(as.matrix(dat[, 3:9]), na.rm = TRUE)
@@ -64,7 +66,10 @@ dat$Ly <- unname(apply(
 dat$Ltid <- unname(apply(
   as.matrix(dat[, 3:9]),
   1,
-  \(x) which(!is.na(x)),
+  \(x) {
+    ti0 <- which(!is.na(x))
+    (ti0 - 1) * nintvs + 1
+  },
   simplify = FALSE
 ))
 dat$Lmi <- sapply(dat$Ltid, length)
@@ -80,7 +85,7 @@ dat$Lmi <- sapply(dat$Ltid, length)
 # mean(dat$Lmi < 6)
 
 # re-scale
-dat$Lt <- lapply(dat$Lt, \(t) (t - 1) / (7 - 1))
+dat$Lt <- lapply(dat$Ltid, \(ti) (ti - 1) / (nt - 1))
 ysd <- sd(unlist(dat$Ly))
 dat$Ly <- lapply(dat$Ly, \(y) y / ysd)
 

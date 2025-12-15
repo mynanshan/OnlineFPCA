@@ -5,6 +5,7 @@ load(file.path("application", "result_gfr_olcov.Rdata"))
 
 fig_path <- "application"
 
+tgrid <- seq(1,7,length.out=51)
 tgrid1 <- seq(1,7,length.out=101)
 tgrid2 <- seq(1,7,length.out=50)
 
@@ -21,9 +22,19 @@ for (idx in seq_along(nums)) {
   }
 }
 
+# order FPCs by FVEs
+ord <- order(lambda.avg, decreasing = TRUE)
+PhiAvgEval <- PhiAvgEval[,ord]
+PhiAvgAll <- PhiAvgAll[,ord,]
+PhiEst.ll <- PhiEst.ll[,ord]
+PhiEstAll.ll <- PhiEstAll.ll[,ord,]
+lambda.avg <- lambda.avg[ord]
+lambdaEst.ll <- lambdaEst.ll[ord]
+
 # flip the FPC if most values are negative
 flip_idx = colMeans(PhiAvgAll[,,check_points[3]]) < 0
 PhiAvgAll[,flip_idx,] = -PhiAvgAll[,flip_idx,]
+flip_idx = colMeans(PhiEstAll.ll[,,check_points[3]]) < 0
 PhiEstAll.ll[,flip_idx,] = -PhiEstAll.ll[,flip_idx,]
 
 phi_lims = sapply(1:q, \(k) {
@@ -38,15 +49,32 @@ saveRDS(lambda.avg, file.path("application","eigval_gfr.rds"))
 setEPS()
 postscript(file=file.path(fig_path, "gfr_eigfun.eps"), width=7, height=6.2)
 npanel = prod(c(q, length(check_points)))
+add_ci = TRUE
 layout(mat = matrix(c(1:npanel, rep(npanel+1, q)), byrow=TRUE,
                     nrow=length(check_points)+1, ncol=q),
        heights = c(0.3,0.3,0.3,0.1))
 par(mar=c(2,4.5,2,1.5), oma=c(2,0,1,0))
 for (idx in seq_along(check_points)) {
   for (k in 1:q) {
-    plot(tgrid1, PhiAvgAll[,k,check_points[idx]+1], type="l", col="#A21B2D", lty=1, lwd=3,
+    phik.est <- PhiAvgAll[,k,check_points[idx]+1]
+    phik.olcov <- PhiEstAll.ll[,k,check_points[idx]]
+    plot(tgrid1, phik.est, type="l", col="#A21B2D", lty=1, lwd=3,
          xlab="", ylab="", main=NULL, ylim = phi_lims[,k])
-    lines(tgrid2, PhiEstAll.ll[,k,check_points[idx]], lty=4, col="#1A73A0", lwd=3)
+    lines(tgrid2, phik.olcov, lty=4, col="#1A73A0", lwd=3)
+    if (add_ci) {
+      phik.l <- resCI[, k, 1, check_points[idx]+1]
+      phik.u <- resCI[, k, 3, check_points[idx]+1]
+      if (mean(resCI[, k, 2, check_points[idx]+1] *  phik.est[seq(1,101,2)]) < 0) {
+        phik.l <- -phik.l
+        phik.u <- -phik.u
+      }
+      polygon(
+        c(tgrid, rev(tgrid)),
+        c(phik.l, rev(phik.u)),
+        col = rgb(0.2, 0.3, 0.9, alpha = 0.2),
+        border = NA
+      )
+    }
     if (k==1) {
       mtext(paste0("n=",num_labels[idx]), side = 2, line = 3)
     }
