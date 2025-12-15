@@ -19,6 +19,17 @@ source("./R/kernelUtils.R")
 source("./R/onlineFPCA.R")
 source("./R/onlineFDAlocalpoly.R")
 
+parser <- argparse::ArgumentParser(
+  description = "Determine the settings for this simple simulation."
+)
+parser$add_argument(
+  "--compare",
+  type = "integer",
+  default = 1,
+  choices = c(0,1),
+  help = "Whether to run competing methods."
+)
+compare <- as.logical(args[["compare"]])
 
 # par.old <- par(no.readonly = TRUE)
 
@@ -161,7 +172,7 @@ inits <- list(
   sigma2 = sigma2Init
 )
 
-message("Start AdaGrad FPCA")
+message("Start Online FPCA")
 
 fit <- fpca.sgd(
   fdata_generator,
@@ -169,7 +180,7 @@ fit <- fpca.sgd(
   inits = inits,
   meanfun = FALSE,
   tau = NULL,
-  tau.control = list(ntau = nParams, nselect = 1, maxtau = 1e-1, mintau = 1e-4),
+  tau.control = list(ntau = nParams, nselect = 1, maxtau = 1e-0, mintau = 1e-3),
   nbatch = nBatch,
   maxIter = nPass * nIter1pass,
   stepsize = sgd_lr0,
@@ -237,85 +248,87 @@ sgd_time <- colSums(fit$time.history[, 1:nIter1pass])
 sgd_time <- colSums(matrix(sgd_time, nrow = nBlockIter))
 sgd_time <- c(difftime(init_end, init_start, units = 'secs'), sgd_time)
 
-
-## Online FPCA, local polynomials ------------------------
-
-message("Start Online Polynomials")
-
-EV1 <- 100
-EV2 <- 50
-eval_mu <- seq(t0, t1, length.out = EV1) # grid for mean function
-eval_gam_vec <- seq(t0, t1, length.out = EV2)
-eval_gam_mat <- cbind(rep(eval_gam_vec, each = EV2), rep(eval_gam_vec, EV2)) # grid for cov function
-Kmax <- round(N / nBlock) # total number of data blocks, 1000
-
-fit.ll <- fpca.lpoly.online(
-  fdata_generator,
-  n = nBlock,
-  evalArgs = list(
-    EV1 = EV1,
-    EV2 = EV2,
-    t0 = t0,
-    t1 = t1,
-    eval_mu = eval_mu,
-    eval_gam_vec = eval_gam_vec,
-    eval_gam_mat = eval_gam_mat
-  ),
-  streamArgs = list(Kmax = Kmax),
-  L2 = nParams,
-  G = 0.5,
-  R = 1,
-  Mcl = 1,
-  C = 1.5,
-  verbose = TRUE,
-  period = 1
-)
-
-# check eigenfunctions
-PhiEstAll.ll <- sapply(
-  1:Kmax,
-  \(k) matrix(fit.ll$vecs[1:(q * EV2), k], ncol = q),
-  simplify = "array"
-)
-PhiEst.ll <- matrix(fit.ll$vecs[1:(q * EV2), Kmax], ncol = q)
-lambdaEst.ll <- fit.ll$vals[1:q, Kmax]
-PhiEstFunc.ll <- smooth_basis(eval_gam_vec, PhiEst.ll, basis, lambda = 1e-10)
-PhiEst.ll <- eval_fd(evalGrid, PhiEstFunc.ll)
-
-loclin_time <- fit.ll$time
-
-# check FPC PVE
-lambdaEst.ll.all = pmax(fit.ll$vals[, Kmax], 0)
-round((lambdaEst.ll.all[1:q] / sum(lambdaEst.ll.all)), 4)
-# 0.912 0.0750 0.0118
-
-rm(dat)
-
-
-PhiAvgEval <- match_fpc(PhiAvgEval, PhiEst.ll[, 1:q])
-ThetaAll.avg <- ThetaAll.avg[, attributes(PhiAvgEval)$match_id, , drop = F]
-ThetaAll.avg[, attributes(PhiAvgEval)$flipped, ] <-
-  -ThetaAll.avg[, attributes(PhiAvgEval)$flipped, ]
-PhiAvgAll <- array(
-  apply(ThetaAll.avg, 3, \(X) eval_fd(evalGrid, FuncData(X, basis))),
-  dim = c(length(evalGrid), q, dim(ThetaAll.avg)[3])
-)
-
-
-# matplot(evalGrid, PhiEstEval, type="l", lty=1)
-# matplot(evalGrid, PhiEst.ll, type="l", lty=2, add=TRUE)
-
 save(
   PhiAvgEval,
-  PhiEst.ll,
   PhiAvgAll,
-  PhiEstAll.ll,
   lambda.avg,
-  lambdaEst.ll,
   sgd_time,
-  loclin_time,
   tau.select,
   tau_path,
   resCI,
   file = file.path("application", "result_gfr.Rdata")
 )
+
+
+if (compare) {
+
+  ## Online FPCA, local polynomials ------------------------
+
+  message("Start Online Polynomials")
+
+  EV1 <- 100
+  EV2 <- 50
+  eval_mu <- seq(t0, t1, length.out = EV1) # grid for mean function
+  eval_gam_vec <- seq(t0, t1, length.out = EV2)
+  eval_gam_mat <- cbind(rep(eval_gam_vec, each = EV2), rep(eval_gam_vec, EV2)) # grid for cov function
+  Kmax <- round(N / nBlock) # total number of data blocks, 1000
+
+  fit.ll <- fpca.lpoly.online(
+    fdata_generator,
+    n = nBlock,
+    evalArgs = list(
+      EV1 = EV1,
+      EV2 = EV2,
+      t0 = t0,
+      t1 = t1,
+      eval_mu = eval_mu,
+      eval_gam_vec = eval_gam_vec,
+      eval_gam_mat = eval_gam_mat
+    ),
+    streamArgs = list(Kmax = Kmax),
+    L2 = nParams,
+    G = 0.5,
+    R = 1,
+    Mcl = 1,
+    C = 1.5,
+    verbose = TRUE,
+    period = 1
+  )
+
+  # check eigenfunctions
+  PhiEstAll.ll <- sapply(
+    1:Kmax,
+    \(k) matrix(fit.ll$vecs[1:(q * EV2), k], ncol = q),
+    simplify = "array"
+  )
+  PhiEst.ll <- matrix(fit.ll$vecs[1:(q * EV2), Kmax], ncol = q)
+  lambdaEst.ll <- fit.ll$vals[1:q, Kmax]
+  PhiEstFunc.ll <- smooth_basis(eval_gam_vec, PhiEst.ll, basis, lambda = 1e-10)
+  PhiEst.ll <- eval_fd(evalGrid, PhiEstFunc.ll)
+
+  loclin_time <- fit.ll$time
+
+  # check FPC PVE
+  lambdaEst.ll.all = pmax(fit.ll$vals[, Kmax], 0)
+  round((lambdaEst.ll.all[1:q] / sum(lambdaEst.ll.all)), 4)
+  # 0.912 0.0750 0.0118
+
+
+  PhiAvgEval <- match_fpc(PhiAvgEval, PhiEst.ll[, 1:q])
+  ThetaAll.avg <- ThetaAll.avg[, attributes(PhiAvgEval)$match_id, , drop = F]
+  ThetaAll.avg[, attributes(PhiAvgEval)$flipped, ] <-
+    -ThetaAll.avg[, attributes(PhiAvgEval)$flipped, ]
+  PhiAvgAll <- array(
+    apply(ThetaAll.avg, 3, \(X) eval_fd(evalGrid, FuncData(X, basis))),
+    dim = c(length(evalGrid), q, dim(ThetaAll.avg)[3])
+  )
+
+  save(
+    PhiEst.ll,
+    PhiEstAll.ll,
+    lambdaEst.ll,
+    loclin_time,
+    file = file.path("application", "result_gfr_olcov.Rdata")
+  )
+
+}

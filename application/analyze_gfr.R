@@ -1,12 +1,12 @@
 par.old <- par(no.readonly = TRUE)
 
 load(file.path("application", "result_gfr.Rdata"))
+load(file.path("application", "result_gfr_olcov.Rdata"))
 
 fig_path <- "application"
 
 tgrid1 <- seq(1,7,length.out=101)
 tgrid2 <- seq(1,7,length.out=50)
-# svg("application/gfr_eigfun.svg", width = 8,height = 4)
 
 check_points <- c(20, 100, 500)
 q <- 3
@@ -61,7 +61,7 @@ for (idx in seq_along(check_points)) {
 }
 par(mar=c(0,2,1,0))
 plot(1, type = "n", axes=FALSE, xlab="", ylab="")
-legend("bottom", legend=c("onlineFPCA-RAdam", "onlineCov"), inset=c(0,0),
+legend("bottom", legend=c("OnlineFPCA-RSGD", "OnlineCov"), inset=c(0,0),
        lty=c(1,4), col=c("#A21B2D", "#1A73A0"), lwd=2,
        cex=1.2, horiz=TRUE, bty="n")
 par(par.old)
