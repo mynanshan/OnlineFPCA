@@ -173,7 +173,6 @@ for (sgdtype in c("sgd", "adagrad")) {
     nbatch = nBatch,
     maxIter = nPass*nIter1pass,
     stepsize = sgd_lr0,
-    stepsize = stepsize,
     nIter.constStepSize = 0,
     stepsize.decayrate = 0.51,
     stepsize.min = stepsize.min,
