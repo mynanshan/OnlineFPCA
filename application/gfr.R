@@ -53,6 +53,7 @@ t0 <- 0
 t1 <- 1
 nintvs <- 5 # 5 points every interval unit
 tgrid <- seq(t0, t1, length.out = (nyear-1) * nintvs + 1)
+tobs <- seq(t0, t1, length.out = nyear)
 nt <- length(tgrid)
 
 # de-mean
@@ -148,7 +149,7 @@ init_start <- Sys.time()
 ppcaObj <- Rdimtools::do.ppca(do.call(rbind, dat$Ly[idx]), ndim = q)
 init_end <- Sys.time()
 PhiInitEval <- ppcaObj$projection
-ThetaInit <- smooth_basis(tgrid, PhiInitEval, basis, lambda = 1e-8)$coefs
+ThetaInit <- smooth_basis(tobs, PhiInitEval, basis, lambda = 1e-8)$coefs
 lambdaInit <- colMeans(ppcaObj$Y^2)
 norm_factor <- diag(t(ThetaInit) %*% G %*% ThetaInit)
 ThetaInit <- sweep(ThetaInit, 2, sqrt(norm_factor), "/")
