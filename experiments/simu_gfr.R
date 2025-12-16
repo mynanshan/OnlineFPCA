@@ -271,7 +271,7 @@ for (sgdtype in c("sgd", "adagrad")) {
 
   for (ip in seq_len(nPass)) {
     ii <- ip * nRecord.1pass
-    ThetaRecord[[ip]][[optMethod]] <- ThetaAll.avg[,,ii + 1]
+    ThetaRecord[[ip]][[sgdtype]] <- ThetaAll.avg[,,ii + 1]
   }
 }
 
