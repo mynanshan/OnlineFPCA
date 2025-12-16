@@ -253,7 +253,7 @@ for (sgdtype in c("sgd", "adagrad")) {
   res <- rbind(
     res, 
     data.frame(seed = rep(seed, nRecord+1),
-      Method = rep(paste0("Pspline-", optMethod), nRecord+1),
+      Method = rep(paste0("OnlineFPCA-", sgdtype), nRecord + 1),
       StepSize = rep(stepsize, nRecord+1),
       N = c(0,nIters),
       Ninit = rep(Ninit, nRecord+1),
