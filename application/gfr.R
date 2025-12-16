@@ -222,6 +222,88 @@ fit <- fpca.sgd(
   nIter.1stTune = nRoundNoTune * nBlockIter,
   nIter.lastTune = nIter1pass,
   nIter.tauNoIncrease = floor(1 * nIter1pass),
+  period.tune = nBlockIter,
+  period.record = nBlockIter,
+  verbose = FALSE
+)
+
+tau.min <- fit$tau.min
+l <- which(fit$tau == tau.min)[1]
+Theta.avg <- fit$Theta.avg[,, l]
+lambda.avg <- fit$lambda.avg[, l]
+sigma2.avg <- fit$sigma2.avg[l]
+PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
+
+params <- fit$params.history$params
+vcrits <- fit$vcrit.history
+
+# check eigenfunctions
+tau_path <- with(fit$tau.select, extract_tau_path(tau.history, tau.selectId, l))
+tau_path_id <- c(tau_path$tau_path_id, rep(1, (nPass - 1) * round(N / nBlock)))
+tau_path_id_extend <- c(rep(tau_path_id[1], nRoundNoTune), tau_path_id)
+tau.select = fit$tau.select
+
+ThetaAll.avg <- sapply(
+  seq_along(fit$params.history$iter.params),
+  \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
+  simplify = "array"
+)
+PhiAvgAll <- array(
+  apply(ThetaAll.avg, 3, \(X) eval_fd(evalGrid, FuncData(X, basis))),
+  dim = c(length(evalGrid), q, dim(ThetaAll.avg)[3])
+)
+
+sgd_time <- colSums(fit$time.history[, 1:nIter1pass])
+sgd_time <- colSums(matrix(sgd_time, nrow = nBlockIter))
+sgd_time <- c(difftime(init_end, init_start, units = 'secs'), sgd_time)
+
+save(
+  PhiAvgEval,
+  PhiAvgAll,
+  lambda.avg,
+  sgd_time,
+  tau.select,
+  tau_path,
+  file = file.path("application", "result_gfr.Rdata")
+)
+
+fit <- fpca.sgd(
+  fdata_generator,
+  tgrid,
+  inits = inits,
+  meanfun = FALSE,
+  tau = NULL,
+  tau.control = list(ntau = nParams, nselect = 1, maxtau = 1e-0, mintau = 1e-3),
+  nbatch = nBatch,
+  maxIter = nPass * nIter1pass,
+  stepsize = sgd_lr0,
+  nIter.constStepSize = 0,
+  stepsize.decayrate = 0.51,
+  stepsize.min = stepsize.min,
+  period.decay = 5 * nBlockIter,
+  nIter.slowerdecay = nIter1pass,
+  stepsize.decayrate.slow = 0.25,
+  dynlr = TRUE,
+  dynlrCtrl = list(
+    niter = 20 * nBlockIter,
+    reset = 5 * nBlockIter,
+    refdn = stepsize0,
+    w = 0.9
+  ),
+  sgdtype = "sgd",
+  adamw = TRUE,
+  adam.rescale = TRUE,
+  ada.start = 25 * nBlockIter + 1,
+  adareset = 20 * nBlockIter,
+  adareset.end = nIter1pass,
+  asgd.start = 10 * nBlockIter + 1,
+  asgd.reset = Inf,
+  asgd.reset.end = nIter1pass,
+  asgd.end = Inf,
+  fpcCI = TRUE,
+  nIter.1stTune = nRoundNoTune * nBlockIter,
+  nIter.lastTune = nIter1pass,
+  nIter.tauNoIncrease = floor(1 * nIter1pass),
   dyntune.rate = 1.25,
   period.tune = nBlockIter,
   period.record = nBlockIter,
@@ -268,7 +350,7 @@ save(
   tau.select,
   tau_path,
   resCI,
-  file = file.path("application", "result_gfr.Rdata")
+  file = file.path("application", "result_gfr_uq.Rdata")
 )
 
 

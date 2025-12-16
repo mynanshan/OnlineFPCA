@@ -71,10 +71,15 @@ nrep = length(fpc_files)
 nPass <- 3
 ThetaSGD <- ThetaAdaGrad <- rep(list(matrix(0, nrow = p, ncol = q)), 3)
 for (f in fpc_files) {
-  ThetaRecord <- readRDS(file.path(dirpath, f))  
+  tmp <- tryCatch(
+    readRDS(file.path(dirpath, f)),
+    error = function(e) {NULL}
+  )
+  if (is.null(tmp)) next
+  ThetaRecord <- tmp
   for (ip in seq_len(nPass)) {
-    ThetaSGD[[ip]] <- ThetaSGD[[ip]] + ThetaRecord[[ip]][['SGD']] / nrep
-    ThetaAdaGrad[[ip]] <- ThetaAdaGrad[[ip]] + ThetaRecord[[ip]][['AdaGrad']] / nrep
+    ThetaSGD[[ip]] <- ThetaSGD[[ip]] + ThetaRecord[[ip]][['sgd']] / nrep
+    ThetaAdaGrad[[ip]] <- ThetaAdaGrad[[ip]] + ThetaRecord[[ip]][['adagrad']] / nrep
   }
 }
 

@@ -1,3 +1,9 @@
+library(fda)
+
+source("./R/fdaMdim.R")
+source("./R/helper.R")
+source("./R/onlineFPCA.R")
+
 par.old <- par(no.readonly = TRUE)
 
 load(file.path("application", "result_gfr.Rdata"))
@@ -110,8 +116,7 @@ legend("bottom", legend=c("OnlineFPCA-RSGD", "OnlineCov"), inset=c(0,0),
 par(par.old)
 dev.off()
 
-setEPS()
-postscript(file=file.path(fig_path,"gfr_taupath.eps"), width=9, height=5)
+pdf(file=file.path(fig_path,"gfr_taupath.pdf"), width=7, height=4.5)
 with(tau.select, plot.tau_path2(tau.history, tau.selectId))
 dev.off()
 
