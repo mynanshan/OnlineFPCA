@@ -1,6 +1,8 @@
 library(dplyr)
 library(tidyr)
 library(readr)
+library(fda)
+library(ggplot2)
 
 exprmt <- "gfr"
 dirpath <- file.path("experiments", exprmt)
@@ -32,18 +34,59 @@ res <- res |>
     nBatch = as.integer(nBatch)
   )
 
-sumres <- res %>% group_by(Method, Ninit, npc, initMethod, N) %>%
-  summarise_at(vars(Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg), list(mean=mean, sd=sd))
-
-sumres[['SumTime']] <- NA
-for (m in unique(sumres$Method)) {
-  times <- sumres$Time_mean[sumres$Method==m]
-  sumres$SumTime[sumres$Method==m] <- cumsum(times)
-}
+sumres <- res |> 
+  group_by(Method, StepSize, Ninit, npc, initMethod, N) |> 
+  summarise_at(vars(Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg), list(mean=mean)) |> 
+  ungroup() |> 
+  group_by(Method, StepSize, Ninit, npc, initMethod) |> 
+  mutate(SumTime = cumsum(Time_mean))
 
 q <- 3
 N0 <- c(5000, 10000, 15000)
 N1 = 5000
+
+meth_ord = c(
+  paste0("OnlineFPCA-", c("sgd", "adagrad")),
+  "OnlineCov",
+  "Batch-PACE", "Batch-FACE", "Batch-REML", "Batch-SOAP"
+)
+
+tabres <- ungroup(sumres) |>
+  filter(stringr::str_detect(Method, "Batch") | N %in% N0) |>
+  dplyr::select(
+    Method, N, StepSize, SumTime,
+    RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
+  ) |>
+  mutate(Method = factor(Method, levels=meth_ord)) |> 
+  arrange(Method, N) |> 
+  mutate(
+    epoch = as.integer(N / N1),
+    Method = case_match(Method,
+      "OnlineFPCA-sgd" ~ "OnlineFPCA-RSGD",
+      "OnlineFPCA-adagrad" ~ "OnlineFPCA-RAdagrad",
+      "OnlineCov" ~ "OnlineCov",
+      "Batch-PACE" ~ "PACE",
+      "Batch-FACE" ~ "FACE",
+      "Batch-REML" ~ "REML",
+      "Batch-SOAP" ~ "SOAP"
+    ),
+    SumTime = round(SumTime, 1)
+  ) |> 
+  rename(
+    RMSEphi1 = RMSEphi1.avg_mean,
+    RMSEphi2 = RMSEphi2.avg_mean,
+    RMSEphi3 = RMSEphi3.avg_mean
+  ) |> 
+  relocate(epoch, .before = SumTime) |> 
+  dplyr::select(-N)
+
+knitr::kable(
+  tabres |>
+    filter(is.na(StepSize) | StepSize == 0.1) |> 
+    dplyr::select(-StepSize),
+  "latex", digits = 3
+)
+
 
 # FPC plots --------------------------------------------------------------
 

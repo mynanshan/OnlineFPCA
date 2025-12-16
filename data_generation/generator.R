@@ -294,8 +294,8 @@ get_measurements <-
 gendata.gfr <- function(
   n = 1000, t0 = 0, t1 = 1,
   m_mean = 6, m_sd = 2, sigma = 0.08,
-  eigf.path = "application/eigf_gfr.rds",
-  eigval.path = "application/eigval_gfr.rds"
+  eigf.path = file.path("application", "eigf_gfr.rds"),
+  eigval.path = file.path("application", "eigval_gfr.rds")
 ) {
   PhiMat <- readRDS(eigf.path)  # (M, npc)
   lamvec <- readRDS(eigval.path)

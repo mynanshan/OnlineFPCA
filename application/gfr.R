@@ -209,8 +209,6 @@ fit <- fpca.sgd(
     w = 0.9
   ),
   sgdtype = "sgd",
-  adamw = TRUE,
-  adam.rescale = TRUE,
   ada.start = 25 * nBlockIter + 1,
   adareset = 20 * nBlockIter,
   adareset.end = nIter1pass,
@@ -218,13 +216,13 @@ fit <- fpca.sgd(
   asgd.reset = Inf,
   asgd.reset.end = nIter1pass,
   asgd.end = Inf,
-  fpcCI = TRUE,
+  fpcCI = FALSE,
   nIter.1stTune = nRoundNoTune * nBlockIter,
   nIter.lastTune = nIter1pass,
   nIter.tauNoIncrease = floor(1 * nIter1pass),
   period.tune = nBlockIter,
   period.record = nBlockIter,
-  verbose = FALSE
+  verbose = TRUE
 )
 
 tau.min <- fit$tau.min
@@ -267,6 +265,8 @@ save(
   file = file.path("application", "result_gfr.Rdata")
 )
 
+message("Start Online FPCA (UQ)")
+
 fit <- fpca.sgd(
   fdata_generator,
   tgrid,
@@ -291,8 +291,6 @@ fit <- fpca.sgd(
     w = 0.9
   ),
   sgdtype = "sgd",
-  adamw = TRUE,
-  adam.rescale = TRUE,
   ada.start = 25 * nBlockIter + 1,
   adareset = 20 * nBlockIter,
   adareset.end = nIter1pass,

@@ -317,7 +317,7 @@ rmseAll.ll <- sapply(1:npc, \(k) {
 res <- rbind(
   res, 
   data.frame(seed = rep(seed, nRecord.1pass),
-    Method = rep("LocLin", nRecord.1pass),
+    Method = rep("OnlineCov", nRecord.1pass),
     StepSize = rep(NA, nRecord.1pass),
     N = nIters.1pass,
     Ninit = rep(NA, nRecord.1pass),
