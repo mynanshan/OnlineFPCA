@@ -16,7 +16,10 @@ res <- do.call(
       n_digit_seed = ceiling(log10(seed + 1))
       seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
       filename <- paste0("simu_",exprmt,"_sd",seedtext,".csv")
-      read_csv(file.path(dirpath, filename), show_col_types = FALSE)
+      tryCatch(
+        {read_csv(file.path(dirpath, filename), show_col_types = FALSE)},
+        error = function(e) {NULL}
+      )
     }
   )
 )
@@ -66,17 +69,17 @@ fpc_files = file_list[startsWith(file_list, "Theta")]
 nrep = length(fpc_files)
 
 nPass <- 3
-ThetaSGD <- ThetaAdam <- rep(list(matrix(0, nrow = p, ncol = q)), 3)
+ThetaSGD <- ThetaAdaGrad <- rep(list(matrix(0, nrow = p, ncol = q)), 3)
 for (f in fpc_files) {
   ThetaRecord <- readRDS(file.path(dirpath, f))  
   for (ip in seq_len(nPass)) {
     ThetaSGD[[ip]] <- ThetaSGD[[ip]] + ThetaRecord[[ip]][['SGD']] / nrep
-    ThetaAdam[[ip]] <- ThetaAdam[[ip]] + ThetaRecord[[ip]][['Adam']] / nrep
+    ThetaAdaGrad[[ip]] <- ThetaAdaGrad[[ip]] + ThetaRecord[[ip]][['AdaGrad']] / nrep
   }
 }
 
 PhiSGD <- lapply(ThetaSGD, \(Theta) eval_fd(evalGrid, FuncData(Theta, basis)))
-PhiAdam <- lapply(ThetaAdam, \(Theta) eval_fd(evalGrid, FuncData(Theta, basis)))
+PhiAdaGrad <- lapply(ThetaAdaGrad, \(Theta) eval_fd(evalGrid, FuncData(Theta, basis)))
 
 
 dat.true <- data.frame(
@@ -94,21 +97,21 @@ dat.sgd <- data.frame(
   phi2=PhiSGD[[nPass]][,2],
   phi3=PhiSGD[[nPass]][,3]
 )
-dat.adam <- data.frame(
-  Method="OnlineFPCA-Adam",
+dat.adagrad <- data.frame(
+  Method="OnlineFPCA-AdaGrad",
   t=evalGrid,
-  phi1=PhiAdam[[nPass]][,1],
-  phi2=PhiAdam[[nPass]][,2],
-  phi3=PhiAdam[[nPass]][,3]
+  phi1=PhiAdaGrad[[nPass]][,1],
+  phi2=PhiAdaGrad[[nPass]][,2],
+  phi3=PhiAdaGrad[[nPass]][,3]
 )
-plotdat <- bind_rows(dat.true, dat.sgd, dat.adam) %>%
+plotdat <- bind_rows(dat.true, dat.sgd, dat.adagrad) %>%
   pivot_longer(
     cols = starts_with("phi"),
     names_to  = "phiId",
     values_to = "phiVal"
   ) %>%
   mutate(
-    Method = factor(Method, levels = c("Truth", "OnlineFPCA-SGD", "OnlineFPCA-Adam")),
+    Method = factor(Method, levels = c("Truth", "OnlineFPCA-SGD", "OnlineFPCA-AdaGrad")),
     # map “phi1”→“phi[1]” etc so label_parsed knows to render φ₁, φ₂, φ₃
     phiId = recode(phiId,
       phi1 = "phi[1](t)",
@@ -120,7 +123,7 @@ plotdat <- bind_rows(dat.true, dat.sgd, dat.adam) %>%
     recode(Method,
       Truth            = "bold(Truth)",
       `OnlineFPCA-SGD`   = "bold(OnlineFPCA-SGD)",
-      `OnlineFPCA-Adam`  = "bold(OnlineFPCA-Adam)"
+      `OnlineFPCA-AdaGrad`  = "bold(OnlineFPCA-AdaGrad)"
     )
   )
 

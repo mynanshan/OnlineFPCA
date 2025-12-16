@@ -94,7 +94,7 @@ nbasis <- 7
 basis <- create.bspline.basis(c(t0,t1), nbasis = nbasis, norder = 4)
 p <- nbasis
 
-ThetaRecord <- rep(list(list(SGD = NULL, Adam = NULL)), nPass)
+ThetaRecord <- rep(list(list(sgd = NULL, adagrad = NULL)), nPass)
 
 muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
 phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
