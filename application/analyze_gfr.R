@@ -7,7 +7,13 @@ source("./R/onlineFPCA.R")
 par.old <- par(no.readonly = TRUE)
 
 load(file.path("application", "result_gfr.Rdata"))
+sum(sgd_time)
+
+load(file.path("application", "result_gfr_uq.Rdata"))
 load(file.path("application", "result_gfr_olcov.Rdata"))
+
+sum(sgd_time)
+sum(loclin_time)
 
 fig_path <- "application"
 
@@ -120,8 +126,7 @@ pdf(file=file.path(fig_path,"gfr_taupath.pdf"), width=7, height=4.5)
 with(tau.select, plot.tau_path2(tau.history, tau.selectId))
 dev.off()
 
-setEPS()
-postscript(file=file.path(fig_path,"gfr_time.eps"), width = 6, height=5)
+pdf(file=file.path(fig_path,"gfr_time.eps"), width = 6, height=5)
 matplot((1:718) * 200 / 1000,
   cbind(cumsum(as.numeric(sgd_time[-1])), cumsum(as.numeric(loclin_time))) / 60,
   type="l", xlab="Number of Recipients (Thousand)", ylab="CPU Time (min)",

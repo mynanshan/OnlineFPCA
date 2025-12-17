@@ -46,7 +46,6 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-# stepsizeList <- c(0.1, 0.05, 0.02)
 stepsizeList <- c(0.2, 0.1, 0.05, 0.02)
 # stepsize0 <- 0.1
 stepsize.min <- 1e-4
@@ -300,8 +299,6 @@ for (noise_sd in noiseList) {
           w = 0.9
         ),
         sgdtype = sgdtype,
-        adamw = TRUE,
-        adam.rescale = TRUE,
         ada.start = 25 * nBlockIter + 1,
         adareset = 20 * nBlockIter,
         adareset.end = nIter1pass,

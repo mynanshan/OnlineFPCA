@@ -13,7 +13,7 @@ parser <- argparse::ArgumentParser(
 parser$add_argument(
   "--seed",
   type = "integer",
-  default = 5,
+  default = 1234,
   help = "Seed used for this experiment."
 )
 args <- parser$parse_args()
@@ -48,12 +48,11 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsize <- 1e-1
-stepsize.min <- 1e-3
+stepsize0 <- 0.1
+stepsize.min <- 1e-4
 sgd.step.scale <- 1 # when < 1, use a smaller step size for sgd
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
-asgd.use <- TRUE
 
 exprmt <- "aqi"
 dirpath <- file.path("experiments", exprmt)
@@ -72,8 +71,6 @@ res <- data.frame(
   N = numeric(),
   nBatch = numeric(),
   Time = numeric(),
-  # AV = numeric(),
-  # EWMABV = numeric(),
   RMSEphi1 = numeric(),
   RMSEphi2 = numeric(),
   RMSEphi3 = numeric(),
@@ -128,7 +125,7 @@ sqrtmObj <- pracma::sqrtm(as.matrix(G))
 sqrtG <- sqrtmObj$B
 sqrtGinv <- sqrtmObj$Binv
 
-perm <- get_commute_index(p, q)
+# perm <- get_commute_index(p, q)
 
 # Online FPCA  ------------------------------------------------------------
 message("Start OnlineFPCA ---------------")
@@ -178,17 +175,12 @@ TidInit = unlist(mapply(
   sampleIds
 ))
 subject_ids <- rep(1:Ninit, times = nsub)
-# Yinit <- unlist(dat$Ly[1:Ninit])
-# Tinit <- do.call(rbind, dat$Lt[1:Ninit])
-# LtIdInit <- unlist(dat$Ltid[1:Ninit])
-# subject_ids <- rep(1:Ninit, times = sapply(dat$Ly[1:Ninit], length))
 CovRes <- mOpCov(
   location = Tinit,
   x = Yinit,
   subject = subject_ids,
   q = c(8, 8),
   lam = list(lam = 1e-10, alpha = 1e-6),
-  # ker = "cos",
   ker = "sob",
   control = list(Mmethod = "eig")
 )
@@ -217,14 +209,27 @@ sigma2Init <- mean((Yinit^2 - covInitEvalDiag[TidInit])[innerPoints])
 sigma2Init <- max(sigma2Init, 1e-3)
 end_time.init <- Sys.time()
 
-inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
 nBlockIter <- nBlock / nBatch
 nIter1pass <- N / nBatch
-asgdIterStart <- round(nRecord.1pass * 0.7 * nBlockIter)
-adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 
-for (optMethod in c("SGD", "Adam")) {
-  message("Method:", optMethod)
+ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
+grad_Theta_init <- objfun(
+  dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
+  ThetaInit, lambdaInit, sigma2Init, NULL, 0, "grad"
+)$grad_Theta
+grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
+g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init) / q)
+sgd_lr0 <- stepsize0 / g_Theta_init_norm
+message("> Step size = ", stepsize0)
+
+inits <- list(
+  Theta = ThetaInit,
+  lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
+  sigma2 = sigma2Init
+)
+
+for (sgdtype in c("sgd", "adagrad")) {
+  message(">>> sgdtype = ", sgdtype)
 
   fit <- fpca.sgd(
     fdata_generator,
@@ -240,21 +245,34 @@ for (optMethod in c("SGD", "Adam")) {
     ),
     nbatch = nBatch,
     maxIter = nPass * nIter1pass,
-    stepsize = stepsize,
-    stepsize.decayrate = 0.6,
+    stepsize = sgd_lr0,
+    nIter.constStepSize = 0,
+    stepsize.decayrate = 0.51,
     stepsize.min = stepsize.min,
-    nIter.slowerdecay = floor(0.8 * nIter1pass),
-    stepsize.decayrate.slow = 0.3,
-    nIter.adam = ifelse(optMethod == "SGD", 0, adamIterEnd),
-    asgd.use = TRUE,
-    asgd.start = asgdIterStart,
-    coord.scaling = TRUE,
+    period.decay = 5 * nBlockIter,
+    nIter.slowerdecay = nIter1pass,
+    stepsize.decayrate.slow = 0.25,
+    dynlr = TRUE,
+    dynlrCtrl = list(
+      niter = 20 * nBlockIter,
+      reset = 5 * nBlockIter,
+      refdn = stepsize0,
+      w = 0.9
+    ),
+    sgdtype = sgdtype,
+    ada.start = 25 * nBlockIter + 1,
+    adareset = 20 * nBlockIter,
+    adareset.end = nIter1pass,
+    asgd.start = 10 * nBlockIter + 1,
+    asgd.reset = 40 * nBlockIter,
+    asgd.reset.end = nIter1pass,
+    asgd.end = Inf,
     nIter.1stTune = nRoundNoTune * nBlockIter,
     nIter.lastTune = nIter1pass,
-    nIter.tauNoIncrease = floor(0.7 * nIter1pass),
+    nIter.tauNoIncrease = floor(0.3 * nIter1pass),
     period.tune = nBlockIter,
     period.record = nBlockIter,
-    verbose = FALSE
+    verbose = TRUE
   )
 
   tau.min <- fit$tau.min
@@ -296,21 +314,13 @@ for (optMethod in c("SGD", "Adam")) {
     \(i) params$Theta[,, tau_path_id_extend[i], i],
     simplify = "array"
   )
-  rmseAll <- sapply(1:q, \(k) {
-    diffTheta <- sweep(ThetaAll[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-    diffPhi <- B %*% diffTheta
-    sqrt(colMeans(diffPhi^2))
-  })
+  rmseAll <- rmse_phi(ThetaAll, phiTrueFunc$coefs, B)
   ThetaAll.avg <- sapply(
     seq_along(fit$params.history$iter.params),
     \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
     simplify = "array"
   )
-  rmseAll.avg <- sapply(1:q, \(k) {
-    diffTheta <- sweep(ThetaAll.avg[, k, ], 1, phiTrueFunc$coefs[, k], "-")
-    diffPhi <- B %*% diffTheta
-    sqrt(colMeans(diffPhi^2))
-  })
+  rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
 
   times <- c(
     colSums(fit$time.history[, 1:nIter1pass]),
@@ -323,13 +333,11 @@ for (optMethod in c("SGD", "Adam")) {
     res,
     data.frame(
       seed = rep(seed, nRecord + 1),
-      Method = rep(paste0("Pspline-", optMethod), nRecord + 1),
-      StepSize = rep(stepsize, nRecord + 1),
+      Method = rep(paste0("OnlineFPCA-", sgdtype), nRecord + 1),
+      StepSize = rep(stepsize0, nRecord + 1),
       N = c(0, nIters),
       nBatch = rep(nBatch, nRecord + 1),
       Time = times,
-      # AV = c(NA,vscores[,"av"]),
-      # EWMABV = c(NA,vscores[,"ewmabv"]),
       RMSEphi1 = rmseAll[, 1],
       RMSEphi2 = rmseAll[, 2],
       RMSEphi3 = rmseAll[, 3],
@@ -341,7 +349,7 @@ for (optMethod in c("SGD", "Adam")) {
 
   for (ip in seq_len(nPass)) {
     ii <- ip * nRecord.1pass
-    ThetaRecord[[ip]][[optMethod]] <- ThetaAll.avg[,,ii + 1]
+    ThetaRecord[[ip]][[sgdtype]] <- ThetaAll.avg[,,ii + 1]
   }
 }
 
@@ -379,8 +387,6 @@ res <- rbind(
     nBatch = N,
     Time = difftime(batch_end, batch_start, units = 'secs') +
       difftime(end_time.init, start_time.init, units = 'secs'),
-    # AV = fit0$av,
-    # EWMABV = fit0$ewmabv,
     RMSEphi1 = rmseBatch[1],
     RMSEphi2 = rmseBatch[2],
     RMSEphi3 = rmseBatch[3],
