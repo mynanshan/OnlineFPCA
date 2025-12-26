@@ -139,14 +139,14 @@ dat.true <- data.frame(
   phi3=PhiTrueEval[,3]
 )
 dat.sgd <- data.frame(
-  Method="OnlineFPCA-SGD",
+  Method="OnlineFPCA-RSGD",
   t=evalGrid,
   phi1=PhiSGD[[nPass]][,1],
   phi2=PhiSGD[[nPass]][,2],
   phi3=PhiSGD[[nPass]][,3]
 )
 dat.adagrad <- data.frame(
-  Method="OnlineFPCA-AdaGrad",
+  Method="OnlineFPCA-RAdaGrad",
   t=evalGrid,
   phi1=PhiAdaGrad[[nPass]][,1],
   phi2=PhiAdaGrad[[nPass]][,2],
@@ -159,7 +159,7 @@ plotdat <- bind_rows(dat.true, dat.sgd, dat.adagrad) %>%
     values_to = "phiVal"
   ) %>%
   mutate(
-    Method = factor(Method, levels = c("Truth", "OnlineFPCA-SGD", "OnlineFPCA-AdaGrad")),
+    Method = factor(Method, levels = c("Truth", "OnlineFPCA-RSGD", "OnlineFPCA-RAdaGrad")),
     # map “phi1”→“phi[1]” etc so label_parsed knows to render φ₁, φ₂, φ₃
     phiId = recode(phiId,
       phi1 = "phi[1](t)",
@@ -170,8 +170,8 @@ plotdat <- bind_rows(dat.true, dat.sgd, dat.adagrad) %>%
   mutate(Method =
     recode(Method,
       Truth            = "bold(Truth)",
-      `OnlineFPCA-SGD`   = "bold(OnlineFPCA-SGD)",
-      `OnlineFPCA-AdaGrad`  = "bold(OnlineFPCA-AdaGrad)"
+      `OnlineFPCA-RSGD`   = "bold(RSGD)",
+      `OnlineFPCA-RAdaGrad`  = "bold(RAdaGrad)"
     )
   )
 

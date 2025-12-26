@@ -37,13 +37,14 @@ filename <- paste0("ci_", exprmt, "_sd", seedtext, ".RData")
 
 load(file.path(dirpath, filename))
 CIs <- CIobj$CIs
-PhiStar <- match_fpc(CIobj$PhiStar, PhiTrue)
 PhiTrue <- CIobj$PhiTrue
+PhiStar <- match_fpc(CIobj$PhiStar, PhiTrue)
 
-idx <- c(51, 151, 251)
+idx <- c(21, 36, 51)
 
 pdf(file = file.path(dirpath, "ci2d-ci.pdf"), width = 7, height = 6.2)
 pa <- par(no.readonly = TRUE)
+skip <- 4
 par(
   mfrow = c(3, 3),
   mar = c(1, 2, 2, 0),
@@ -52,7 +53,7 @@ par(
 )
 subId <- lapply(nevalList, \(N) {
   tmp <- logical(N)
-  tmp[seq(1, N, 2)] <- TRUE
+  tmp[seq(1, N, skip)] <- TRUE
   tmp
 })
 nevalSub <- sapply(subId, sum)
@@ -75,8 +76,7 @@ for (i in idx) {
       x = matrix(evalGrid[subId2, 1], nevalSub[1], nevalSub[2]),
       y = matrix(evalGrid[subId2, 2], nevalSub[1], nevalSub[2]),
       z = z.star,
-      # z = z,
-      col = rgb(1., 0.8, 0.3, alpha = 0.7),
+      col = rgb(0.2, 0.5, 0.7, alpha = 0.6),
       border = NA,
       xlab = "",
       ylab = "",
@@ -124,6 +124,15 @@ for (i in idx) {
       y = t2_range[1] - text_shift * t2_span,
       z = phi_range[2],
       as.expression(bquote(phi[.(k)])),
+      add = TRUE
+    )
+    # overlay z.est
+    surf3D(
+      x = matrix(evalGrid[subId2, 1], nevalSub[1], nevalSub[2]),
+      y = matrix(evalGrid[subId2, 2], nevalSub[1], nevalSub[2]),
+      z = z.est,
+      col = rgb(0.8745098, 0.3254902, 0.4196078, alpha = 0.6),
+      border = NA,
       add = TRUE
     )
     # overlay the lower‐CI surface

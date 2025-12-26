@@ -35,3 +35,19 @@ res <- res |>
   arrange(epoch, nBlock, wBeta) 
 
 knitr::kable(res, "latex", digits = 3)
+
+tabres <- res |> ungroup() |> 
+  filter(nBlock == 100) |> 
+  rename(
+    phi1 = RMSEphi1.avg,
+    phi2 = RMSEphi2.avg,
+    phi3 = RMSEphi3.avg
+  ) |> 
+  dplyr::select(-nBlock) |>#1
+  pivot_wider(
+    id_cols = c("wBeta"),
+    names_from = "epoch",
+    values_from = c("phi1", "phi2", "phi3")
+  )
+
+knitr::kable(tabres, format = "latex", digits = 3)

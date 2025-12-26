@@ -29,33 +29,50 @@ res <- res |>
     nBatch = as.integer(nBatch)
   )
 
-sumres <- res %>% group_by(Method, N) %>%
-  summarise_at(vars(
-    Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg
-  ), list(mean=mean, sd=sd))
-
-sumres[['SumTime']] <- NA
-for (m in unique(sumres$Method)) {
-  times <- sumres$Time_mean[sumres$Method==m]
-  sumres$SumTime[sumres$Method==m] <- cumsum(times)
-}
+sumres <- res |> 
+  group_by(Method, StepSize, N) |> 
+  summarise_at(vars(Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg), list(mean=mean)) |> 
+  ungroup() |> 
+  group_by(Method, StepSize) |> 
+  mutate(SumTime = cumsum(Time_mean))
 
 q <- 3
 N0 <- 5000 * (1:3)
-N1 = 5000
+N1 <- 5000
 
+meth_ord = c("OnlineFPCA-sgd", "OnlineFPCA-adagrad", "Batch-SOAP")
 
 tabres <- ungroup(sumres) |>
   filter(stringr::str_detect(Method, "Batch") | N %in% N0) |>
-  dplyr::select(Method, N, SumTime, RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean)
-for (i in 1:nrow(tabres)) {
-  cat(paste(c(as.character(tabres[i,1:2]), round(as.numeric(tabres[i,3]),1),
-    round(as.numeric(tabres[i,4:6]),3)), collapse=" & "), "\\\\ \n")
-}
+  dplyr::select(
+    Method, N, StepSize, SumTime,
+    RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
+  ) |>
+  mutate(Method = factor(Method, levels=meth_ord)) |> 
+  arrange(Method, N) |> 
+  mutate(
+    epoch = as.integer(N / N1),
+    Method = case_match(Method,
+      "OnlineFPCA-sgd" ~ "OnlineFPCA-RSGD",
+      "OnlineFPCA-adagrad" ~ "OnlineFPCA-RAdagrad",
+      "Batch-SOAP" ~ "SOAP"
+    ),
+    SumTime = round(SumTime, 1)
+  ) |> 
+  rename(
+    RMSEphi1 = RMSEphi1.avg_mean,
+    RMSEphi2 = RMSEphi2.avg_mean,
+    RMSEphi3 = RMSEphi3.avg_mean
+  ) |> 
+  relocate(epoch, .before = SumTime) |> 
+  dplyr::select(-N)
 
-tabres = tabres |> filter(Method != "Batch-PACE")
-# PACE is optimized by C codes. Performance too different
-
+knitr::kable(
+  tabres |> 
+    filter(is.na(StepSize) | StepSize == 0.1) |> 
+    dplyr::select(-StepSize),
+  "latex", digits = 3
+)
 
 
 # FPC plots --------------------------------------------------------------
@@ -84,17 +101,22 @@ fpc_files = file_list[startsWith(file_list, "Theta")]
 nrep = length(fpc_files)
 
 nPass <- 3
-ThetaSGD <- ThetaAdam <- rep(list(matrix(0, nrow = p, ncol = q)), 3)
+ThetaSGD <- ThetaAdaGrad <- rep(list(matrix(0, nrow = p, ncol = q)), 3)
 for (f in fpc_files) {
-  ThetaRecord <- readRDS(file.path(dirpath, f))  
+  tmp <- tryCatch(
+    readRDS(file.path(dirpath, f)),
+    error = function(e) {NULL}
+  )
+  if (is.null(tmp)) next
+  ThetaRecord <- tmp
   for (ip in seq_len(nPass)) {
-    ThetaSGD[[ip]] <- ThetaSGD[[ip]] + ThetaRecord[[ip]][['SGD']] / nrep
-    ThetaAdam[[ip]] <- ThetaAdam[[ip]] + ThetaRecord[[ip]][['Adam']] / nrep
+    ThetaSGD[[ip]] <- ThetaSGD[[ip]] + ThetaRecord[[ip]][['sgd']] / nrep
+    ThetaAdaGrad[[ip]] <- ThetaAdaGrad[[ip]] + ThetaRecord[[ip]][['adagrad']] / nrep
   }
 }
 
 PhiSGD <- lapply(ThetaSGD, \(Theta) eval_fd(evalGrid, FuncData(Theta, basis)))
-PhiAdam <- lapply(ThetaAdam, \(Theta) eval_fd(evalGrid, FuncData(Theta, basis)))
+PhiAdaGrad <- lapply(ThetaAdaGrad, \(Theta) eval_fd(evalGrid, FuncData(Theta, basis)))
 
 dat.true <- data.frame(
   Method="Truth",
@@ -105,29 +127,29 @@ dat.true <- data.frame(
   phi3=PhiTrueEval[,3]
 )
 dat.sgd <- data.frame(
-  Method="OnlineFPCA-SGD",
+  Method="OnlineFPCA-RSGD",
   t1=evalGrid[,1],
   t2=evalGrid[,2],
   phi1=PhiSGD[[nPass]][,1],
   phi2=PhiSGD[[nPass]][,2],
   phi3=PhiSGD[[nPass]][,3]
 )
-dat.adam <- data.frame(
-  Method="OnlineFPCA-Adam",
+dat.adagrad <- data.frame(
+  Method="OnlineFPCA-RAdaGrad",
   t1=evalGrid[,1],
   t2=evalGrid[,2],
-  phi1=PhiAdam[[nPass]][,1],
-  phi2=PhiAdam[[nPass]][,2],
-  phi3=PhiAdam[[nPass]][,3]
+  phi1=PhiAdaGrad[[nPass]][,1],
+  phi2=PhiAdaGrad[[nPass]][,2],
+  phi3=PhiAdaGrad[[nPass]][,3]
 )
-plotdat <- bind_rows(dat.true, dat.sgd, dat.adam) %>%
+plotdat <- bind_rows(dat.true, dat.sgd, dat.adagrad) %>%
   pivot_longer(
     cols = starts_with("phi"),
     names_to  = "phiId",
     values_to = "phiVal"
   ) %>%
   mutate(
-    Method = factor(Method, levels = c("Truth", "OnlineFPCA-SGD", "OnlineFPCA-Adam")),
+    Method = factor(Method, levels = c("Truth", "OnlineFPCA-RSGD", "OnlineFPCA-RAdaGrad")),
     # map “phi1”→“phi[1]” etc so label_parsed knows to render φ₁, φ₂, φ₃
     phiId = recode(phiId,
       phi1 = "phi[1](t[1], t[2])",
@@ -138,8 +160,8 @@ plotdat <- bind_rows(dat.true, dat.sgd, dat.adam) %>%
   mutate(Method =
     recode(Method,
       Truth            = "bold(Truth)",
-      `OnlineFPCA-SGD`   = "bold(OnlineFPCA-SGD)",
-      `OnlineFPCA-Adam`  = "bold(OnlineFPCA-Adam)"
+      `OnlineFPCA-RSGD`   = "bold(RSGD)",
+      `OnlineFPCA-RAdaGrad`  = "bold(RAdaGrad)"
     )
   )
 
