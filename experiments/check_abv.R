@@ -1,11 +1,11 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
-#SBATCH --job-name=check_abv_score_1d
-#SBATCH --output=logs/abv1d_%j.out
-#SBATCH --time=3:00:00
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=10
-#SBATCH --mem-per-cpu=2G
+# SBATCH --job-name=check_abv_score_1d
+# SBATCH --output=logs/abv1d_%j.out
+# SBATCH --time=3:00:00
+# SBATCH --nodes=1
+# SBATCH --ntasks=1
+# SBATCH --cpus-per-task=10
+# SBATCH --mem-per-cpu=2G
 
 parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."
@@ -51,7 +51,7 @@ if (!dir.exists(dirpath)) {
   dir.create(dirpath, recursive = TRUE)
 }
 
-n_digit_seed = ceiling(log10(seed + 1))
+n_digit_seed <- ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("simu_", exprmt, "_sd", seedtext, ".csv")
 
@@ -175,7 +175,6 @@ plan(multisession, workers = availableCores() - 1)
 res <-
   foreach(nBlock = nBlockList, .combine = "rbind") %:%
   foreach(ewmabv.beta = ewmabv.beta.list, .combine = "rbind") %dofuture% {
-
     cat("Settings: ", "nBlock =", nBlock, " ewmabv.beta =", ewmabv.beta, "\n")
 
     nIters.1pass <- seq(nBlock, N, nBlock)
@@ -236,10 +235,10 @@ res <-
 
     tau.min <- fit$tau.min
     l <- which(fit$tau == tau.min)[1]
-    Theta <- fit$Theta[,, l]
+    Theta <- fit$Theta[, , l]
     lambda <- fit$lambda[, l]
     sigma2 <- fit$sigma2[l]
-    Theta.avg <- fit$Theta.avg[,, l]
+    Theta.avg <- fit$Theta.avg[, , l]
     lambda.avg <- fit$lambda.avg[, l]
     sigma2.avg <- fit$sigma2.avg[l]
 
@@ -250,13 +249,17 @@ res <-
     PhiEstEval <- eval_fd(evalGrid, FuncData(Theta, basis))
     PhiEstEval <- match_fpc(PhiEstEval, PhiTrueEval[, 1:q, drop = F])
     params$Theta <- params$Theta[,
-      attributes(PhiEstEval)$match_id, , , drop = F ]
+      attributes(PhiEstEval)$match_id, , ,
+      drop = F
+    ]
     params$Theta[, attributes(PhiEstEval)$flipped, , ] <-
       -params$Theta[, attributes(PhiEstEval)$flipped, , ]
     PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
     PhiAvgEval <- match_fpc(PhiAvgEval, PhiTrueEval[, 1:q, drop = F])
     params$Theta.avg <- params$Theta.avg[,
-      attributes(PhiAvgEval)$match_id, , , drop = F ]
+      attributes(PhiAvgEval)$match_id, , ,
+      drop = F
+    ]
     params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ] <-
       -params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ]
 
@@ -272,13 +275,13 @@ res <-
 
     ThetaAll <- sapply(
       seq_along(fit$params.history$iter.params),
-      \(i) params$Theta[,, tau_path_id_extend[i], i],
+      \(i) params$Theta[, , tau_path_id_extend[i], i],
       simplify = "array"
     )
     rmseAll <- rmse_phi(ThetaAll, phiTrueFunc$coefs, B)
     ThetaAll.avg <- sapply(
       seq_along(fit$params.history$iter.params),
-      \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
+      \(i) params$Theta.avg[, , tau_path_id_extend[i], i],
       simplify = "array"
     )
     rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
@@ -288,10 +291,10 @@ res <-
       fit$time.history[1, (nIter1pass + 1):(nPass * nIter1pass)]
     )
     times <- colSums(matrix(times, nrow = nBlockIter))
-    times <- c(difftime(end_time.init, start_time.init, units = 'secs'), times)
+    times <- c(difftime(end_time.init, start_time.init, units = "secs"), times)
 
-    Nlist = c(0, nIters)
-    idx = Nlist %in% (N * seq_len(nPass))
+    Nlist <- c(0, nIters)
+    idx <- Nlist %in% (N * seq_len(nPass))
 
     data.frame(
       seed = seed,

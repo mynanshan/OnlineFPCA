@@ -1,5 +1,12 @@
 library(Matrix)
 
+# OnlineFPCA: stochastic gradient-based functional PCA implementation
+# - Performs online estimation of principal components (`Theta`), eigenvalues (`lambda`)
+#   and residual variance (`sigma2`) using (adaptive) SGD variants.
+# - Supports dynamic tuning of the smoothing/tolerance parameter `tau` and optional
+#   confidence interval (CI) estimation via vectorized Hessian tracking.
+# - Inputs: `data_generator` yields mini-batches; `inits` supplies starting values.
+
 fpca.sgd <- function(
   data_generator,
   obsGrid,
@@ -59,6 +66,9 @@ fpca.sgd <- function(
 ) {
   cat(">>>>>>>>>>> Start OnlineFPCA <<<<<<<<<<<\n")
   # Set params and initializations -----------------------------------------
+  # - Process `inits` and `tau` options, configure dynamic tuning parameters
+  # - Allocate storage for parameter arrays, their running averages, and histories
+  # - Initialize diagnostics and adaptive optimizer state
 
   inits <- setParams.inits(inits, meanfun)
   optns.tau <- setParams.tau(tau, tau.control, k = 1, rate = dyntune.rate)
@@ -78,6 +88,9 @@ fpca.sgd <- function(
     tau.selectId <- NULL
   }
   ntune <- floor((maxIter - nIter.1stTune) / period.tune) + 1
+  # Choose exponential weighting parameter for ABV (`ewmabv.beta`) based
+  # on the number of tuning rounds `ntune`. Smaller `beta` places more weight
+  # on recent validation blocks.
   if (is.null(ewmabv.beta)) {
     if (ntune < 5) {
       ewmabv.beta <- 0.5
@@ -121,6 +134,8 @@ fpca.sgd <- function(
 
   p <- nrow(inits$Theta)
   q <- ncol(inits$Theta)
+  # If initial `Theta` has fewer components than requested (`npc`), append
+  # random orthogonal directions (Stiefel-normalized) until `q == npc`.
   while (q < npc) {
     theta_append = runif(p, -1, 1)
     theta_append = manifold.Stiefel.normalize(
@@ -139,7 +154,9 @@ fpca.sgd <- function(
   sigma2 <- array(inits$sigma2, dim = c(ntau))
   theta_mu <- inits$theta_mu
 
-  # Iteratively averaged estimates
+  # Iteratively averaged estimates (for ASGD)
+  # These store the Polyak-Ruppert-style averages of the online estimates,
+  # initialized as NA and set at the start of ASGD averaging.
   Theta.avg <- array(NA, dim = c(p, q, ntau))
   lambda.avg <- array(NA, dim = c(q, ntau))
   sigma2.avg <- array(NA, dim = c(ntau))
@@ -163,12 +180,16 @@ fpca.sgd <- function(
   }
   iter.params <- 1
 
-  # TODO: implement online mean estimation
+  # Placeholder for online mean estimation (not implemented yet).
+  # If a fixed `theta_mu` is passed, we currently error out to indicate
+  # the feature is not available in this implementation.
   if (!is.null(theta_mu)) {
     stop("NOT IMPLEMENTED")
   }
 
-  # storing Euclidean Hessians for vectorized parameters
+  # If `fpcCI` is TRUE, allocate storage for Euclidean Hessians and gradients
+  # used to construct asymptotic confidence intervals for the functional PC
+  # loadings and scores. Otherwise, keep these as NULL to avoid extra memory.
   cat("Online CI:", fpcCI, "\n")
   vh <- if (!fpcCI) {
     NULL
@@ -211,6 +232,9 @@ fpca.sgd <- function(
   }
 
   # SGD and Adaptive SGD settings
+  # - `sgdtype` selects the optimizer (sgd, sgdm, adagrad, adam, ...)
+  # - `ada_stats` holds per-parameter statistics for adaptive methods (e.g. Adam)
+  # - If initial gradients are provided via `inits`, incorporate them into `ada_stats`
   sgdtype <- match.arg(sgdtype)
   ada_stats <- init_ada_stats(p, q, ntau, sgdtype, adamw)
   init_grad <- FALSE
@@ -236,6 +260,8 @@ fpca.sgd <- function(
   ewadn <- numeric(ntau)
 
   # step size settings
+  # If `dynlr` is TRUE, `dynlrCtrl` controls short-term dynamic learning-rate
+  # behavior (number of iters before adaption, reset interval, reference value)
   if (dynlr) {
     if (is.null(dynlrCtrl)) dynlrCtrl <- list()
     if (is.null(dynlrCtrl$niter)) {
@@ -274,6 +300,12 @@ fpca.sgd <- function(
   weight <- match.arg(weight)
 
   # Main Iterations --------------------------------------------------------
+  # Loop body (per iteration):
+  # 1. receive mini-batch from `data_generator`
+  # 2. compute validation scores for each `tau` candidate
+  # 3. periodically tune `tau` using ABV/AV criteria and reselect the active `tau`
+  # 4. compute gradients, update parameters with chosen SGD variant
+  # 5. optionally record parameters and diagnostics
 
   # record number of samples processed
   total_count <- 0
@@ -315,6 +347,7 @@ fpca.sgd <- function(
       # decay_counter <- 0
     }
     decay_counter <- decay_counter + 1
+    # determine multiplicative decay factor based on which iteration phase we're in
     decay <- 1 / (max(decay_counter - 1, 1) %/% period.decay + 1)^
       if (i <= nIter.constStepSize) {
         0
@@ -335,13 +368,13 @@ fpca.sgd <- function(
       sigma2.avg <- sigma2
     }
 
-    # receive new data
+    # receive new data: expects a list with `Ltid` (time ids) and `Ly` (observations)
     obs <- data_generator(nbatch, total_count)
     Ltid <- obs$Ltid
     Ly <- obs$Ly
     total_count <- total_count + nbatch
 
-    # calculate validation score
+    # calculate validation score for each `tau` candidate (used in ABV/AV tuning)
     for (l in 1:ntau) {
       # if (i > nIter.lastTune && l > 1) break
       if (i < asgd.start) {
@@ -494,7 +527,6 @@ fpca.sgd <- function(
           G
         ))
       }
-      # TODO: testing ewadn. This looks like a dirty fix. Can we get rid of it?
       if (
         stringr::str_detect(sgdtype, "adam") && i >= ada.start  # Adam always need a direction standardization
       ) {
@@ -978,7 +1010,7 @@ computeVecHess <- function(
       diag(c(invQ_PhiT_Yi), q, q)
     fA2 <- -sigma2^2 * invQinvLam * t(invQinvLam) +
       sigma2 * invQinvLam * diag(1,q,q)
-    
+
     H_eta_eta <- H_eta_eta + 1 / n * (fA1 + fA2)
 
     ### H_zeta_eta
@@ -1482,30 +1514,15 @@ get_ada_direc <- function(
     v_Theta_l <- ada_stats[['v']][['Theta.l']][, itau]
     v_Theta_r <- ada_stats[['v']][['Theta.r']][,, itau]
     v_other <- ada_stats[['v']][['other']][,, itau]
-    # TODO: it is still not clear how to give 
-    # norm-1 directions here. Think about it.
-    # vsqrtinv_Theta_l <-
-    #   (v_Theta_l * q / sum(diag(v_Theta_r)) + 1e-8)^(-0.5)
-    # # vsqrtinv_Theta_r <-
-    # #   safe_sqrtinv(v_Theta_r * p / sum(diag(v_Theta_r)))
-    # vsqrtinv_Theta_r <- safe_sqrtinv(v_Theta_r)
     vsqrtinv_Theta_l <-
       (v_Theta_l * q / sum(diag(v_Theta_r)) + 1e-8)^(-0.5)
     vsqrtinv_Theta_r <- (diag(v_Theta_r) + 1e-8)^(-0.5)
-    # direc[['Theta']] <- as.matrix(backsolve(
-    #   GR,
-    #   grad_Theta_til |> 
-    #     sweep(1, vsqrtinv_Theta_l, "*") |> 
-    #     (\(X) X %*% vsqrtinv_Theta_r)()
-    # ))
     direc[['Theta']] <- as.matrix(backsolve(
       GR,
       grad_Theta_til |> 
         sweep(1, vsqrtinv_Theta_l, "*") |> 
         sweep(2, vsqrtinv_Theta_r, "*")
     ))
-    # vsqrtinv_other <- safe_sqrtinv(v_other)
-    # direc[['other']] <- vsqrtinv_other %*% c(grad_eta, grad_zeta)
     direc[['other']] <- c(grad_eta, grad_zeta) / sqrt(diag(v_other) + 1e-8)
   } else if (sgdtype == "adam2") {
     m_Theta <- if (!adamw) {
@@ -1524,8 +1541,6 @@ get_ada_direc <- function(
     v_other <- ada_stats[['v']][['other']][,, itau]
     vsqrtinv_Theta_l <-
       (v_Theta_l * q / sum(diag(v_Theta_r)) + 1e-8)^(-0.5)
-    # vsqrtinv_Theta_r <-
-    #   safe_sqrtinv(v_Theta_r * p / sum(diag(v_Theta_r)))
     vsqrtinv_Theta_r <- safe_sqrtinv(v_Theta_r)
     direc[['Theta']] <- as.matrix(backsolve(
       GR,
@@ -1627,7 +1642,7 @@ setParams.tau <- function(
   tau = NULL, tau.control = list(),
   delta.min = NULL,
   k = 1,
-  rate = 1
+  rate = 1.01
 ) {
   if (!is.null(tau)) {
     tau.control$ntau <- length(tau)

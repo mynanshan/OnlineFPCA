@@ -1,3 +1,0 @@
-#useDynLib(fpca)
-export(fpca.mle,   fpca.score,  fpca.pred)
-import(sm,  splines)

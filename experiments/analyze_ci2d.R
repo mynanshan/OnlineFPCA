@@ -9,12 +9,14 @@ dirpath <- file.path("experiments", exprmt)
 
 npc <- 3
 nt <- 51
-t0 <- 0; t1 <- 1
-tgrid <- seq(t0,t1,length.out=nt)
+t0 <- 0
+t1 <- 1
+tgrid <- seq(t0, t1, length.out = nt)
 
 nevalList <- c(51, 51)
 neval <- prod(nevalList)
-t0 <- c(0, 0); t1 <- c(1, 1)
+t0 <- c(0, 0)
+t1 <- c(1, 1)
 evalGridList <- lapply(1:2, \(d) {
   seq(t0[d], t1[d], length.out = nevalList[d])
 })
@@ -31,7 +33,7 @@ idx.end <- 251
 library(plot3D)
 
 seed <- 1
-n_digit_seed = ceiling(log10(seed + 1))
+n_digit_seed <- ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("ci_", exprmt, "_sd", seedtext, ".RData")
 

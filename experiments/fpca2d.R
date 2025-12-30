@@ -16,8 +16,24 @@ parser$add_argument(
   default = 1234,
   help = "Seed used for this experiment."
 )
+parser$add_argument(
+  "--compare",
+  type = "integer",
+  default = 1,
+  choices = c(0,1),
+  help = "Whether to run competing methods."
+)
+parser$add_argument(
+  "--simple",
+  type = "integer",
+  default = 0,
+  choices = c(0,1),
+  help = "Whether to simplify experiment settings."
+)
 args <- parser$parse_args()
 seed <- as.integer(args[["seed"]])
+compare <- as.logical(args[["compare"]])
+simple <- as.logical(args[["simple"]])
 
 library(fda)
 library(Matrix)
@@ -388,60 +404,78 @@ for (noise_sd in noiseList) {
           RMSEphi3.avg = rmseAll.avg[, 3]
         )
       )
+
+      if (seed == 1234 && noise_sd == 0.1) {
+        pdf(
+          file.path(dirpath, paste0("taupath-sim2d-",sgdtype,".pdf")),
+          width = 8, height = 5
+        )
+        do.call(
+          plot.tau_path2,
+          list(
+            tau.history = fit$tau.select$tau.history, 
+            tau.selectId = fit$tau.select$tau.selectId,
+            final.id = l, nbatch_per_block = nBlock / nBatch
+          )
+        )
+        dev.off()
+      }
     }  # end of all sgdtype
   } # end of all step sizes
 
   ## Batch FPCA ------------------------
-  batch_start <- Sys.time()
-  fitBatch <- fpca.reg(
-    dat$Ly,
-    dat$Ltid,
-    inits = list(
-      Theta = ThetaInit,
-      lambda = lambdaInit,
-      sigma2 = sigma2Init
-    ),
-    meanfun = FALSE,
-    npc = q,
-    maxIter = 100,
-    nu = 0.5,
-    verbose = FALSE,
-    record_iterations = TRUE,
-    tau = 10^seq(-9, -4, 1),
-    use_validation_set = FALSE,
-    refine_alpha = FALSE
-  )
-  ThetaBatch <- fitBatch$Theta
-  muBatchEval <- eval_fd(evalGrid, FuncData(fitBatch$theta_mu, basis))
-  PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
-  PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[, 1:q, drop = F])
-  batch_end <- Sys.time()
-  rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:q])^2))
-  res <- rbind(
-    res,
-    data.frame(
-      noise = noise_sd,
-      seed = seed,
-      Method = "Batch-SOAP",
-      StepSize = NA,
-      N = N,
-      nBatch = N,
-      Time = difftime(batch_end, batch_start, units = 'secs') +
-        difftime(end_time.init, start_time.init, units = 'secs'),
-      RMSEphi1 = rmseBatch[1],
-      RMSEphi2 = rmseBatch[2],
-      RMSEphi3 = rmseBatch[3],
-      RMSEphi1.avg = rmseBatch[1],
-      RMSEphi2.avg = rmseBatch[2],
-      RMSEphi3.avg = rmseBatch[3]
+  if (compare) {
+    batch_start <- Sys.time()
+    fitBatch <- fpca.reg(
+      dat$Ly,
+      dat$Ltid,
+      inits = list(
+        Theta = ThetaInit,
+        lambda = lambdaInit,
+        sigma2 = sigma2Init
+      ),
+      meanfun = FALSE,
+      npc = q,
+      maxIter = 100,
+      nu = 0.5,
+      verbose = FALSE,
+      record_iterations = TRUE,
+      tau = 10^seq(-9, -4, 1),
+      use_validation_set = FALSE,
+      refine_alpha = FALSE
     )
-  )
+    ThetaBatch <- fitBatch$Theta
+    muBatchEval <- eval_fd(evalGrid, FuncData(fitBatch$theta_mu, basis))
+    PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
+    PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[, 1:q, drop = F])
+    batch_end <- Sys.time()
+    rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:q])^2))
+    res <- rbind(
+      res,
+      data.frame(
+        noise = noise_sd,
+        seed = seed,
+        Method = "Batch-SOAP",
+        StepSize = NA,
+        N = N,
+        nBatch = N,
+        Time = difftime(batch_end, batch_start, units = 'secs') +
+          difftime(end_time.init, start_time.init, units = 'secs'),
+        RMSEphi1 = rmseBatch[1],
+        RMSEphi2 = rmseBatch[2],
+        RMSEphi3 = rmseBatch[3],
+        RMSEphi1.avg = rmseBatch[1],
+        RMSEphi2.avg = rmseBatch[2],
+        RMSEphi3.avg = rmseBatch[3]
+      )
+    )
+  }
 }
 
 
 # End experiment ----------------------------------------------------------
 
-readr::write_csv(res, file.path(dirpath, filename))
+if (!simple) readr::write_csv(res, file.path(dirpath, filename))
 
 message("Finishing replication: ", seed)
 set.seed(NULL)

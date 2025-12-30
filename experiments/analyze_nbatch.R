@@ -16,33 +16,33 @@ res <- do.call(
   rbind,
   lapply(
     1:100, \(seed) {
-      n_digit_seed = ceiling(log10(seed + 1))
+      n_digit_seed <- ceiling(log10(seed + 1))
       seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
-      filename <- paste0("simu_",exprmt,"_sd",seedtext,".csv")
+      filename <- paste0("simu_", exprmt, "_sd", seedtext, ".csv")
       read_csv(file.path(dirpath, filename), show_col_types = FALSE)
     }
   )
 )
 
-res <- res |> 
+res <- res |>
   mutate(
     epoch = as.integer(epoch),
     nBatch = as.integer(nBatch)
-  ) |> 
+  ) |>
   dplyr::select(epoch, nBatch, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg) |>
-  group_by(epoch, nBatch) |> 
-  summarise_at(c("RMSEphi1.avg", "RMSEphi2.avg", "RMSEphi3.avg"), mean) |> 
-  arrange(epoch, nBatch) 
+  group_by(epoch, nBatch) |>
+  summarise_at(c("RMSEphi1.avg", "RMSEphi2.avg", "RMSEphi3.avg"), mean) |>
+  arrange(epoch, nBatch)
 
 knitr::kable(res, "latex", digits = 3)
 
 
-tabres <- res |> 
+tabres <- res |>
   rename(
     phi1 = RMSEphi1.avg,
     phi2 = RMSEphi2.avg,
     phi3 = RMSEphi3.avg
-  ) |> 
+  ) |>
   pivot_wider(
     id_cols = c("nBatch"),
     names_from = "epoch",

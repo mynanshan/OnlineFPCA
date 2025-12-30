@@ -1,11 +1,11 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
-#SBATCH --job-name=ci-simu1d
-#SBATCH --output=logs/ci-simu1d_%j.out
-#SBATCH --time=3:00:00
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
-#SBATCH --mem-per-cpu=4G
+# SBATCH --job-name=ci-simu1d
+# SBATCH --output=logs/ci-simu1d_%j.out
+# SBATCH --time=3:00:00
+# SBATCH --nodes=1
+# SBATCH --ntasks=1
+# SBATCH --cpus-per-task=2
+# SBATCH --mem-per-cpu=4G
 
 parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."
@@ -54,7 +54,7 @@ if (!dir.exists(dirpath)) {
   dir.create(dirpath, recursive = TRUE)
 }
 
-n_digit_seed = ceiling(log10(seed + 1))
+n_digit_seed <- ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("ci_", exprmt, "_sd", seedtext, ".RData")
 
@@ -238,13 +238,15 @@ resCI <- fit$CI
 
 tau.min <- fit$tau.min
 l <- which(fit$tau == tau.min)[1]
-Theta.avg <- fit$Theta.avg[,, l]
+Theta.avg <- fit$Theta.avg[, , l]
 
 # match eigenfunctions
 PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
 PhiAvgEval <- match_fpc(PhiAvgEval, PhiTrueEval[, 1:q, drop = F])
 resCI <- resCI[,
-  attributes(PhiAvgEval)$match_id, , , drop = F ]
+  attributes(PhiAvgEval)$match_id, , ,
+  drop = F
+]
 resCI[, attributes(PhiAvgEval)$flipped, , ] <-
   -resCI[, attributes(PhiAvgEval)$flipped, , ]
 
@@ -252,9 +254,9 @@ resCI[, attributes(PhiAvgEval)$flipped, , ] <-
 # ---------- Compute a global optimum ----------------
 library(ManifoldOptim)
 
-Th_id <- seq(1, p*q)
-lam_id <- seq(p*q + 1, p*q + q)
-sig_id <- p*q + q + 1
+Th_id <- seq(1, p * q)
+lam_id <- seq(p * q + 1, p * q + q)
+sig_id <- p * q + q + 1
 
 F_val <- function(x) {
   Theta <- as.matrix(backsolve(GR, matrix(x[Th_id], p, q)))
@@ -277,16 +279,17 @@ mod <- Module("ManifoldOptim_module", PACKAGE = "ManifoldOptim")
 prob <- new(mod$RProblem, F_val, F_grad)
 
 mani.defn <- get.product.defn(
-  get.stiefel.defn(p, q), get.euclidean.defn(q+1, 1)
+  get.stiefel.defn(p, q), get.euclidean.defn(q + 1, 1)
 )
 mani.params <- get.manifold.params()
-solver.params <- get.solver.params(isconvex = FALSE, DEBUG=3)
+solver.params <- get.solver.params(isconvex = FALSE, DEBUG = 3)
 x0 <- c(
-  as.matrix(GR %*% phiTrueFunc$coefs[,1:q]),
+  as.matrix(GR %*% phiTrueFunc$coefs[, 1:q]),
   log(lambdaTrue[1:q]), log(noise_sd^2)
 )
 opt <- manifold.optim(
-  prob, mani.defn, method = "LRBFGS", 
+  prob, mani.defn,
+  method = "LRBFGS",
   mani.params = mani.params, solver.params = solver.params, x0 = x0
 )
 
@@ -299,11 +302,11 @@ sigma2Star <- exp(opt$xopt[sig_id])
 
 # End experiment ----------------------------------------------------------
 
-CIobj = list(
+CIobj <- list(
   PhiStar = as.matrix(B %*% ThetaStar),
-  PhiTrue = as.matrix(B %*% phiTrueFunc$coefs[,1:npc]),
+  PhiTrue = as.matrix(B %*% phiTrueFunc$coefs[, 1:npc]),
   CIs = resCI
-) 
+)
 
 save(CIobj, file = file.path(dirpath, filename))
 

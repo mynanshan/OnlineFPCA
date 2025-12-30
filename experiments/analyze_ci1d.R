@@ -9,8 +9,9 @@ dirpath <- file.path("experiments", exprmt)
 
 npc <- 3
 nt <- 51
-t0 <- 0; t1 <- 1
-tgrid <- seq(t0,t1,length.out=nt)
+t0 <- 0
+t1 <- 1
+tgrid <- seq(t0, t1, length.out = nt)
 
 idx.start <- 12
 idx.end <- 151
@@ -18,11 +19,10 @@ idx.end <- 151
 sgdtype <- "sgd"
 
 
-
 # Plot CIs ---------------------------------------------------------------
 
 seed <- 2
-n_digit_seed = ceiling(log10(seed + 1))
+n_digit_seed <- ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("ci_", exprmt, "_sd", seedtext, ".RData")
 
@@ -37,7 +37,7 @@ pdf(file = file.path(dirpath, "ci1d-ci.pdf"), width = 7, height = 6.2)
 pa <- par(no.readonly = TRUE)
 share_y <- FALSE
 par(mfrow = c(3, 3), mar = c(3, 3, 2, 1), oma = c(2, 2, 1, 0))
-yranges <- sapply(1:npc, \(k) range(CIs[,k,,idx]))
+yranges <- sapply(1:npc, \(k) range(CIs[, k, , idx]))
 for (i in seq_along(idx)) {
   for (k in seq_len(npc)) {
     phik <- PhiTrue[, k]

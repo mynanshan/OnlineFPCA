@@ -1,11 +1,11 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
-#SBATCH --job-name=test-bwc
-#SBATCH --output=logs/test-bwc_%j.out
-#SBATCH --time=2:00:00
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
-#SBATCH --mem-per-cpu=8G
+# SBATCH --job-name=test-bwc
+# SBATCH --output=logs/test-bwc_%j.out
+# SBATCH --time=2:00:00
+# SBATCH --nodes=1
+# SBATCH --ntasks=1
+# SBATCH --cpus-per-task=2
+# SBATCH --mem-per-cpu=8G
 
 parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."
@@ -64,7 +64,7 @@ if (seed == 1) {
   readr::write_csv(bwcSet, file.path(dirpath, "bwcSet.csv"))
 }
 
-n_digit_seed = ceiling(log10(seed + 1))
+n_digit_seed <- ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 basename <- paste0(exprmt, "_sd", seedtext)
 
@@ -260,10 +260,10 @@ for (sgdtype in c("sgd", "adagrad")) {
 
     tau.min <- fit$tau.min
     l <- which(fit$tau == tau.min)[1]
-    Theta <- fit$Theta[,, l]
+    Theta <- fit$Theta[, , l]
     lambda <- fit$lambda[, l]
     sigma2 <- fit$sigma2[l]
-    Theta.avg <- fit$Theta.avg[,, l]
+    Theta.avg <- fit$Theta.avg[, , l]
     lambda.avg <- fit$lambda.avg[, l]
     sigma2.avg <- fit$sigma2.avg[l]
 
@@ -294,7 +294,7 @@ for (sgdtype in c("sgd", "adagrad")) {
 
     ThetaAll <- sapply(
       seq_along(fit$params.history$iter.params),
-      \(i) params$Theta[,, tau_path_id_extend[i], i],
+      \(i) params$Theta[, , tau_path_id_extend[i], i],
       simplify = "array"
     )
     rmseAll <- sapply(1:q, \(k) {
@@ -304,7 +304,7 @@ for (sgdtype in c("sgd", "adagrad")) {
     })
     ThetaAll.avg <- sapply(
       seq_along(fit$params.history$iter.params),
-      \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
+      \(i) params$Theta.avg[, , tau_path_id_extend[i], i],
       simplify = "array"
     )
     rmseAll.avg <- sapply(1:q, \(k) {
@@ -318,7 +318,7 @@ for (sgdtype in c("sgd", "adagrad")) {
       fit$time.history[1, (nIter1pass + 1):(nPass * nIter1pass)]
     )
     times <- colSums(matrix(times, nrow = nBlockIter))
-    times <- c(difftime(end_time.init, start_time.init, units = 'secs'), times)
+    times <- c(difftime(end_time.init, start_time.init, units = "secs"), times)
 
     res <- rbind(
       res,

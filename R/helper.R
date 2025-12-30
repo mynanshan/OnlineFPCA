@@ -10,7 +10,8 @@ decomp_Mlambda <- function(K, R, lambda = 0, Rtype = c("diag", "general")) {
   #    2) general p.s.d. matrix
   # M(lambda) = K + lambda * R
   Rtype <- match.arg(Rtype)
-  p <- nrow(K); stopifnot(ncol(K) == p)
+  p <- nrow(K)
+  stopifnot(ncol(K) == p)
   nlam <- length(lambda)
   if (Rtype == "diag") {
     R <- as.vector(R)
@@ -35,7 +36,6 @@ decomp_Mlambda <- function(K, R, lambda = 0, Rtype = c("diag", "general")) {
 # solve(M1)
 # Mdecomp$Vinv %*% diag((Mdecomp$diag_plus_lambda[,2])^(-1)) %*% t(Mdecomp$Vinv)
 
-
 eigen_lrpsd <- function(M) {
   ## eigendecomposition of p.s.d matrices with small eigenvalues removed
   eig_obj <- eigen(M, symmetric = TRUE)
@@ -44,7 +44,7 @@ eigen_lrpsd <- function(M) {
   eigval_tol <- max(D) * .Machine$double.eps
   rm_id <- which(D < eigval_tol)
   if (length(rm_id) > 0) {
-    V <- V[,-rm_id,drop=FALSE]
+    V <- V[, -rm_id, drop = FALSE]
     D <- D[-rm_id]
   }
   return(list(vectors = V, values = D))
@@ -57,7 +57,7 @@ asl <- function(a, i) {
   # asl for array slicing
   # 3d array only
   dims <- dim(a)
-  return(array(a[,,i], dim = dims[-3]))
+  return(array(a[,, i], dim = dims[-3]))
 }
 
 
@@ -68,9 +68,9 @@ margins2grid <- function(mlist) {
   m <- sapply(mlist, length)
   grid <- matrix(nrow = prod(m), ncol = ndim)
   for (j in 1:ndim) {
-    nrep_each <- ifelse(j > 1, prod(m[1:(j-1)]), 1)
-    nrep_whole <- ifelse(j < ndim, prod(m[(j+1):ndim]), 1)
-    grid[,j] <- mlist[[j]] |>
+    nrep_each <- ifelse(j > 1, prod(m[1:(j - 1)]), 1)
+    nrep_whole <- ifelse(j < ndim, prod(m[(j + 1):ndim]), 1)
+    grid[, j] <- mlist[[j]] |>
       (\(x) rep(x, each = nrep_each))() |>
       (\(x) rep(x, nrep_whole))()
   }
@@ -90,12 +90,13 @@ cov.form_covdat <- function(Lt, Ly = NULL, diag.rm = TRUE) {
     covdat <- lapply(1:n, \(i) {
       stopifnot(nrow(Lt[[i]]) == length(Ly[[i]]))
       dat <- matrix(NA, Lmi[i]^2, 2 * D + 1)
-      dat[,2*D+1] <- rep(Ly[[i]], times = Lmi[i]) * rep(Ly[[i]], each = Lmi[i])
-      dat[,1:D] <- apply(Lt[[i]], 2, \(x) rep(x,times=Lmi[i]))
-      dat[,(D+1):(2*D)] <- apply(Lt[[i]], 2, \(x) rep(x,each=Lmi[i]))
+      dat[, 2 * D + 1] <- rep(Ly[[i]], times = Lmi[i]) *
+        rep(Ly[[i]], each = Lmi[i])
+      dat[, 1:D] <- apply(Lt[[i]], 2, \(x) rep(x, times = Lmi[i]))
+      dat[, (D + 1):(2 * D)] <- apply(Lt[[i]], 2, \(x) rep(x, each = Lmi[i]))
       if (diag.rm) {
-        rm_id <- (0:(Lmi[i]-1))*Lmi[i] + 1:Lmi[i]
-        dat <- dat[-rm_id,]
+        rm_id <- (0:(Lmi[i] - 1)) * Lmi[i] + 1:Lmi[i]
+        dat <- dat[-rm_id, ]
       }
       return(dat)
     })
@@ -105,8 +106,8 @@ cov.form_covdat <- function(Lt, Ly = NULL, diag.rm = TRUE) {
     m <- nrow(Lt)
     D <- ncol(Lt)
     covdat <- matrix(NA, m^2, 2 * D)
-    covdat[,1:D] <- apply(Lt, 2, \(x) rep(x,times=m))
-    covdat[,(D+1):(2*D)] <- apply(Lt, 2, \(x) rep(x,each=m))
+    covdat[, 1:D] <- apply(Lt, 2, \(x) rep(x, times = m))
+    covdat[, (D + 1):(2 * D)] <- apply(Lt, 2, \(x) rep(x, each = m))
     covdat <- data.frame(covdat)
     names(covdat) <- c(paste0("s", 1:D), paste0("t", 1:D))
     if (!is.null(Ly) && is.numeric(Ly)) {
@@ -114,8 +115,8 @@ cov.form_covdat <- function(Lt, Ly = NULL, diag.rm = TRUE) {
       covdat <- cbind(covdat, z = rep(Ly, times = m) * rep(Ly, each = m))
     }
     if (diag.rm) {
-      rm_id <- (0:(m-1))*m + 1:m
-      covdat <- covdat[-rm_id,]
+      rm_id <- (0:(m - 1)) * m + 1:m
+      covdat <- covdat[-rm_id, ]
     }
   } else {
     stop("Wrong input types!")
@@ -153,27 +154,28 @@ cov.symmetrize <- function(C) {
 df2Ldata = function(Tmat, Yvec, Lmi) {
   N = length(Lmi)
   Tmat = as.matrix(Tmat)
-  subj_start_id = c(1, cumsum(Lmi[-N])+1)
+  subj_start_id = c(1, cumsum(Lmi[-N]) + 1)
   subj_end_id = cumsum(Lmi)
   Ly = lapply(
-    seq_len(N), \(i) {
+    seq_len(N),
+    \(i) {
       Yvec[subj_start_id[i]:subj_end_id[i]]
     }
   )
   Lt = lapply(
-    seq_len(N), \(i) {
-      Tmat[subj_start_id[i]:subj_end_id[i],]
+    seq_len(N),
+    \(i) {
+      Tmat[subj_start_id[i]:subj_end_id[i], ]
     }
   )
   return(list(Ly = Ly, Lt = Lt))
 }
 
 
-
 ## manipulating eigenfunctions ----------
 flip_direc <- function(Phi_target, Phi_ref) {
   idx <- (colMeans(Phi_target * Phi_ref) < 0)
-  Phi_target[,idx] <- -Phi_target[,idx]
+  Phi_target[, idx] <- -Phi_target[, idx]
   attr(Phi_target, "flipped") <- idx
   return(Phi_target)
 }
@@ -185,8 +187,8 @@ match_fpc <- function(Phi_target, Phi_ref) {
     match_id <- numeric(npc)
     for (k in 1:npc) {
       err <- pmin(
-        colMeans(sweep(Phi_target, 1, Phi_ref[,k], "-")^2),
-        colMeans(sweep(Phi_target, 1, Phi_ref[,k], "+")^2)
+        colMeans(sweep(Phi_target, 1, Phi_ref[, k], "-")^2),
+        colMeans(sweep(Phi_target, 1, Phi_ref[, k], "+")^2)
       )
       ord <- order(err, decreasing = FALSE)
       for (j in 1:npc) {
@@ -194,14 +196,17 @@ match_fpc <- function(Phi_target, Phi_ref) {
           next
         } else {
           match_id[k] <- ord[j]
-          if (err[match_id[k]] > 0.1 * min(err[-match_id[k]]))
+          if (err[match_id[k]] > 0.1 * min(err[-match_id[k]])) {
             warning("Probably a bad fit.")
+          }
           break
         }
       }
     }
-    if (any(table(match_id) > 1)) stop("Wrong match.")
-    Phi_target <- Phi_target[,match_id]
+    if (any(table(match_id) > 1)) {
+      stop("Wrong match.")
+    }
+    Phi_target <- Phi_target[, match_id]
     attr(Phi_target, "match_id") <- match_id
   } else {
     attr(Phi_target, "match_id") <- 1
@@ -217,4 +222,3 @@ match_fpc <- function(Phi_target, Phi_ref) {
 #   stopifnot(p == prod(d))
 #   return(funData::funData(argvals = tlist, X = array(Y, dim = c(N, d))))
 # }
-

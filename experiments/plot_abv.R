@@ -29,7 +29,7 @@ if (!dir.exists(dirpath)) {
   dir.create(dirpath, recursive = TRUE)
 }
 
-n_digit_seed = ceiling(log10(seed + 1))
+n_digit_seed <- ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("simu_", exprmt, "_sd", seedtext, ".csv")
 
@@ -166,54 +166,51 @@ sgd_lr0 <- stepsize0 / g_Theta_init_norm
 
 ewmabv.mat <- ewmabv.avg.mat <- c()
 for (ewmabv.beta in ewmabv.beta.list) {
-
-  suppressWarnings(
-    {
-      fit <- fpca.sgd(
-        fdata_generator,
-        tgrid,
-        inits = inits,
-        meanfun = FALSE,
-        tau = NULL,
-        tau.control = list(
-          ntau = 1,
-          nselect = 1,
-          maxtau = 1e-6,
-          mintau = 1e-6
-        ),
-        nbatch = nBatch,
-        maxIter = nPass * nIter1pass,
-        stepsize = sgd_lr0,
-        nIter.constStepSize = 0,
-        stepsize.decayrate = 0.51,
-        stepsize.min = stepsize.min,
-        nIter.slowerdecay = nIter1pass,
-        stepsize.decayrate.slow = 0.25,
-        dynlr = TRUE,
-        dynlrCtrl = list(
-          niter = 20 * nBlockIter,
-          reset = 5 * nBlockIter,
-          refdn = stepsize0,
-          w = 0.9
-        ),
-        sgdtype = sgdtype,
-        ada.start = 25 * nBlockIter + 1,
-        adareset = 20 * nBlockIter,
-        adareset.end = nIter1pass,
-        asgd.start = 10 * nBlockIter + 1,
-        asgd.reset = 40 * nBlockIter,
-        asgd.reset.end = nIter1pass,
-        asgd.end = Inf,
-        nIter.1stTune = nRoundNoTune * nBlockIter,
-        nIter.lastTune = nIter1pass,
-        nIter.tauNoIncrease = floor(0.3 * nIter1pass),
-        period.tune = nBlockIter,
-        period.record = nBlockIter,
-        ewmabv.beta = ewmabv.beta,
-        verbose = FALSE
-      )
-    }
-  )
+  suppressWarnings({
+    fit <- fpca.sgd(
+      fdata_generator,
+      tgrid,
+      inits = inits,
+      meanfun = FALSE,
+      tau = NULL,
+      tau.control = list(
+        ntau = 1,
+        nselect = 1,
+        maxtau = 1e-6,
+        mintau = 1e-6
+      ),
+      nbatch = nBatch,
+      maxIter = nPass * nIter1pass,
+      stepsize = sgd_lr0,
+      nIter.constStepSize = 0,
+      stepsize.decayrate = 0.51,
+      stepsize.min = stepsize.min,
+      nIter.slowerdecay = nIter1pass,
+      stepsize.decayrate.slow = 0.25,
+      dynlr = TRUE,
+      dynlrCtrl = list(
+        niter = 20 * nBlockIter,
+        reset = 5 * nBlockIter,
+        refdn = stepsize0,
+        w = 0.9
+      ),
+      sgdtype = sgdtype,
+      ada.start = 25 * nBlockIter + 1,
+      adareset = 20 * nBlockIter,
+      adareset.end = nIter1pass,
+      asgd.start = 10 * nBlockIter + 1,
+      asgd.reset = 40 * nBlockIter,
+      asgd.reset.end = nIter1pass,
+      asgd.end = Inf,
+      nIter.1stTune = nRoundNoTune * nBlockIter,
+      nIter.lastTune = nIter1pass,
+      nIter.tauNoIncrease = floor(0.3 * nIter1pass),
+      period.tune = nBlockIter,
+      period.record = nBlockIter,
+      ewmabv.beta = ewmabv.beta,
+      verbose = FALSE
+    )
+  })
 
   vcrits <- fit$vcrit.history
 
@@ -221,18 +218,19 @@ for (ewmabv.beta in ewmabv.beta.list) {
   ewmabv.mat <- cbind(ewmabv.mat, ewmabv)
   ewmabv.avg <- as.vector(na.omit(c(vcrits$ewmabv.avg)))
   ewmabv.avg.mat <- cbind(ewmabv.avg.mat, ewmabv.avg)
-
 }
 
-colnames(ewmabv.mat) <- colnames(ewmabv.avg.mat) <- paste0("beta", ewmabv.beta.list*10)
+colnames(ewmabv.mat) <- colnames(ewmabv.avg.mat) <- paste0("beta", ewmabv.beta.list * 10)
 
 pdf(file.path(dirpath, paste0("abv_paths.pdf")), width = 7, height = 4.2)
 # 1. save current par
 oldpar <- par(no.readonly = TRUE)
 # 2. bump up right margin so there's room for the legend
 #    mar = c(bottom, left, top, right)
-par(mar = c(4, 4, 2, 2) + 0.1,
-    font.lab = 2)    # bold axis labels
+par(
+  mar = c(4, 4, 2, 2) + 0.1,
+  font.lab = 2
+) # bold axis labels
 # 3. do your matplot
 matplot(
   ewmabv.avg.mat,
@@ -241,17 +239,19 @@ matplot(
   col = rev(seq_along(ewmabv.beta.list)),
   type = "l",
   xlab = "Number of Data Blocks",
-  ylab = "ABV")
+  ylab = "ABV"
+)
 # 4. build true plotmath expressions for omega == value
 #    Option A: parse() on a character vector
 legend_labels <- parse(text = paste0("omega==", ewmabv.beta.list))
 # 5. add the legend just **outside** the right side of the plot
 legend("bottomright",
-       inset   = c(0.05, 0.1),  # negative x‑inset pushes it outside
-       xpd     = TRUE,         # allow drawing in the figure margin
-       legend  = legend_labels,
-       lty     = rev(seq_along(ewmabv.beta.list)),
-       col     = rev(seq_along(ewmabv.beta.list)))          # optional: no box around legend
+  inset   = c(0.05, 0.1), # negative x‑inset pushes it outside
+  xpd     = TRUE, # allow drawing in the figure margin
+  legend  = legend_labels,
+  lty     = rev(seq_along(ewmabv.beta.list)),
+  col     = rev(seq_along(ewmabv.beta.list))
+) # optional: no box around legend
 # 6. restore original par
 par(oldpar)
 dev.off()

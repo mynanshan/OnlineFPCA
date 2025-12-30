@@ -1,11 +1,11 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
-#SBATCH --job-name=aqi
-#SBATCH --output=logs/aqi_%j.out
-#SBATCH --time=24:00:00
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
-#SBATCH --mem-per-cpu=4G
+# SBATCH --job-name=aqi
+# SBATCH --output=logs/aqi_%j.out
+# SBATCH --time=24:00:00
+# SBATCH --nodes=1
+# SBATCH --ntasks=1
+# SBATCH --cpus-per-task=2
+# SBATCH --mem-per-cpu=4G
 
 library(tidyr)
 library(dplyr)
@@ -36,7 +36,7 @@ yearrange <- 1982:2022
 load(file.path(datapath, "aqi-us.Rda"))
 siteinfo <- readxl::read_excel(file.path(datapath, "siteinfo.xlsx"))
 
-dat = dat |> drop_na()
+dat <- dat |> drop_na()
 sites <- dat |> distinct(Latitude.Binned, Longitude.Binned)
 
 # rescaling latitude and longitude
@@ -62,7 +62,7 @@ locGrid <- margins2grid(list(latgrid, longrid))
 # save(latrange, lonrange, yearrange, locGrid, evalGrid, basis, file="aqi_settings.Rdata")
 colnames(locGrid) <- c("lat", "lon")
 
-locGridRescale = scale(
+locGridRescale <- scale(
   locGrid,
   center = c(latrange[1], lonrange[1]),
   scale = c(diff(latrange), diff(lonrange))
@@ -92,9 +92,9 @@ sqrtGinv <- sqrtmObj$Binv
 perm <- get_commute_index(p, q)
 
 # numbering the locations
-lat_id = match(dat$Latitude.Binned, latgrid)
-lon_id = match(dat$Longitude.Binned, longrid)
-dat$LocId = (lon_id - 1) * length(latgrid) + lat_id
+lat_id <- match(dat$Latitude.Binned, latgrid)
+lon_id <- match(dat$Longitude.Binned, longrid)
+dat$LocId <- (lon_id - 1) * length(latgrid) + lat_id
 
 
 # mean estimation ====================
@@ -113,10 +113,13 @@ sites$y.mean <- mu <- as.numeric(predict(fit.mean, newdata = sites))
 
 dat$z <- dat$y - as.numeric(predict(fit.mean, newdata = dat))
 
-Lmi <- dat |> group_by(Date.Local) |> summarise(Nobs = n()) |> pull(Nobs)
+Lmi <- dat |>
+  group_by(Date.Local) |>
+  summarise(Nobs = n()) |>
+  pull(Nobs)
 
 # algo settings ==================
-N = length(unique(dat$Date.Local))
+N <- length(unique(dat$Date.Local))
 nBatch <- 10
 nParams <- 6
 nPass <- 5
@@ -200,21 +203,21 @@ PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
 sigma2Init <- 1e-3
 
 # Online Estimation ====================
-date_unique = unique(dat$Date.Local)
-subj_start_id = c(1, cumsum(Lmi[-N]) + 1)
-subj_end_id = cumsum(Lmi)
+date_unique <- unique(dat$Date.Local)
+subj_start_id <- c(1, cumsum(Lmi[-N]) + 1)
+subj_end_id <- cumsum(Lmi)
 
 fdata_generator <- function(n, total_count) {
   idx <- (total_count):(total_count + n - 1) %% N + 1
-  curr_Ly = lapply(idx, \(i) dat$z[subj_start_id[i]:subj_end_id[i]])
-  curr_Ltid = lapply(idx, \(i) dat$LocId[subj_start_id[i]:subj_end_id[i]])
+  curr_Ly <- lapply(idx, \(i) dat$z[subj_start_id[i]:subj_end_id[i]])
+  curr_Ltid <- lapply(idx, \(i) dat$LocId[subj_start_id[i]:subj_end_id[i]])
   return(list(Ly = curr_Ly, Ltid = curr_Ltid, Lmi = Lmi[idx]))
 }
 
 ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
 grad_Theta_init <- objfun(
-  fdata_generator(Ninit,0)$Ly[1:Ninit],
-  fdata_generator(Ninit,0)$Ltid[1:Ninit],
+  fdata_generator(Ninit, 0)$Ly[1:Ninit],
+  fdata_generator(Ninit, 0)$Ltid[1:Ninit],
   ThetaInit,
   lambdaInit,
   sigma2Init,
@@ -233,7 +236,7 @@ inits <- list(
 )
 
 
-taumax = 1e-3
+taumax <- 1e-3
 
 fit <- fpca.sgd(
   fdata_generator,
@@ -357,6 +360,6 @@ fitBatch <- fpca.reg(
   refine_alpha = FALSE
 )
 batch_end <- Sys.time()
-batch_time = difftime(batch_end, batch_start) # 35.40681 mins
+batch_time <- difftime(batch_end, batch_start) # 35.40681 mins
 
 save(fitBatch, batch_time, file = file.path(respath, "fit_aqi_batch.Rdata"))

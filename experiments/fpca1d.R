@@ -360,9 +360,8 @@ for (noise_sd in noiseList) {
       )
 
       if (seed == 1234 && noise_sd == 0.5) {
-        setEPS()
-        postscript(
-          file.path(dirpath, paste0("taupath-sim1d-",sgdtype,".eps")),
+        pdf(
+          file.path(dirpath, paste0("taupath-sim1d-",sgdtype,".pdf")),
           width = 8, height = 5
         )
         do.call(

@@ -31,6 +31,7 @@ forward_args=("$@")
 
 for (( seed=1; seed<=reps; seed++ )); do
   echo "Submitting simulation iteration $seed..."
-  # Use `--` to terminate sbatch options (defensive), then pass script and its args
   sbatch -- "$(realpath "$script")" --seed "$seed" "${forward_args[@]}"
+  # If not on a cluster with `sbatch`, use the line below to run locally:
+  Rscript "$(realpath "$script")" --seed "$seed" "${forward_args[@]}"
 done

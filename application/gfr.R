@@ -1,11 +1,11 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
-#SBATCH --job-name=gfr
-#SBATCH --output=logs/gfr_%j.out
-#SBATCH --time=48:00:00
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
-#SBATCH --mem-per-cpu=4G
+# SBATCH --job-name=gfr
+# SBATCH --output=logs/gfr_%j.out
+# SBATCH --time=48:00:00
+# SBATCH --nodes=1
+# SBATCH --ntasks=1
+# SBATCH --cpus-per-task=2
+# SBATCH --mem-per-cpu=4G
 
 library(fda)
 library(Matrix)
@@ -26,17 +26,13 @@ parser$add_argument(
   "--compare",
   type = "integer",
   default = 1,
-  choices = c(0,1),
+  choices = c(0, 1),
   help = "Whether to run competing methods."
 )
 args <- parser$parse_args()
 compare <- as.logical(args[["compare"]])
 
 cat("Whether compare to OnlineCov:", compare, "\n")
-
-
-
-# par.old <- par(no.readonly = TRUE)
 
 
 ## Read GFR data ============
@@ -52,7 +48,7 @@ nyear <- 7
 t0 <- 0
 t1 <- 1
 nintvs <- 5 # 5 points every interval unit
-tgrid <- seq(t0, t1, length.out = (nyear-1) * nintvs + 1)
+tgrid <- seq(t0, t1, length.out = (nyear - 1) * nintvs + 1)
 tobs <- seq(t0, t1, length.out = nyear)
 nt <- length(tgrid)
 
@@ -227,7 +223,7 @@ fit <- fpca.sgd(
 
 tau.min <- fit$tau.min
 l <- which(fit$tau == tau.min)[1]
-Theta.avg <- fit$Theta.avg[,, l]
+Theta.avg <- fit$Theta.avg[, , l]
 lambda.avg <- fit$lambda.avg[, l]
 sigma2.avg <- fit$sigma2.avg[l]
 PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
@@ -239,11 +235,11 @@ vcrits <- fit$vcrit.history
 tau_path <- with(fit$tau.select, extract_tau_path(tau.history, tau.selectId, l))
 tau_path_id <- c(tau_path$tau_path_id, rep(1, (nPass - 1) * round(N / nBlock)))
 tau_path_id_extend <- c(rep(tau_path_id[1], nRoundNoTune), tau_path_id)
-tau.select = fit$tau.select
+tau.select <- fit$tau.select
 
 ThetaAll.avg <- sapply(
   seq_along(fit$params.history$iter.params),
-  \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
+  \(i) params$Theta.avg[, , tau_path_id_extend[i], i],
   simplify = "array"
 )
 PhiAvgAll <- array(
@@ -253,7 +249,7 @@ PhiAvgAll <- array(
 
 sgd_time <- colSums(fit$time.history[, 1:nIter1pass])
 sgd_time <- colSums(matrix(sgd_time, nrow = nBlockIter))
-sgd_time <- c(difftime(init_end, init_start, units = 'secs'), sgd_time)
+sgd_time <- c(difftime(init_end, init_start, units = "secs"), sgd_time)
 
 save(
   PhiAvgEval,
@@ -312,7 +308,7 @@ resCI <- fit$CI
 
 tau.min <- fit$tau.min
 l <- which(fit$tau == tau.min)[1]
-Theta.avg <- fit$Theta.avg[,, l]
+Theta.avg <- fit$Theta.avg[, , l]
 lambda.avg <- fit$lambda.avg[, l]
 sigma2.avg <- fit$sigma2.avg[l]
 PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
@@ -324,11 +320,11 @@ vcrits <- fit$vcrit.history
 tau_path <- with(fit$tau.select, extract_tau_path(tau.history, tau.selectId, l))
 tau_path_id <- c(tau_path$tau_path_id, rep(1, (nPass - 1) * round(N / nBlock)))
 tau_path_id_extend <- c(rep(tau_path_id[1], nRoundNoTune), tau_path_id)
-tau.select = fit$tau.select
+tau.select <- fit$tau.select
 
 ThetaAll.avg <- sapply(
   seq_along(fit$params.history$iter.params),
-  \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
+  \(i) params$Theta.avg[, , tau_path_id_extend[i], i],
   simplify = "array"
 )
 PhiAvgAll <- array(
@@ -338,7 +334,7 @@ PhiAvgAll <- array(
 
 sgd_time <- colSums(fit$time.history[, 1:nIter1pass])
 sgd_time <- colSums(matrix(sgd_time, nrow = nBlockIter))
-sgd_time <- c(difftime(init_end, init_start, units = 'secs'), sgd_time)
+sgd_time <- c(difftime(init_end, init_start, units = "secs"), sgd_time)
 
 save(
   PhiAvgEval,
@@ -353,7 +349,6 @@ save(
 
 
 if (compare) {
-
   ## Online FPCA, local polynomials ------------------------
 
   message("Start Online Polynomials")
@@ -362,7 +357,10 @@ if (compare) {
   EV2 <- 50
   eval_mu <- seq(t0, t1, length.out = EV1) # grid for mean function
   eval_gam_vec <- seq(t0, t1, length.out = EV2)
-  eval_gam_mat <- cbind(rep(eval_gam_vec, each = EV2), rep(eval_gam_vec, EV2)) # grid for cov function
+  eval_gam_mat <- cbind(
+    rep(eval_gam_vec, each = EV2),
+    rep(eval_gam_vec, EV2)
+  ) # grid for cov function
   Kmax <- round(N / nBlock) # total number of data blocks, 1000
 
   fit.ll <- fpca.lpoly.online(
@@ -401,7 +399,7 @@ if (compare) {
   loclin_time <- fit.ll$time
 
   # check FPC PVE
-  lambdaEst.ll.all = pmax(fit.ll$vals[, Kmax], 0)
+  lambdaEst.ll.all <- pmax(fit.ll$vals[, Kmax], 0)
   round((lambdaEst.ll.all[1:q] / sum(lambdaEst.ll.all)), 4)
   # 0.912 0.0750 0.0118
 
@@ -417,5 +415,4 @@ if (compare) {
     loclin_time,
     file = file.path("application", "result_gfr_olcov.Rdata")
   )
-
 }

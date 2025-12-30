@@ -1,11 +1,11 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
-#SBATCH --job-name=simu_aqi        # Job name
-#SBATCH --output=logs/simu_aqi_%j.out    # Standard output file (%j expands to jobID)
-#SBATCH --time=3:00:00                   # Maximum runtime (hh:mm:ss)
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem-per-cpu=8G                 # Memory allocation
+# SBATCH --job-name=simu_aqi        # Job name
+# SBATCH --output=logs/simu_aqi_%j.out    # Standard output file (%j expands to jobID)
+# SBATCH --time=3:00:00                   # Maximum runtime (hh:mm:ss)
+# SBATCH --nodes=1
+# SBATCH --ntasks=1
+# SBATCH --cpus-per-task=4
+# SBATCH --mem-per-cpu=8G                 # Memory allocation
 
 parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."
@@ -60,7 +60,7 @@ if (!dir.exists(dirpath)) {
   dir.create(dirpath, recursive = TRUE)
 }
 
-n_digit_seed = ceiling(log10(seed + 1))
+n_digit_seed <- ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("simu_", exprmt, "_sd", seedtext, ".csv")
 
@@ -133,31 +133,31 @@ message("Start OnlineFPCA ---------------")
 ## Initialization ---------------------------------------------------
 message("mOpCov Initialization ...")
 start_time.init <- Sys.time()
-Yinit = dat$Ly[1:Ninit]
-Tinit = dat$Lt[1:Ninit]
-LmiInit = dat$Lmi[1:Ninit]
+Yinit <- dat$Ly[1:Ninit]
+Tinit <- dat$Lt[1:Ninit]
+LmiInit <- dat$Lmi[1:Ninit]
 TidInit <- dat$Ltid[1:Ninit]
 # do a subsampling within each subject to
 # accelerate mOpCov
-nsub = round((LmiInit + runif(Ninit, min = -0.1, max = 0.1)) * 0.5)
-nsub = pmax(nsub, 4)
-nsub = pmin(nsub, 20)
-nsub = pmin(nsub, LmiInit)
-sampleIds = mapply(
+nsub <- round((LmiInit + runif(Ninit, min = -0.1, max = 0.1)) * 0.5)
+nsub <- pmax(nsub, 4)
+nsub <- pmin(nsub, 20)
+nsub <- pmin(nsub, LmiInit)
+sampleIds <- mapply(
   \(mi, mi_sub) {
     sort(sample(1:mi, mi_sub))
   },
   LmiInit,
   nsub
 )
-Yinit = unlist(mapply(
+Yinit <- unlist(mapply(
   \(yi, ids) {
     yi[ids]
   },
   Yinit,
   sampleIds
 ))
-Tinit = do.call(
+Tinit <- do.call(
   rbind,
   mapply(
     \(ti, ids) {
@@ -167,7 +167,7 @@ Tinit = do.call(
     sampleIds
   )
 )
-TidInit = unlist(mapply(
+TidInit <- unlist(mapply(
   \(tid, ids) {
     tid[ids]
   },
@@ -197,13 +197,13 @@ PhiInitEval <- flip_direc(PhiInitEval, PhiTrueEval[, 1:q])
 flipId <- attributes(PhiInitEval)$flipped
 ThetaInit[, flipId] <- -ThetaInit[, flipId]
 # fit diagonal element, estimate sigma2
-innerIds = which(
+innerIds <- which(
   evalGrid[, 1] > 0.1 &
     evalGrid[, 1] < 0.9 &
     evalGrid[, 2] > 0.1 &
     evalGrid[, 2] < 0.9
 )
-innerPoints = which(TidInit %in% innerIds)
+innerPoints <- which(TidInit %in% innerIds)
 covInitEvalDiag <- as.vector(PhiInitEvalFull^2 %*% FpcaOut$Eigen$values)
 sigma2Init <- mean((Yinit^2 - covInitEvalDiag[TidInit])[innerPoints])
 sigma2Init <- max(sigma2Init, 1e-3)
@@ -277,10 +277,10 @@ for (sgdtype in c("sgd", "adagrad")) {
 
   tau.min <- fit$tau.min
   l <- which(fit$tau == tau.min)[1]
-  Theta <- fit$Theta[,, l]
+  Theta <- fit$Theta[, , l]
   lambda <- fit$lambda[, l]
   sigma2 <- fit$sigma2[l]
-  Theta.avg <- fit$Theta.avg[,, l]
+  Theta.avg <- fit$Theta.avg[, , l]
   lambda.avg <- fit$lambda.avg[, l]
   sigma2.avg <- fit$sigma2.avg[l]
 
@@ -295,7 +295,7 @@ for (sgdtype in c("sgd", "adagrad")) {
     -params$Theta[, attributes(PhiEstEval)$flipped, , ]
   PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
   PhiAvgEval <- match_fpc(PhiAvgEval, PhiTrueEval[, 1:q, drop = F])
-  params$Theta.avg <- params$Theta.avg[,attributes(PhiAvgEval)$match_id,,,drop = F]
+  params$Theta.avg <- params$Theta.avg[, attributes(PhiAvgEval)$match_id, , , drop = F]
   params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ] <-
     -params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ]
 
@@ -311,13 +311,13 @@ for (sgdtype in c("sgd", "adagrad")) {
 
   ThetaAll <- sapply(
     seq_along(fit$params.history$iter.params),
-    \(i) params$Theta[,, tau_path_id_extend[i], i],
+    \(i) params$Theta[, , tau_path_id_extend[i], i],
     simplify = "array"
   )
   rmseAll <- rmse_phi(ThetaAll, phiTrueFunc$coefs, B)
   ThetaAll.avg <- sapply(
     seq_along(fit$params.history$iter.params),
-    \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
+    \(i) params$Theta.avg[, , tau_path_id_extend[i], i],
     simplify = "array"
   )
   rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
@@ -327,7 +327,7 @@ for (sgdtype in c("sgd", "adagrad")) {
     fit$time.history[1, (nIter1pass + 1):(nPass * nIter1pass)]
   )
   times <- colSums(matrix(times, nrow = nBlockIter))
-  times <- c(difftime(end_time.init, start_time.init, units = 'secs'), times)
+  times <- c(difftime(end_time.init, start_time.init, units = "secs"), times)
 
   res <- rbind(
     res,
@@ -349,7 +349,7 @@ for (sgdtype in c("sgd", "adagrad")) {
 
   for (ip in seq_len(nPass)) {
     ii <- ip * nRecord.1pass
-    ThetaRecord[[ip]][[sgdtype]] <- ThetaAll.avg[,,ii + 1]
+    ThetaRecord[[ip]][[sgdtype]] <- ThetaAll.avg[, , ii + 1]
   }
 }
 
@@ -385,8 +385,8 @@ res <- rbind(
     StepSize = NA,
     N = N,
     nBatch = N,
-    Time = difftime(batch_end, batch_start, units = 'secs') +
-      difftime(end_time.init, start_time.init, units = 'secs'),
+    Time = difftime(batch_end, batch_start, units = "secs") +
+      difftime(end_time.init, start_time.init, units = "secs"),
     RMSEphi1 = rmseBatch[1],
     RMSEphi2 = rmseBatch[2],
     RMSEphi3 = rmseBatch[3],
@@ -399,7 +399,7 @@ res <- rbind(
 # End experiment ----------------------------------------------------------
 
 readr::write_csv(res, file.path(dirpath, filename))
-saveRDS(ThetaRecord, file=file.path(dirpath, paste0("Theta_",exprmt,"_sd",seedtext,".rds")))
+saveRDS(ThetaRecord, file = file.path(dirpath, paste0("Theta_", exprmt, "_sd", seedtext, ".rds")))
 
 message("Finishing replication: ", seed)
 set.seed(NULL)
