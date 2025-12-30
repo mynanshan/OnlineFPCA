@@ -3,10 +3,12 @@
 ### Essential application scripts
 
 - `application/gfr.R` – runs the GFR data analysis pipeline (contains SBATCH headers and helper options). Produces `result_gfr*.Rdata` objects and supporting output for plotting and diagnostics.
-- `application/analyze_gfr.R` – loads `result_gfr*.Rdata` and generates final figures and LaTeX tables (PDF / EPS / RDS outputs).
-- `application/aqi.R` – runs the AQI data pipeline (2D spatial FPCA; contains SBATCH headers). Produces `fit_aqi*.Rdata` and batch comparisons.
+- `application/analyze_gfr.R` – loads `result_gfr*.Rdata` and generates final figures and LaTeX tables (PDF :w
+/ EPS / RDS outputs).
+- `application/aqi.R` – runs the AQI data pipeline (2D spatial FPCA; contains SBATCH headers). Produces `fit_aqi*.Rdata` and batch comparisons. The commented code helps to produce `aqi_init.Rdata` that stores initializations.
 - `application/analyze_aqi.R` – loads `fit_aqi*.Rdata` and generates maps / PDFs / RDS outputs for eigenfunctions and eigenvalues.
 - `application/aqi_init.Rdata` (created once) – initial estimations used by AQI scripts.
+- The script `application/aqi-eda.R` provides a complete walk-through of the exploratory data analysis of the AQI data and produces the plot `aqi-sample.pdf`.
 
 ### Result files (what to expect and their formats)
 
@@ -37,7 +39,7 @@ Examples:
 
 ```bash
 # Run the GFR application (single run or on cluster, this script contains SBATCH headers)
-Rscript application/gfr.R --compare 1
+Rscript application/gfr.R
 
 # After the run finishes, generate the publication-ready figures
 Rscript application/analyze_gfr.R
@@ -48,10 +50,6 @@ Rscript application/aqi.R
 Rscript application/analyze_aqi.R
 # outputs saved under `application/` (e.g. `aqi_<figure>.pdf`)
 ```
-
-Notes:
-- The `application/*` scripts are designed to run large jobs and include SBATCH headers; when running locally you can still use `Rscript` directly but expect longer runtimes.
-- The analyze scripts load `result_*.Rdata` objects and produce the final figures and LaTeX tables.
 
 ---
 
@@ -66,5 +64,3 @@ Notes:
   - **Daily CSVs** (e.g. `daily_81102_1982.csv`, ... `daily_81102_2022.csv`) – the raw source files used to create the summarized `aqi-us.Rda`.
   - **`siteinfo.xlsx`** – site metadata (locations) used to create `locGrid` and mapping visualizations.
   - Expected fields in the AQI data include: `Latitude.Binned`, `Longitude.Binned`, `Date.Local`, `AQI` (used to compute `y = log1p(AQI)`) – see `data/epa-aqs/readme.txt` for details.
-
-If you want, I can add a short data-prep script or a `data/README.md` that documents exact field names and a small example of how to build the `aqi-us.Rda` entry.

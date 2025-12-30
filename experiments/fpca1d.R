@@ -1,11 +1,11 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
-#SBATCH --job-name=fpca1d
-#SBATCH --output=logs/fpca1d_%j.out
-#SBATCH --time=12:00:00
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=2
-#SBATCH --mem-per-cpu=4G
+# SBATCH --job-name=fpca1d
+# SBATCH --output=logs/fpca1d_%j.out
+# SBATCH --time=12:00:00
+# SBATCH --nodes=1
+# SBATCH --ntasks=1
+# SBATCH --cpus-per-task=2
+# SBATCH --mem-per-cpu=4G
 
 parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."
@@ -20,7 +20,7 @@ parser$add_argument(
   "--compare",
   type = "integer",
   default = 1,
-  choices = c(0,1),
+  choices = c(0, 1),
   help = "Whether to run competing methods."
 )
 parser$add_argument(
@@ -33,7 +33,7 @@ parser$add_argument(
   "--simple",
   type = "integer",
   default = 0,
-  choices = c(0,1),
+  choices = c(0, 1),
   help = "Whether to simplify experiment settings."
 )
 args <- parser$parse_args()
@@ -79,7 +79,7 @@ if (!dir.exists(dirpath)) {
   dir.create(dirpath, recursive = TRUE)
 }
 
-n_digit_seed = ceiling(log10(seed + 1))
+n_digit_seed <- ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("simu_", exprmt, "_sd", seedtext, ".csv")
 
@@ -146,7 +146,6 @@ perm <- get_commute_index(p, q)
 
 
 for (noise_sd in noiseList) {
-
   message(">> noise = ", noise_sd)
 
   set.seed(seed)
@@ -282,10 +281,10 @@ for (noise_sd in noiseList) {
 
       tau.min <- fit$tau.min
       l <- which(fit$tau == tau.min)[1]
-      Theta <- fit$Theta[,, l]
+      Theta <- fit$Theta[, , l]
       lambda <- fit$lambda[, l]
       sigma2 <- fit$sigma2[l]
-      Theta.avg <- fit$Theta.avg[,, l]
+      Theta.avg <- fit$Theta.avg[, , l]
       lambda.avg <- fit$lambda.avg[, l]
       sigma2.avg <- fit$sigma2.avg[l]
 
@@ -296,13 +295,17 @@ for (noise_sd in noiseList) {
       PhiEstEval <- eval_fd(evalGrid, FuncData(Theta, basis))
       PhiEstEval <- match_fpc(PhiEstEval, PhiTrueEval[, 1:q, drop = F])
       params$Theta <- params$Theta[,
-        attributes(PhiEstEval)$match_id, , , drop = F ]
+        attributes(PhiEstEval)$match_id, , ,
+        drop = F
+      ]
       params$Theta[, attributes(PhiEstEval)$flipped, , ] <-
         -params$Theta[, attributes(PhiEstEval)$flipped, , ]
       PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
       PhiAvgEval <- match_fpc(PhiAvgEval, PhiTrueEval[, 1:q, drop = F])
       params$Theta.avg <- params$Theta.avg[,
-        attributes(PhiAvgEval)$match_id, , , drop = F ]
+        attributes(PhiAvgEval)$match_id, , ,
+        drop = F
+      ]
       params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ] <-
         -params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ]
 
@@ -318,13 +321,13 @@ for (noise_sd in noiseList) {
 
       ThetaAll <- sapply(
         seq_along(fit$params.history$iter.params),
-        \(i) params$Theta[,, tau_path_id_extend[i], i],
+        \(i) params$Theta[, , tau_path_id_extend[i], i],
         simplify = "array"
       )
       rmseAll <- rmse_phi(ThetaAll, phiTrueFunc$coefs, B)
       ThetaAll.avg <- sapply(
         seq_along(fit$params.history$iter.params),
-        \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
+        \(i) params$Theta.avg[, , tau_path_id_extend[i], i],
         simplify = "array"
       )
       rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
@@ -334,7 +337,7 @@ for (noise_sd in noiseList) {
         fit$time.history[1, (nIter1pass + 1):(nPass * nIter1pass)]
       )
       times <- colSums(matrix(times, nrow = nBlockIter))
-      times <- c(difftime(end_time.init, start_time.init, units = 'secs'), times)
+      times <- c(difftime(end_time.init, start_time.init, units = "secs"), times)
 
       res <- rbind(
         res,
@@ -361,25 +364,23 @@ for (noise_sd in noiseList) {
 
       if (seed == 1234 && noise_sd == 0.5) {
         pdf(
-          file.path(dirpath, paste0("taupath-sim1d-",sgdtype,".pdf")),
+          file.path(dirpath, paste0("taupath-sim1d-", sgdtype, ".pdf")),
           width = 8, height = 5
         )
         do.call(
           plot.tau_path2,
           list(
-            tau.history = fit$tau.select$tau.history, 
+            tau.history = fit$tau.select$tau.history,
             tau.selectId = fit$tau.select$tau.selectId,
             final.id = l, nbatch_per_block = nBlock / nBatch
           )
         )
         dev.off()
       }
-
-    }  # end of all sgdtype
+    } # end of all sgdtype
   } # end of all step sizes
 
   if (compare) {
-
     # Online Cov --------------------------------------------------------------
     message("Start OnlineCov ---------------")
 
@@ -387,7 +388,10 @@ for (noise_sd in noiseList) {
     EV2 <- 50
     eval_mu <- seq(t0, t1, length.out = EV1) # grid for mean function
     eval_gam_vec <- seq(t0, t1, length.out = EV2)
-    eval_gam_mat <- cbind(rep(eval_gam_vec, each = EV2), rep(eval_gam_vec, EV2)) # grid for cov function
+    eval_gam_mat <- cbind(
+      rep(eval_gam_vec, each = EV2),
+      rep(eval_gam_vec, EV2)
+    ) # grid for cov function
     Kmax <- round(N / nBlock) # total number of data blocks, 1000
 
     fit.ll <- fpca.lpoly.online(
@@ -420,7 +424,7 @@ for (noise_sd in noiseList) {
       \(k) matrix(fit.ll$vecs[1:(npc * EV2), k], ncol = npc),
       simplify = "array"
     )
-    PhiEst.ll <- PhiEstAll.ll[,, Kmax]
+    PhiEst.ll <- PhiEstAll.ll[, , Kmax]
     lambdaEst.ll <- fit.ll$vals[1:npc, Kmax]
     PhiEstFunc.ll <- smooth_basis(eval_gam_vec, PhiEst.ll, basis, lambda = 1e-10)
     PhiEst.ll <- eval_fd(evalGrid, PhiEstFunc.ll)
@@ -508,7 +512,7 @@ for (noise_sd in noiseList) {
         initMethod = NA,
         npc = npc,
         nBatch = N,
-        Time = difftime(batch_end, batch_start, units = 'secs'),
+        Time = difftime(batch_end, batch_start, units = "secs"),
         RMSEphi1 = rmseBatch[1],
         RMSEphi2 = rmseBatch[2],
         RMSEphi3 = rmseBatch[3],
@@ -570,7 +574,7 @@ for (noise_sd in noiseList) {
         initMethod = NA,
         npc = npc,
         nBatch = N,
-        Time = difftime(batch_end, batch_start, units = 'secs'),
+        Time = difftime(batch_end, batch_start, units = "secs"),
         # AV = fit0$av,
         # EWMABV = fit0$ewmabv,
         RMSEphi1 = rmseBatch[1],
@@ -632,7 +636,7 @@ for (noise_sd in noiseList) {
         initMethod = NA,
         npc = npc,
         nBatch = N,
-        Time = difftime(batch_end, batch_start, units = 'secs'),
+        Time = difftime(batch_end, batch_start, units = "secs"),
         # AV = fit0$av,
         # EWMABV = fit0$ewmabv,
         RMSEphi1 = rmseBatch[1],
@@ -679,8 +683,8 @@ for (noise_sd in noiseList) {
         initMethod = NA,
         npc = npc,
         nBatch = N,
-        Time = difftime(batch_end, batch_start, units = 'secs') +
-          difftime(end_time.init, start_time.init, units = 'secs'),
+        Time = difftime(batch_end, batch_start, units = "secs") +
+          difftime(end_time.init, start_time.init, units = "secs"),
         # AV = fit0$av,
         # EWMABV = fit0$ewmabv,
         RMSEphi1 = rmseBatch[1],
@@ -692,7 +696,6 @@ for (noise_sd in noiseList) {
         tau = NA
       )
     )
-
   }
 }
 

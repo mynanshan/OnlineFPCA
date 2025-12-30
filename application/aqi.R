@@ -287,56 +287,58 @@ fit <- fpca.sgd(
 
 save(fit, time_init, file = file.path(respath, "fit_aqi.Rdata"))
 
-fit <- fpca.sgd(
-  fdata_generator,
-  tgrid,
-  inits = inits,
-  meanfun = FALSE,
-  npc = 6,
-  tau = NULL,
-  tau.control = list(
-    ntau = nParams,
-    nselect = 2,
-    maxtau = 10^taumax,
-    mintau = 10^(taumax - nParams + 1)
-  ),
-  nbatch = nBatch,
-  maxIter = nPass * nIter1pass,
-  stepsize = sgd_lr0,
-  nIter.constStepSize = 0,
-  stepsize.decayrate = 0.51,
-  stepsize.min = stepsize.min,
-  period.decay = 5 * nBlockIter,
-  nIter.slowerdecay = nIter1pass,
-  stepsize.decayrate.slow = 0.25,
-  dynlr = TRUE,
-  dynlrCtrl = list(
-    niter = 20 * nBlockIter,
-    reset = 5 * nBlockIter,
-    refdn = stepsize0,
-    w = 0.9
-  ),
-  sgdtype = "sgd",
-  adamw = TRUE,
-  adam.rescale = TRUE,
-  ada.start = 25 * nBlockIter + 1,
-  adareset = 20 * nBlockIter,
-  adareset.end = nIter1pass,
-  asgd.start = 10 * nBlockIter + 1,
-  asgd.reset = Inf,
-  asgd.reset.end = nIter1pass,
-  asgd.end = Inf,
-  fpcCI = TRUE,
-  nIter.1stTune = nRoundNoTune * nBlockIter,
-  nIter.lastTune = nIter1pass,
-  nIter.tauNoIncrease = floor(1 * nIter1pass),
-  dyntune.rate = 1.25,
-  period.tune = nBlockIter,
-  period.record = nBlockIter,
-  verbose = TRUE
-)
+### UQ: uncomment the following to run UQ experiment
 
-save(fit, time_init, file = file.path(respath, "fit_aqi_uq.Rdata"))
+# fit <- fpca.sgd(
+#   fdata_generator,
+#   tgrid,
+#   inits = inits,
+#   meanfun = FALSE,
+#   npc = 6,
+#   tau = NULL,
+#   tau.control = list(
+#     ntau = nParams,
+#     nselect = 2,
+#     maxtau = 10^taumax,
+#     mintau = 10^(taumax - nParams + 1)
+#   ),
+#   nbatch = nBatch,
+#   maxIter = nPass * nIter1pass,
+#   stepsize = sgd_lr0,
+#   nIter.constStepSize = 0,
+#   stepsize.decayrate = 0.51,
+#   stepsize.min = stepsize.min,
+#   period.decay = 5 * nBlockIter,
+#   nIter.slowerdecay = nIter1pass,
+#   stepsize.decayrate.slow = 0.25,
+#   dynlr = TRUE,
+#   dynlrCtrl = list(
+#     niter = 20 * nBlockIter,
+#     reset = 5 * nBlockIter,
+#     refdn = stepsize0,
+#     w = 0.9
+#   ),
+#   sgdtype = "sgd",
+#   adamw = TRUE,
+#   adam.rescale = TRUE,
+#   ada.start = 25 * nBlockIter + 1,
+#   adareset = 20 * nBlockIter,
+#   adareset.end = nIter1pass,
+#   asgd.start = 10 * nBlockIter + 1,
+#   asgd.reset = Inf,
+#   asgd.reset.end = nIter1pass,
+#   asgd.end = Inf,
+#   fpcCI = TRUE,
+#   nIter.1stTune = nRoundNoTune * nBlockIter,
+#   nIter.lastTune = nIter1pass,
+#   nIter.tauNoIncrease = floor(1 * nIter1pass),
+#   dyntune.rate = 1.25,
+#   period.tune = nBlockIter,
+#   period.record = nBlockIter,
+#   verbose = TRUE
+# )
+
+# save(fit, time_init, file = file.path(respath, "fit_aqi_uq.Rdata"))
 
 ## === compare to soap 2d ==========
 

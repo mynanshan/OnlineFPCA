@@ -46,11 +46,28 @@ Rscript install_pkgs.R
 
 **Main article**:
 
-- Table 1, 2: Main simulation studies for 1D and 2D data. In `experiments/`, Run `fpca1d.R` and `fpca2d.R` for `--seed` across 1~100. Then, run `analyze_fpca1d.R` and `analyze_fpca2d.R` to obtain results from `knitr::kable()`.
+- Table 1, 2, S4: Main simulation studies for 1D and 2D data under different noise levels. In `experiments/`, Run `fpca1d.R` and `fpca2d.R` for `--seed` across 1~100. Then, run `analyze_fpca1d.R` and `analyze_fpca2d.R` to obtain results from `knitr::kable()`. Table 1 and 2 are part of Table S4.
 
-- Figure 3: Dynamic tuning path in 1D simulation. The script `fpca1d.R` will produce the dynamic tuning path when the seed is `1234`. You can set `simple` to `1` and `compare` to `0` to simplify the workflow and focus on figure plotting. 
+- Figure 3 and S6: Dynamic tuning path in 1D/2D simulation. The script `fpca1d.R` will produce the dynamic tuning path `taupath-sim*d-sgd.pdf` when the seed is `1234`. You can set `simple` to `1` and `compare` to `0` to simplify the workflow and focus on figure plotting. 
 ```r
 Rscript experiments/fpca1d.R --seed 1234 --compare 0 --simple 1
+Rscript experiments/fpca2d.R --seed 1234 --compare 0 --simple 1
 ```
 
-- Figure 4: Subject examples from the AQI data. The script `application/aqi-eda.R` provides a complete walk-through of the exploratory data analysis of the AQI data, and the command to generate Figure 4 (`aqi-sample.pdf`).  
+- Figure 4: Subject examples from the AQI data. The script `application/aqi-eda.R` provides a complete walk-through of the exploratory data analysis of the AQI data, and the command to generate Figure 4 (`aqi-sample.pdf`). 
+
+- Figure 5: FPC plot for AQI data. First run `application/aqi.R` to obtain `fit_aqi_*.Rdata`. Then, run `application/analyze_aqi.R` to produce the plot `simu-aqi-fpc.pdf`.
+
+- Figure 6: FPC plot for GFR data. First run `application/gfr.R` to obtain `result_gfr_*.Rdata`. Then, run `application/analyze_gfr.R` to produce the plot `gfr_eigfun.pdf`.
+
+- Figure S1: Use `Matrix::image()` to plot the matrix `B`, `G` and `S` in the 1D simulation.
+
+- Figure S2: CI plot for 1D simulation. In `experiments/`, run `ci-simu1d.R` for `--seed` across 1~100. Then, run `analyze_ci1d.R` to produce the plot `ci1d-ci.pdf`. 
+
+- Figure S3: CI plot for 2D simulation. In `experiments/`, run `ci-simu2d.R` for `--seed` across 1~100. Then, run `analyze_ci2d.R` to produce the plot `ci2d-ci.pdf`. 
+
+- Table S1: RMSEs for different $(C,W,B)$. Run `check_bwc.R` for `--seed` across 1~100. Then, `analyze_bwc.R` will produce the table.
+
+- Figure S4, Table S2: RMSEs for different $\omega$ and block sizes. Run `check_abv.R` for `--seed` across 1~100. Then, run `analyze_abv.R` to produce the figure `abv_paths.pdf` and the table.
+
+- Table S3: RMSEs for different mini-batch sizes.  Run `check_nbatch.R` for `--seed` across 1~100. Then, run `analyze_nbatch.R` to produce the table.
