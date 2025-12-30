@@ -10,13 +10,10 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
-
-set.seed(1)
-
 noise_sd <- 0.1
 nBatch <- 5
 nParams <- 6
-nPass <- 2
+nPass <- 3
 nBlock <- 100
 Ninit <- 100
 initMethod <- "face"
@@ -86,7 +83,7 @@ p <- nbasis
 muTrueFunc <- smooth_basis(evalGrid, muTrueEval, basis)
 phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
 rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
-rmsePhiBest <- sqrt(colMeans(PhiTrueEval[,1:q] - eval_fd(evalGrid, phiTrueFunc)[,1:q])^2)
+rmsePhiBest <- sqrt(colMeans(PhiTrueEval[, 1:q] - eval_fd(evalGrid, phiTrueFunc)[, 1:q])^2)
 
 B <- eval_basis(tgrid, basis)
 G <- get_basis_inprod_matrix(basis)
@@ -128,13 +125,6 @@ ThetaInit <- sweep(ThetaInit, 2, sqrt(norm_factor), "/")
 lambdaInit <- lambdaInit * norm_factor
 PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
 
-# TODO: update these codes to formal versions
-# - Retract ThetaInit
-# - Project grad_Theta_init
-# - RMSE evaluation, pmin version
-# - Remove all unused arguments
-# - Set ada and asgd related parameters
-# - Change lambdaInit: rather large and inaccurate than small
 ThetaInit <- manifold.Stiefel.retract(ThetaInit, NULL, G)
 grad_Theta_init <- objfun(
   dat$Ly[1:Ninit], dat$Ltid[1:Ninit],
@@ -149,7 +139,6 @@ nIter1pass <- N / nBatch
 asgdIterStart <- round(nRecord.1pass * 0.7 * nBlockIter)
 adamIterEnd <- round(nRecord.1pass * 1.7 * nBlockIter)
 
-# inits <- list(Theta = ThetaInit, lambda = lambdaInit, sigma2 = sigma2Init)
 inits <- list(
   Theta = ThetaInit,
   lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
@@ -177,16 +166,14 @@ fit <- fpca.sgd(
   ),
   nbatch = nBatch,
   maxIter = nPass * nIter1pass,
-  stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
-  # stepsize = sgd_lr0,
+  stepsize = sgd_lr0,
   nIter.constStepSize = 0,
   stepsize.decayrate = 0.51,
   stepsize.min = stepsize.min,
   period.decay = 5 * nBlockIter,
   nIter.slowerdecay = nIter1pass,
   stepsize.decayrate.slow = 0.25,
-  dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
-  # dynlr = TRUE,
+  dynlr = TRUE,
   dynlrCtrl = list(
     niter = 20 * nBlockIter,
     reset = 5 * nBlockIter,
@@ -194,15 +181,11 @@ fit <- fpca.sgd(
     w = 0.9
   ),
   sgdtype = sgdtype,
-  adamw = TRUE,
-  adam.rescale = TRUE,
-  # ada.start = 5 * nBlockIter,
-  ada.start = 20 * nBlockIter + 1,
-  adareset = 10 * nBlockIter,
-  # adareset.end = nIter1pass,
-  adareset.end = 10 * nBlockIter,
+  ada.start = 25 * nBlockIter + 1,
+  adareset = 20 * nBlockIter,
+  adareset.end = nIter1pass,
   asgd.start = 10 * nBlockIter + 1,
-  asgd.reset = 20 * nBlockIter,
+  asgd.reset = 40 * nBlockIter,
   asgd.reset.end = nIter1pass,
   asgd.end = Inf,
   nIter.1stTune = nRoundNoTune * nBlockIter,
@@ -217,10 +200,10 @@ check <- fit$check
 
 tau.min <- fit$tau.min
 l <- which(fit$tau == tau.min)[1]
-Theta <- fit$Theta[,, l]
+Theta <- fit$Theta[, , l]
 lambda <- fit$lambda[, l]
 sigma2 <- fit$sigma2[l]
-Theta.avg <- fit$Theta.avg[,, l]
+Theta.avg <- fit$Theta.avg[, , l]
 lambda.avg <- fit$lambda.avg[, l]
 sigma2.avg <- fit$sigma2.avg[l]
 
@@ -231,13 +214,17 @@ vcrits <- fit$vcrit.history
 PhiEstEval <- eval_fd(evalGrid, FuncData(Theta, basis))
 PhiEstEval <- match_fpc(PhiEstEval, PhiTrueEval[, 1:q, drop = F])
 params$Theta <- params$Theta[,
-  attributes(PhiEstEval)$match_id, , , drop = F ]
+  attributes(PhiEstEval)$match_id, , ,
+  drop = F
+]
 params$Theta[, attributes(PhiEstEval)$flipped, , ] <-
   -params$Theta[, attributes(PhiEstEval)$flipped, , ]
 PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
 PhiAvgEval <- match_fpc(PhiAvgEval, PhiTrueEval[, 1:q, drop = F])
 params$Theta.avg <- params$Theta.avg[,
-  attributes(PhiAvgEval)$match_id, , , drop = F ]
+  attributes(PhiAvgEval)$match_id, , ,
+  drop = F
+]
 params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ] <-
   -params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ]
 
@@ -253,70 +240,21 @@ tau_path_id_extend <- c(rep(tau_path_id[1], nRoundNoTune), tau_path_id)
 
 ThetaAll <- sapply(
   seq_along(fit$params.history$iter.params),
-  \(i) params$Theta[,, tau_path_id_extend[i], i],
+  \(i) params$Theta[, , tau_path_id_extend[i], i],
   simplify = "array"
 )
-# ThetaAll <- params$Theta[,, 1,]
 rmseAll <- rmse_phi(ThetaAll, phiTrueFunc$coefs, B)
 ThetaAll.avg <- sapply(
   seq_along(fit$params.history$iter.params),
-  \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
+  \(i) params$Theta.avg[, , tau_path_id_extend[i], i],
   simplify = "array"
 )
-# ThetaAll.avg <- params$Theta.avg[,, 1,]
 rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
 
-matplot(evalGrid, PhiTrueEval[,1:q], type="l", lty=1)
-matplot(evalGrid, PhiAvgEval, type="l", add=T, lty=2)
-matplot(rmseAll, type="l")
-matplot(rmseAll.avg, type="l")
-
-# check opt landscape
-ThetaTrue = phiTrueFunc$coefs[,1:q]
-lambdaTrue
-sigma2true = noise_sd^2
-
-objfun(
-  dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg,
-  tau = tau.min, stats = "loss"
-)$lik
-objfun(
-  dat$Ly, dat$Ltid, ThetaTrue, lambda.avg, sigma2.avg,
-  tau = tau.min, stats = "loss"
-)$lik
-objfun(
-  dat$Ly, dat$Ltid, ThetaTrue, lambdaTrue[1:q], noise_sd^2,
-  tau = tau.min, stats = "loss"
-)$lik
-objfun(
-  dat$Ly, dat$Ltid, ThetaBatch0, lambdaTrue[1:q], noise_sd^2,
-  tau = tau.min, stats = "loss"
-)$lik
-
-tmp <- mapply(
-  \(h) objfun(
-    dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg * exp(h),
-    tau = tau.min, stats = "loss"
-  )$fval,
-  h = seq(-0.2,0.2,0.02)
-)
-plot(tmp)
-
-Delta1 <- rnorm(p)
-tmp <- mapply(
-  \(h) {
-    Theta <- Theta.avg
-    Theta[,1] <- Theta[,1] + h * Delta1
-    Theta <- manifold.Stiefel.retract(Theta, NULL, G)
-    objfun(
-    dat$Ly, dat$Ltid, Theta, lambda.avg, sigma2.avg,
-    tau = tau.min, stats = "loss"
-  )$fval
-  },
-  h = seq(-0.2,0.2,0.02)
-)
-plot(tmp)
-
+matplot(evalGrid, PhiTrueEval[, 1:q], type = "l", lty = 1)
+matplot(evalGrid, PhiAvgEval, type = "l", add = T, lty = 2)
+matplot(rmseAll, type = "l")
+matplot(rmseAll.avg, type = "l")
 
 
 library(rstiefel)
@@ -342,9 +280,9 @@ sol <- optStiefel(
 )
 
 ThetaBatch <- sqrtGinv %*% sol
-matplot(evalGrid, PhiTrueEval[,1:q], type="l", lty=1)
-matplot(tgrid, eval_fd(tgrid, FuncData(ThetaBatch, basis)), type="l", add=T, lty=2)
-sqrt(colMeans((PhiTrueEval[,1:q] - eval_fd(evalGrid, FuncData(ThetaBatch, basis)))^2))
+matplot(evalGrid, PhiTrueEval[, 1:q], type = "l", lty = 1)
+matplot(tgrid, eval_fd(tgrid, FuncData(ThetaBatch, basis)), type = "l", add = T, lty = 2)
+sqrt(colMeans((PhiTrueEval[, 1:q] - eval_fd(evalGrid, FuncData(ThetaBatch, basis)))^2))
 
 
 sol0 <- optStiefel(
@@ -368,6 +306,6 @@ sol0 <- optStiefel(
 )
 
 ThetaBatch0 <- sqrtGinv %*% sol0
-matplot(evalGrid, PhiTrueEval[,1:q], type="l", lty=1)
-matplot(tgrid, eval_fd(tgrid, FuncData(ThetaBatch0, basis)), type="l", add=T, lty=2)
-sqrt(colMeans((PhiTrueEval[,1:q] - eval_fd(evalGrid, FuncData(ThetaBatch0, basis)))^2))
+matplot(evalGrid, PhiTrueEval[, 1:q], type = "l", lty = 1)
+matplot(tgrid, eval_fd(tgrid, FuncData(ThetaBatch0, basis)), type = "l", add = T, lty = 2)
+sqrt(colMeans((PhiTrueEval[, 1:q] - eval_fd(evalGrid, FuncData(ThetaBatch0, basis)))^2))

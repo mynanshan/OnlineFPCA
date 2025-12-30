@@ -17,13 +17,13 @@ Top-level layout (important files/directories):
     - `onlineFDAlocalpoly.R`: OnlineCov algorithm (adapted from the code for Yang & Yao (2023))
     - `fpcaReg.R`: SOAP algorithm, a batch FPCA method
     - Other helper utilities.
-- **`experiments/`** – Simulation scripts and analysis helpers (e.g. `fpca1d.R`, `fpca2d.R`).
+- **`experiments/`** – Simulation scripts and analysis helpers (e.g. `fpca1d.R`, `fpca2d.R`). `run_reps.sh` is a helper for submitting repeated (seeded) simulation jobs on an HPC cluster.
+- **`test/`** – `demo-fpca1d.R` and `demo-fpca2d.R` are also for 1D and 2D simulation studies, but also easier to be run interactively. 
 - **`application/`** – Real-data pipelines and plotting scripts (e.g. `gfr.R`, `aqi.R`).
 - **`data/`** – Data required to reproduce the application results. For this project the subfolders of interest are `data/gfr/` and `data/epa-aqs/`.
 - **`data_generation/`** – Data simulators used by the simulation studies.
 - **`external_codes/`** – Third-party algorithms: mOpCov and REML.
 - **`install_pkgs.R`** – Script to install required R packages in a fresh environment.
-- **`experiments/run_reps.sh`** – Helper for submitting repeated (seeded) simulation jobs on an HPC cluster.
 
 ---
 

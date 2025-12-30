@@ -10,11 +10,6 @@ source("./R/onlineFDAlocalpoly.R")
 source("./R/fpcaReg.R")
 source("./data_generation/generator.R")
 
-seed <- 23
-# seed <- ceiling(runif(1) * 9999)
-
-RhpcBLASctl::blas_set_num_threads(12)
-
 mOpCov_path <- "external_codes/mOpCov/"
 source(paste0(mOpCov_path, "mOpCov_prep.R"))
 Rcpp::sourceCpp(paste0(mOpCov_path, "mOpCov_cpp.cpp"))
@@ -41,7 +36,7 @@ if (!dir.exists(dirpath)) {
   dir.create(dirpath, recursive = TRUE)
 }
 
-n_digit_seed = ceiling(log10(seed + 1))
+n_digit_seed <- ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("simu_", exprmt, "_sd", seedtext, ".csv")
 
@@ -105,8 +100,8 @@ phiTrueFunc <- smooth_basis(evalGrid, PhiTrueEval, basis)
 rmseMuBest <- Metrics::rmse(muTrueEval, eval_fd(evalGrid, muTrueFunc))
 rmsePhiBest <- Metrics::rmse(PhiTrueEval, eval_fd(evalGrid, phiTrueFunc))
 
-ThetaTrue = phiTrueFunc$coefs[,1:q]
-sigma2true = noise_sd^2
+ThetaTrue <- phiTrueFunc$coefs[, 1:q]
+sigma2true <- noise_sd^2
 
 G <- get_basis_inprod_matrix(basis)
 GR <- chol(G)
@@ -148,29 +143,29 @@ fdata_generator <- function(n, total_count) {
 message("Start OnlineFPCA ---------------")
 
 start_time.init <- Sys.time()
-Yinit = dat$Ly[1:Ninit]
-Tinit = dat$Lt[1:Ninit]
-LmiInit = dat$Lmi[1:Ninit]
+Yinit <- dat$Ly[1:Ninit]
+Tinit <- dat$Lt[1:Ninit]
+LmiInit <- dat$Lmi[1:Ninit]
 TidInit <- dat$Ltid[1:Ninit]
-nsub = round((LmiInit + runif(Ninit, min = -0.1, max = 0.1)) * 0.5)
-nsub = pmax(nsub, 4)
-nsub = pmin(nsub, 20)
-nsub = pmin(nsub, LmiInit)
-sampleIds = mapply(
+nsub <- round((LmiInit + runif(Ninit, min = -0.1, max = 0.1)) * 0.5)
+nsub <- pmax(nsub, 4)
+nsub <- pmin(nsub, 20)
+nsub <- pmin(nsub, LmiInit)
+sampleIds <- mapply(
   \(mi, mi_sub) {
     sort(sample(1:mi, mi_sub))
   },
   LmiInit,
   nsub
 )
-Yinit = unlist(mapply(
+Yinit <- unlist(mapply(
   \(yi, ids) {
     yi[ids]
   },
   Yinit,
   sampleIds
 ))
-Tinit = do.call(
+Tinit <- do.call(
   rbind,
   mapply(
     \(ti, ids) {
@@ -180,7 +175,7 @@ Tinit = do.call(
     sampleIds
   )
 )
-TidInit = unlist(mapply(
+TidInit <- unlist(mapply(
   \(tid, ids) {
     tid[ids]
   },
@@ -196,16 +191,6 @@ CovRes <- mOpCov(
   lam = list(lam = 1e-10, alpha = 1e-6),
   ker = "cos"
 )
-# CovRes <- mOpCov(
-#   location = Tinit,
-#   x = Yinit,
-#   subject = subject_ids,
-#   q = c(8, 8),
-#   lam = list(lam = 1e-10, alpha = 1e-6),
-#   # ker = "cos",
-#   ker = "sob",
-#   control = list(Mmethod = "eig")
-# )
 FpcaOut <- fpca.mOpCov(OUT = CovRes)
 PhiInitEvalFull <- computeEigen(evalGrid, CovRes, FpcaOut)
 lambdaInit <- FpcaOut$Eigen$values[1:q]
@@ -224,13 +209,13 @@ PhiInitEval <- flip_direc(PhiInitEval, PhiTrueEval[, 1:q])
 flipId <- attributes(PhiInitEval)$flipped
 ThetaInit[, flipId] <- -ThetaInit[, flipId]
 # fit diagonal element, estimate sigma2
-innerIds = which(
+innerIds <- which(
   evalGrid[, 1] > 0.1 &
     evalGrid[, 1] < 0.9 &
     evalGrid[, 2] > 0.1 &
     evalGrid[, 2] < 0.9
 )
-innerPoints = which(TidInit %in% innerIds)
+innerPoints <- which(TidInit %in% innerIds)
 covInitEvalDiag <- as.vector(PhiInitEvalFull^2 %*% FpcaOut$Eigen$values)
 sigma2Init <- max(mean((Yinit^2 - covInitEvalDiag[TidInit])[innerPoints]), 1e-3)
 end_time.init <- Sys.time()
@@ -250,31 +235,16 @@ grad_Theta_init <- objfun(
 )$grad_Theta
 grad_Theta_init <- manifold.Stiefel.project(grad_Theta_init, ThetaInit, G)
 g_Theta_init_norm <- sqrt(mean(colSums(grad_Theta_init * G %*% grad_Theta_init)))
-# g_Theta_init_norm <- sqrt(sum(grad_Theta_init * G %*% grad_Theta_init))
 sgd_lr0 <- stepsize0 / g_Theta_init_norm
 message("> Step size = ", stepsize0)
-
-# TODO: it turns out the g_Theta_init_norm is not a good estimate
-# of the grad's norm
-# Also, the algorithm is not necessaily better when ||direc|| is approximatedly 1
-# TODO: check an adaptive base step size scheme
 
 inits <- list(
   Theta = ThetaInit,
   lambda = pmax(lambdaInit, lambdaInit[1] / (1:q)),
-  # sigma2 = min(sigma2Init, 1e-2)
   sigma2 = sigma2Init
 )
-# inits <- list(
-#   Theta = ThetaTrue[,1:q] + rnorm(p*q, 0, 1e-2),
-#   lambda = lambdaTrue[1:q] * exp(rnorm(q, 0, 1e-2)),
-#   sigma2 = sigma2true * exp(rnorm(1, 0, 1e-2))
-# )
 
 sgdtype <- "sgd"
-sgdtype <- "adam"
-sgdtype <- "adagrad"
-
 message(">>> sgdtype = ", sgdtype)
 
 fit <- fpca.sgd(
@@ -291,16 +261,14 @@ fit <- fpca.sgd(
   ),
   nbatch = nBatch,
   maxIter = nPass * nIter1pass,
-  stepsize = ifelse(sgdtype %in% c("sgd", "sgdm"), sgd_lr0, stepsize0),
+  stepsize = sgd_lr0,
   nIter.constStepSize = 0,
   stepsize.decayrate = 0.51,
   stepsize.min = stepsize.min,
-  # period.decay = 5 * nBlockIter,
-  period.decay = 2 * nBlockIter,
-  nIter.slowerdecay = nIter1pass, # 10 * nBlockIter, # same as adareset
+  period.decay = 5 * nBlockIter,
+  nIter.slowerdecay = nIter1pass,
   stepsize.decayrate.slow = 0.25,
-  dynlr = ifelse(sgdtype %in% c("sgd", "sgdm"), TRUE, FALSE),
-  # dynlr = FALSE,
+  dynlr = TRUE,
   dynlrCtrl = list(
     niter = 20 * nBlockIter,
     reset = 5 * nBlockIter,
@@ -308,17 +276,10 @@ fit <- fpca.sgd(
     w = 0.9
   ),
   sgdtype = sgdtype,
-  adamw = TRUE,
-  adam.rescale = TRUE,
-  # ada.start = 20 * nBlockIter + 1,
   ada.start = 25 * nBlockIter + 1,
-  # ada.start = Inf,
-  # adareset = 10 * nBlockIter,
   adareset = 20 * nBlockIter,
-  # adareset.end = 10 * nBlockIter,
   adareset.end = nIter1pass,
   asgd.start = 10 * nBlockIter + 1,
-  # asgd.reset = 20 * nBlockIter,
   asgd.reset = 40 * nBlockIter,
   asgd.reset.end = nIter1pass,
   asgd.end = Inf,
@@ -335,10 +296,10 @@ check <- fit$check
 
 tau.min <- fit$tau.min
 l <- which(fit$tau == tau.min)[1]
-Theta <- fit$Theta[,, l]
+Theta <- fit$Theta[, , l]
 lambda <- fit$lambda[, l]
 sigma2 <- fit$sigma2[l]
-Theta.avg <- fit$Theta.avg[,, l]
+Theta.avg <- fit$Theta.avg[, , l]
 lambda.avg <- fit$lambda.avg[, l]
 sigma2.avg <- fit$sigma2.avg[l]
 
@@ -349,13 +310,17 @@ vcrits <- fit$vcrit.history
 PhiEstEval <- eval_fd(evalGrid, FuncData(Theta, basis))
 PhiEstEval <- match_fpc(PhiEstEval, PhiTrueEval[, 1:q, drop = F])
 params$Theta <- params$Theta[,
-  attributes(PhiEstEval)$match_id, , , drop = F ]
+  attributes(PhiEstEval)$match_id, , ,
+  drop = F
+]
 params$Theta[, attributes(PhiEstEval)$flipped, , ] <-
   -params$Theta[, attributes(PhiEstEval)$flipped, , ]
 PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
 PhiAvgEval <- match_fpc(PhiAvgEval, PhiTrueEval[, 1:q, drop = F])
 params$Theta.avg <- params$Theta.avg[,
-  attributes(PhiAvgEval)$match_id, , , drop = F ]
+  attributes(PhiAvgEval)$match_id, , ,
+  drop = F
+]
 params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ] <-
   -params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ]
 
@@ -371,81 +336,32 @@ tau_path_id_extend <- c(rep(tau_path_id[1], nRoundNoTune), tau_path_id)
 
 ThetaAll <- sapply(
   seq_along(fit$params.history$iter.params),
-  \(i) params$Theta[,, tau_path_id_extend[i], i],
+  \(i) params$Theta[, , tau_path_id_extend[i], i],
   simplify = "array"
 )
 rmseAll <- rmse_phi(ThetaAll, phiTrueFunc$coefs, B)
 ThetaAll.avg <- sapply(
   seq_along(fit$params.history$iter.params),
-  \(i) params$Theta.avg[,, tau_path_id_extend[i], i],
+  \(i) params$Theta.avg[, , tau_path_id_extend[i], i],
   simplify = "array"
 )
 rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
 
-matplot(rmseAll, type="l")
-matplot(rmseAll.avg, type="l")
+matplot(rmseAll, type = "l")
+matplot(rmseAll.avg, type = "l")
 
-par(mfrow=c(1,q))
+par(mfrow = c(1, q))
 for (k in seq_len(q)) {
-  plot(PhiAvgEval[,k], xlab="", ylab=bquote(phi[.(k)]), col = rgb(0, 0, 0, 0.4))
-  points(PhiTrueEval[,k], col = rgb(1, 0, 0, 0.4))
+  plot(PhiAvgEval[, k], xlab = "", ylab = bquote(phi[.(k)]), col = rgb(0, 0, 0, 0.4))
+  points(PhiTrueEval[, k], col = rgb(1, 0, 0, 0.4))
 }
-par(mfrow=c(1,1))
-
-# (ThetaAll[,,1:150] - ThetaAll[,,2:151]) |> 
-#   matrix(nrow = p) |> 
-#   (\(C) as.matrix(B %*% C)^2)() |> 
-#   colMeans() |> sqrt() |> 
-#   matrix(nrow = q) |> t()
+par(mfrow = c(1, 1))
 
 for (ii in seq(51, 501, 25)) {
-k <- 2
-plot(as.vector(B %*% ThetaAll[,k,ii]), xlab="", ylab=bquote(phi[.(k)]), col = rgb(0, 0, 0, 0.4))
-points(PhiTrueEval[,k], col = rgb(1, 0, 0, 0.4))
+  k <- 2
+  plot(as.vector(B %*% ThetaAll[, k, ii]), xlab = "", ylab = bquote(phi[.(k)]), col = rgb(0, 0, 0, 0.4))
+  points(PhiTrueEval[, k], col = rgb(1, 0, 0, 0.4))
 }
-
-
-
-objfun(
-  dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg,
-  tau = tau.min, stats = "loss"
-)$lik
-objfun(
-  dat$Ly, dat$Ltid, ThetaTrue, lambda.avg, sigma2.avg,
-  tau = tau.min, stats = "loss"
-)$lik
-objfun(
-  dat$Ly, dat$Ltid, ThetaTrue, lambdaTrue[1:q], noise_sd^2,
-  tau = tau.min, stats = "loss"
-)$lik
-objfun(
-  dat$Ly, dat$Ltid, phiTrueFunc$coefs, lambdaTrue, noise_sd^2,
-  tau = tau.min, stats = "loss"
-)$lik
-
-tmp <- mapply(
-  \(h) objfun(
-    dat$Ly, dat$Ltid, Theta.avg, lambda.avg, sigma2.avg * exp(h),
-    tau = tau.min, stats = "loss"
-  )$fval,
-  h = seq(-0.2,0.2,0.02)
-)
-plot(tmp)
-
-Delta1 <- rnorm(p)
-tmp <- mapply(
-  \(h) {
-    Theta <- Theta.avg
-    Theta[,2] <- Theta[,2] + h * Delta1
-    Theta <- manifold.Stiefel.retract(Theta, NULL, G)
-    objfun(
-    dat$Ly, dat$Ltid, Theta, lambda.avg, sigma2.avg,
-    tau = tau.min, stats = "loss"
-  )$fval
-  },
-  h = seq(-0.2,0.2,0.02)
-)
-plot(tmp)
 
 
 
@@ -472,9 +388,9 @@ sol <- optStiefel(
 )
 
 ThetaBatch <- sqrtGinv %*% sol
-matplot(evalGrid, PhiTrueEval[,1:q], type="l", lty=1)
-matplot(tgrid, eval_fd(tgrid, FuncData(ThetaBatch, basis)), type="l", add=T, lty=2)
-sqrt(colMeans((PhiTrueEval[,1:q] - eval_fd(evalGrid, FuncData(ThetaBatch, basis)))^2))
+matplot(evalGrid, PhiTrueEval[, 1:q], type = "l", lty = 1)
+matplot(tgrid, eval_fd(tgrid, FuncData(ThetaBatch, basis)), type = "l", add = T, lty = 2)
+sqrt(colMeans((PhiTrueEval[, 1:q] - eval_fd(evalGrid, FuncData(ThetaBatch, basis)))^2))
 
 
 sol0 <- optStiefel(
@@ -498,9 +414,9 @@ sol0 <- optStiefel(
 )
 
 ThetaBatch0 <- sqrtGinv %*% sol0
-matplot(evalGrid, PhiTrueEval[,1:q], type="l", lty=1)
-matplot(tgrid, eval_fd(tgrid, FuncData(ThetaBatch0, basis)), type="l", add=T, lty=2)
-sqrt(colMeans((PhiTrueEval[,1:q] - eval_fd(evalGrid, FuncData(ThetaBatch0, basis)))^2))
+matplot(evalGrid, PhiTrueEval[, 1:q], type = "l", lty = 1)
+matplot(tgrid, eval_fd(tgrid, FuncData(ThetaBatch0, basis)), type = "l", add = T, lty = 2)
+sqrt(colMeans((PhiTrueEval[, 1:q] - eval_fd(evalGrid, FuncData(ThetaBatch0, basis)))^2))
 
 objfun(
   dat$Ly, dat$Ltid, ThetaBatch0, lambdaTrue[1:q], noise_sd^2,
