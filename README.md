@@ -6,6 +6,8 @@ methods, simulation studies, and real-data analyses for the paper. The README be
 explains the project structure, how to set up the environment, and how to reproduce
 tables and figures from the paper.  
 
+**NOTE**: the `output/` directory contains a large number of experiment result files, which may slow down repo cloning.
+
 ---
 
 ## 📦 Repository structure
