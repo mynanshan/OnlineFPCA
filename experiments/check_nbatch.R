@@ -1,4 +1,4 @@
-#!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
+#!/usr/bin/Rscript
 # SBATCH --job-name=check_nbatch_1d
 # SBATCH --output=logs/nbatch1d_%j.out
 # SBATCH --time=3:00:00

@@ -11,3 +11,5 @@ logs/
 *.rds
 *.pdf
 *.eps
+
+sbatch_header.txt
