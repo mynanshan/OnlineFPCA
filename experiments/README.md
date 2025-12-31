@@ -1,5 +1,9 @@
 # Simulation Studies
 
+All following scripts and results are stored in `experiments/`.
+
+*NOTE*: By default, we set the root directory as the working directory instead of `experiments/`
+
 Experiment files:
 
 * `fpca1d.R`: main 1D simulation

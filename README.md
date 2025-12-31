@@ -33,21 +33,11 @@ Top-level layout (important files/directories):
 
 ## 🧪 Reproduce tables and figures
 
-**Main article**:
+*Note*: Plain numbers (1,2,...) are in the main article. Numbers with "S" (S1, S2, ...) are in the supplementary materials. 
 
 - Table 1, 2, S4: Main simulation studies for 1D and 2D data under different noise levels. In `experiments/`, Run `fpca1d.R` and `fpca2d.R` for `--seed` across 1~100. Then, run `analyze_fpca1d.R` and `analyze_fpca2d.R` to obtain results from `knitr::kable()`. Table 1 and 2 are part of Table S4.
 
-- Figure 3 and S6: Dynamic tuning path in 1D/2D simulation. The script `fpca1d.R` will produce the dynamic tuning path `taupath-sim*d-sgd.pdf` when the seed is `1234`. You can set `simple` to `1` and `compare` to `0` to simplify the workflow and focus on figure plotting. 
-```r
-Rscript experiments/fpca1d.R --seed 1234 --compare 0 --simple 1
-Rscript experiments/fpca2d.R --seed 1234 --compare 0 --simple 1
-```
-
-- Figure 4: Subject examples from the AQI data. The script `application/aqi-eda.R` provides a complete walk-through of the exploratory data analysis of the AQI data, and the command to generate Figure 4 (`aqi-sample.pdf`). 
-
-- Figure 5: FPC plot for AQI data. First run `application/aqi.R` to obtain `fit_aqi_*.Rdata`. Then, run `application/analyze_aqi.R` to produce the plot `simu-aqi-fpc.pdf`.
-
-- Figure 6: FPC plot for GFR data. First run `application/gfr.R` to obtain `result_gfr_*.Rdata`. Then, run `application/analyze_gfr.R` to produce the plot `gfr_eigfun.pdf`.
+- Figure 3: FPC plot for AQI data. First run `application/aqi.R` to obtain `fit_aqi_*.Rdata`. Then, run `application/analyze_aqi.R` to produce the plot `simu-aqi-fpc.pdf`.
 
 - Figure S1: Use `Matrix::image()` to plot the matrix `B`, `G` and `S` in the 1D simulation.
 
@@ -61,12 +51,21 @@ Rscript experiments/fpca2d.R --seed 1234 --compare 0 --simple 1
 
 - Table S3: RMSEs for different mini-batch sizes.  Run `check_nbatch.R` for `--seed` across 1~100. Then, run `analyze_nbatch.R` to produce the table.
 
+- Figure S6 and S7: Dynamic tuning path in 1D/2D simulation. The script `fpca1d.R` will produce the dynamic tuning path `taupath-sim*d-sgd.pdf` when the seed is `1234`. You can set `simple` to `1` and `compare` to `0` to simplify the workflow and focus on figure plotting. 
+```r
+Rscript experiments/fpca1d.R --seed 1234 --compare 0 --simple 1
+Rscript experiments/fpca2d.R --seed 1234 --compare 0 --simple 1
+```
+
+- Figure S8: Subject examples from the AQI data. The script `application/aqi-eda.R` provides a complete walk-through of the exploratory data analysis of the AQI data, and the command to generate Figure 4 (`aqi-sample.pdf`). 
+
+- Figure S9: FPC plot for GFR data. First run `application/gfr.R` to obtain `result_gfr_*.Rdata`. Then, run `application/analyze_gfr.R` to produce the plot `gfr_eigfun.pdf`.
 
 ---
 
 ## 🧰 Environment setup
 
-1. Recommended R (tested): R 4.5.0 (or a recent patch release).
+1. R (tested): R 4.5.0 (or a recent patch release).
 
 2. Install the packages used in the analyses:
 
