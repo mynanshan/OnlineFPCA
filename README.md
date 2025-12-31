@@ -24,6 +24,7 @@ Top-level layout (important files/directories):
 - **`data_generation/`** – Data simulators used by the simulation studies.
 - **`external_codes/`** – Third-party algorithms: mOpCov and REML.
 - **`install_pkgs.R`** – Script to install required R packages in a fresh environment.
+- **`output/`** – Include our result files from simulation studies and real-data analysis. Large files are removed due to size limits.
 
 ---
 

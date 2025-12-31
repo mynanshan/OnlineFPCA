@@ -48,7 +48,7 @@ The analyses use two main data sources: (1) EPA daily PM10 (AQI) data aggregated
 *Note*: the repository contains a mix of data sources.
 
 - The EPA AQI (PM10 series) raw CSVs are publicly available from EPA (see link below) and the processed AQI object `data/epa-aqs/aqi-us.Rda` is included in the repo.
-- The GFR kidney-transplant dataset (`data/gfr/GFR2023Feb01.csv`) is private and must be requested from the data custodian (see "Non-publicly available data" below).
+- The GFR kidney-transplant dataset (`data/gfr/GFR2023Feb01.csv`) is private and must be requested from the data custodian (see "Non-publicly available data" below). We have attached a `data/gfr/GFR-pseudo.csv` as a pseudo dataset for illustrative purposes.
 
 <!-- If the data are publicly available, see the *Publicly available data* section. Otherwise, see the *Non-publicly available data* section, below. -->
 
@@ -66,7 +66,8 @@ The analyses use two main data sources: (1) EPA daily PM10 (AQI) data aggregated
 
 ### Non-publicly available data
 
-The GFR kidney-transplant dataset used in the application (`data/gfr/GFR2023Feb01.csv`) is subject to access restrictions and is not included in this repository. Data sharing is not possible through this repository due to custodial restrictions; interested researchers should request access from the data custodian as described in [Liu et al. (2023)](https://www.jmlr.org/papers/v24/22-0614.html). To aid reproducibility despite the restriction, (i) preprocessing steps and code to build per-subject lists (`Ly`, `Ltid`, `Lmi`) are provided in `application/gfr.R` and `data/README.md`, and (ii) simulation scripts that use estimated FPCs (e.g., `experiments/simu_gfr.R`) allow replication of the computational methods.  
+The GFR kidney-transplant dataset used in the application (`data/gfr/GFR2023Feb01.csv`) is subject to access restrictions and is not included in this repository. Data sharing is not possible through this repository due to custodial restrictions; interested researchers should request access from the data custodian as described in [Liu et al. (2023)](https://www.jmlr.org/papers/v24/22-0614.html). To aid reproducibility despite the restriction, (i) preprocessing steps and code to build per-subject lists (`Ly`, `Ltid`, `Lmi`) are provided in `application/gfr.R` and `data/README.md`, and (ii) simulation scripts that use estimated FPCs (e.g., `experiments/simu_gfr.R`) allow replication of the computational methods.
+We have attached a `data/gfr/GFR-pseudo.csv` as a pseudo dataset for illustrative purposes.
 
 ## Description
 

@@ -56,8 +56,9 @@ Rscript application/analyze_aqi.R
 ### Real data sources & expected formats
 
 - GFR data (`data/gfr/`):
-  - **`GFR2023Feb01.csv`** – the main tabular dataset used by `application/gfr.R`. The script expects per-subject repeated measurements in (the default dataset) columns 3:9 (one column per year) and uses these to build `Ly` and `Ltid` lists. See `data/gfr/ReadMe.txt` for column descriptions.
+  - **`GFR2023Feb01.csv`** – the main tabular dataset used by `application/gfr.R`. The script expects per-subject repeated measurements in (the default dataset) columns 3:9 (one column per year) and uses these to build `Ly` and `Ltid` lists.
   - The script performs simple preprocessing (removes subjects with all-NA records, rescales times, de-mean using column means).
+  - The original data is only publicly available. We have attached a `GFR-pseudo.csv` as a pseudo dataset for illustrative purposes. 
 
 - AQI data (`data/epa-aqs/`):
   - **`aqi-us.Rda`** – a preprocessed dataset used directly by `application/aqi.R` and `application/analyze_aqi.R`.
