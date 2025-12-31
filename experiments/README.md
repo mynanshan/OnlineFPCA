@@ -63,3 +63,100 @@ Rscript experiments/analyze_fpca1d.R
 The analyze scripts read the `experiments/<exprmt>/` directory and produce tables/plots (see the top of `analyze_fpca1d.R` for the expected file names). Replace `<exprmt>` with the experiment name.
 
 ---
+
+Below are **detailed**, per-experiment reproduction notes (what the script does, how to run it, and the expected output files). Use `--seed <int>` to run individual seeds; for large sweeps use `./experiments/run_reps.sh <script> <#seeds>` which calls the script with seeds 1..N.
+
+---
+
+### 1D Simulation ✅
+- Purpose: point estimation of FPCs and comparison vs. batch methods; includes a CI variant for FPC CIs.
+- Run (single seed / local):
+  - Point estimation: `Rscript experiments/fpca1d.R --seed 1`
+  - Aggregation/analysis: `Rscript experiments/analyze_fpca1d.R`
+  - Plot a single tuning path (example): `Rscript experiments/fpca1d.R --seed 1234 --compare 0 --simple 1` (produces `taupath-sim1d-sgd.pdf` for the canonical seed)
+- CI variant:
+  - Collect per-seed CI runs: `./experiments/run_reps.sh experiments/ci-simu1d.R 100`
+  - Aggregate/plot CIs: `Rscript experiments/analyze_ci1d.R` (produces `ci1d-ci.pdf`)
+- Typical outputs (per seed):
+  - `experiments/fpca1d/simu_fpca1d_sdXXXX.csv` — CSV rows per checkpoint with columns like `seed, Method, StepSize, N, Ninit, npc, nBatch, Time, RMSEphi1, RMSEphi2, ...`
+  - `experiments/ci1d/ci_ci1d_sdXXXX.RData` — RData with `CIobj` (contains `PhiStar`, `PhiTrue`, and `CIs` arrays)
+- Notes: use `--seed` for debugging one seed; CI runs save intermediate CI arrays and a global optimum computed via ManifoldOptim.
+
+---
+
+### 2D Simulation ✅
+- Purpose: extend 1D experiments to 2D surfaces (same pipelines but tensor bases / mOpCov initialization).
+- Run (single seed / local):
+  - Point estimation: `Rscript experiments/fpca2d.R --seed 1` (flags: `--compare` to run batch baselines, `--simple` for quick runs)
+  - Aggregation/analysis: `Rscript experiments/analyze_fpca2d.R`
+- CI variant:
+  - Per-seed CI runs: `./experiments/run_reps.sh experiments/ci-simu2d.R 100`
+  - Aggregate/plot CIs: `Rscript experiments/analyze_ci2d.R` (produces `ci2d-ci.pdf`)
+- Typical outputs (per seed):
+  - `experiments/fpca2d/simu_fpca2d_sdXXXX.csv`
+  - Example plot: `experiments/fpca2d/taupath-sim2d-<sgdtype>.pdf` (produced for canonical seeds)
+  - `experiments/ci2d/ci_ci2d_sdXXXX.RData` — similar `CIobj` format as 1D
+- Notes: 2D experiments rely on `external_codes/mOpCov/` for initialization and are more expensive than 1D.
+
+---
+
+### Confidence Interval Experiments (CI) 🧪
+- Scripts: `ci-simu1d.R` and `ci-simu2d.R`
+- Run: `Rscript experiments/ci-simu1d.R --seed <s>` or run via `run_reps.sh` for many seeds
+- Output: `experiments/ci1d/ci_ci1d_sdXXXX.RData` (and `ci2d` analog), with `CIobj` containing fields:
+  - `PhiStar`: numerically optimized FPCs
+  - `PhiTrue`: the truth used in simulation
+  - `CIs`: array of bootstrap/CI draws per FPC
+- Analysis: `Rscript experiments/analyze_ci1d.R` / `analyze_ci2d.R` → CI plots (`ci1d-ci.pdf`, `ci2d-ci.pdf`) and numerical summaries
+- Notes: CI runs set `fpcCI = TRUE` inside `fpca.sgd()` and compute global optima with ManifoldOptim for reference.
+
+---
+
+### Check mini-batch size (nbatch) ⚖️
+- Script: `check_nbatch.R` (produces results for a grid of `nBatch` values)
+- Run: `./experiments/run_reps.sh experiments/check_nbatch.R 100`
+- Output per seed: `experiments/abv1d/simu_abv1d_sdXXXX.csv` with columns like `seed, Method, epoch, nBatch, nBlock, tau, RMSEphi1, ...`
+- Analysis: `Rscript experiments/analyze_nbatch.R` (aggregates RMSEs by `nBatch` and produces tables/plots)
+- Notes: This uses parallel execution (`doFuture`) to sweep over `nBatch` values faster.
+
+---
+
+### Check dynamic tuning (ABV) and ABV plot 🔧
+- Script: `check_abv.R` (sweeps `nBlock` and `ewmabv.beta` values)
+- Run: `./experiments/run_reps.sh experiments/check_abv.R 100`
+- Outputs:
+  - `experiments/abv1d/simu_abv1d_sdXXXX.csv` — per-seed ABV results (epoch-wise RMSEs and chosen `tau`)
+  - `experiments/plot_abv.R` can produce diagnostic ABV path figures (e.g., `abv_paths.pdf`)
+- Analysis: `Rscript experiments/analyze_abv.R` (produces `abv_paths.pdf` and a summary table of RMSEs)
+- Notes: ABV experiments are useful to tune the ABV exponential-weight parameter and block-size choices.
+
+---
+
+### Check BWC (C, W, tau selection grid) 🧭
+- Script: `check_bwc.R` (iterates over a grid of `(C, W)` tuning parameters)
+- Run: `./experiments/run_reps.sh experiments/check_bwc.R 100`
+- Outputs:
+  - `experiments/bwc/simu_bwc_sdXXXX.csv` — contains columns `C`, `W`, and the usual RMSE metrics
+  - `experiments/bwc/bwcSet.csv` (saved when `seed==1`) documents the `(C,W)` grid used
+  - Per-seed `taupath_<basename>.csv` entries saved for debugging
+- Analysis: `Rscript experiments/analyze_bwc.R` (produces Table S1 and related plots)
+
+---
+
+### Data-driven simulations: GFR & AQI 🌍
+- Purpose: run realistic simulations using FPCs estimated from real datasets.
+
+- Preparation: `eigf_aqi.rds`, `eigval_aqi.rds`, `tgrid_aqi.rds` are required for AQI data simulation and `eigf_gfr.rds`, `eigval_gfr.rds` are needed for GFR data simulation. These files are generated in the real-data analysis.
+
+- GFR (kidney transplant): `experiments/simu_gfr.R`
+  - Run: `Rscript experiments/simu_gfr.R --seed 1` or use `run_reps.sh` for many seeds
+  - Outputs per seed: `experiments/gfr/simu_gfr_sdXXXX.csv`, and `experiments/gfr/Theta_gfr_sdXXXX.rds` (ThetaRecord / per-pass averaged FPCs)
+  - Analysis: `Rscript experiments/analyze_simu_gfr.R` → FPC plots and summary tables (`simu-gfr-fpc.pdf`)
+  - Note: GFR uses `gendata.gfr()` and can depend on the private CSV (`data/gfr/GFR2023Feb01.csv`) if you want to re-generate the original estimates.
+
+- AQI (EPA PM10): `experiments/simu_aqi.R`
+  - Run: `Rscript experiments/simu_aqi.R --seed 1` or `./experiments/run_reps.sh experiments/simu_aqi.R 100`
+  - Outputs per seed: `experiments/aqi/simu_aqi_sdXXXX.csv`, and `experiments/aqi/Theta_aqi_sdXXXX.rds`
+  - Analysis: `Rscript experiments/analyze_simu_aqi.R` → plots such as `simu-aqi-fpc.pdf`
+  - Note: AQI helper `gendata.aqi()` uses preprocessed `data/epa-aqs/aqi-us.Rda` included in the repo.
+

@@ -27,20 +27,6 @@ Top-level layout (important files/directories):
 
 ---
 
-## 🧰 Environment setup
-
-1. Recommended R (tested): R 4.5.0 (or a recent patch release).
-
-2. Install the packages used in the analyses:
-
-```bash
-Rscript install_pkgs.R
-```
-
-3. Make sure `data/` contains the required inputs. The (large) application datasets are not stored in the repo; if needed, place the original data files in `data/gfr/` and `data/epa-aqs/` as used by `application/gfr.R` and `application/aqi.R`.
-
----
-
 
 ## 🧪 Reproduce tables and figures
 
@@ -71,3 +57,52 @@ Rscript experiments/fpca2d.R --seed 1234 --compare 0 --simple 1
 - Figure S4, Table S2: RMSEs for different $\omega$ and block sizes. Run `check_abv.R` for `--seed` across 1~100. Then, run `analyze_abv.R` to produce the figure `abv_paths.pdf` and the table.
 
 - Table S3: RMSEs for different mini-batch sizes.  Run `check_nbatch.R` for `--seed` across 1~100. Then, run `analyze_nbatch.R` to produce the table.
+
+
+---
+
+## 🧰 Environment setup
+
+1. Recommended R (tested): R 4.5.0 (or a recent patch release).
+
+2. Install the packages used in the analyses:
+
+```bash
+Rscript install_pkgs.R
+```
+
+3. Make sure `data/` contains the required inputs. The (large) application datasets are not stored in the repo; if needed, place the original data files in `data/gfr/` and `data/epa-aqs/` as used by `application/gfr.R` and `application/aqi.R`.
+
+---
+
+## Tested Package Versions
+
+| Package | Version |
+|---|---|
+| argparse | 2.3.1 |
+| cowplot | 1.2.0 |
+| doFuture | 1.1.3 |
+| dplyr | 1.1.4 |
+| face | 0.1-8 |
+| fastmatrix | 0.6-4 |
+| fda | 6.3.0 |
+| fdapace | 0.6.0 |
+| foreach | 1.5.2 |
+| giscoR | 1.0.0 |
+| gslnls | 1.4.2 |
+| lubridate | 1.9.4 |
+| ManifoldOptim | 1.0.1 |
+| Metrics | 0.1.4 |
+| mgcv | 1.9-4 |
+| Rcpp | 1.1.0 |
+| Rdimtools | 1.1.3 |
+| readr | 2.1.6 |
+| readxl | 1.4.5 |
+| remotes | 2.5.0 |
+| RSpectra | 0.16-2 |
+| rTensor | 1.4.9 |
+| sf | 1.0-23 |
+| sm | 2.2-6.0 |
+| spData | 2.3.4 |
+| stringr | 1.6.0 |
+| tidyr | 1.3.2 |

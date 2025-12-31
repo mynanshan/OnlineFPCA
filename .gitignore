@@ -1,6 +1,9 @@
-data/
-.Rproj.user
+*.Rproj*
+*.Rhistory
 
+LICENSE
+
+data/
 logs/
 
 *.csv
