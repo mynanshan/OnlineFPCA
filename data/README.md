@@ -47,7 +47,7 @@ The preprocessing steps below are implemented in `application/aqi-eda.R` to prod
 * Liu, H., You, J., & Cao, J. (2023). Functional L-optimality subsampling for functional generalized linear models with massive data. Journal of Machine Learning Research, 24(219), 1-41.
 
 
-**Source file:** `data/gfr/GFR2023Feb01.csv` (not included in this repository. We have attached a rmarkdown::render("acc_form.Rmd", output_format = "pdf_document", output_file = "acc_form.pdf")`GFR-pseudo.csv` as a pseudo dataset for illustrative purposes.).
+**Source file:** `data/gfr/GFR2023Feb01.csv` (not included in this repository. We have attached a `GFR-pseudo.csv` as a pseudo dataset for illustrative purposes.).
 
 **File format and contents:**
 - Rows: one row per subject (e.g. 144,703 rows in the provided CSV).
