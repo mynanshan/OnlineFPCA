@@ -172,6 +172,8 @@ sqrtmObj <- pracma::sqrtm(as.matrix(G))
 sqrtG <- sqrtmObj$B
 sqrtGinv <- sqrtmObj$Binv
 
+perm <- get_commute_index(p, q)
+
 evalGrid <- seq(t0, t1, length.out = 241)
 clock_eval <- 6 + 24 * evalGrid
 
