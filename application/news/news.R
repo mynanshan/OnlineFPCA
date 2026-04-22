@@ -1,11 +1,11 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
-# SBATCH --job-name=news
-# SBATCH --output=logs/news_%j.out
-# SBATCH --time=48:00:00
-# SBATCH --nodes=1
-# SBATCH --ntasks=1
-# SBATCH --cpus-per-task=2
-# SBATCH --mem-per-cpu=4G
+#SBATCH --job-name=news
+#SBATCH --output=logs/news_%j.out
+#SBATCH --time=48:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem-per-cpu=4G
 
 suppressPackageStartupMessages({
   library(fda)

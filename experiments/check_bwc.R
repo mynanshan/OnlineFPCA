@@ -1,11 +1,11 @@
 #!/usr/bin/Rscript
-# SBATCH --job-name=test-bwc
-# SBATCH --output=logs/test-bwc_%j.out
-# SBATCH --time=2:00:00
-# SBATCH --nodes=1
-# SBATCH --ntasks=1
-# SBATCH --cpus-per-task=2
-# SBATCH --mem-per-cpu=8G
+#SBATCH --job-name=test-bwc
+#SBATCH --output=logs/test-bwc_%j.out
+#SBATCH --time=2:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem-per-cpu=8G
 
 parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."

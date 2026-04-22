@@ -1,11 +1,11 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
-# SBATCH --job-name=simu_aqi        # Job name
-# SBATCH --output=logs/simu_aqi_%j.out    # Standard output file (%j expands to jobID)
-# SBATCH --time=3:00:00                   # Maximum runtime (hh:mm:ss)
-# SBATCH --nodes=1
-# SBATCH --ntasks=1
-# SBATCH --cpus-per-task=4
-# SBATCH --mem-per-cpu=8G                 # Memory allocation
+#SBATCH --job-name=simu_aqi        # Job name
+#SBATCH --output=logs/simu_aqi_%j.out    # Standard output file (%j expands to jobID)
+#SBATCH --time=3:00:00                   # Maximum runtime (hh:mm:ss)
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem-per-cpu=8G                 # Memory allocation
 
 parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."

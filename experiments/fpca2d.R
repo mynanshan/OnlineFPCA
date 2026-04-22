@@ -1,11 +1,11 @@
 #!/usr/bin/Rscript
-# SBATCH --job-name=fpca2d
-# SBATCH --output=logs/fpca2d_%j.out
-# SBATCH --time=12:00:00
-# SBATCH --nodes=1
-# SBATCH --ntasks=1
-# SBATCH --cpus-per-task=4
-# SBATCH --mem-per-cpu=4G
+#SBATCH --job-name=fpca2d
+#SBATCH --output=logs/fpca2d_%j.out
+#SBATCH --time=12:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem-per-cpu=4G
 
 parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."

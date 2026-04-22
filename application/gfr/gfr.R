@@ -1,11 +1,11 @@
 #!/usr/bin/Rscript
-# SBATCH --job-name=gfr
-# SBATCH --output=logs/gfr_%j.out
-# SBATCH --time=48:00:00
-# SBATCH --nodes=1
-# SBATCH --ntasks=1
-# SBATCH --cpus-per-task=2
-# SBATCH --mem-per-cpu=4G
+#SBATCH --job-name=gfr
+#SBATCH --output=logs/gfr_%j.out
+#SBATCH --time=48:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem-per-cpu=4G
 
 library(fda)
 library(Matrix)
