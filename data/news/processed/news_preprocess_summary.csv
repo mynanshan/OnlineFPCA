@@ -1,0 +1,6 @@
+"step","count"
+"Rows in News_Final.csv",93239
+"Rows with aggregated feedback",88680
+"Morning news (0:00 <= publish < 6:00)",18976
+"Morning + total clicks >= 6",10259
+"Retained with 24 hourly observations on (6, 30]",10259
