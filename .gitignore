@@ -3,6 +3,13 @@
 
 LICENSE
 
+*.csv
+*.RData
+*.Rdata
+*.rds
+*.pdf
+*.eps
+
 logs/
 output/
 data/*
@@ -17,13 +24,6 @@ data/gfr/*
 data/news/*
 !data/news/processed
 !data/news/processed/*
-
-*.csv
-*.RData
-*.Rdata
-*.rds
-*.pdf
-*.eps
 
 sbatch_header.txt
 .positai
