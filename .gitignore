@@ -4,6 +4,19 @@
 LICENSE
 
 logs/
+output/
+data/*
+!data/epa-aqs/
+data/epa-aqs/*
+!data/epa-aqs/aqi-us.Rda
+!data/epa-aqs/siteinfo.xls
+!data/gfr/
+data/gfr/*
+!data/gfr/GFR-pseudo.csv
+!data/news
+data/news/*
+!data/news/processed
+!data/news/processed/*
 
 *.csv
 *.RData
