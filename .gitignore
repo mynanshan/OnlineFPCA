@@ -13,3 +13,4 @@ logs/
 *.eps
 
 sbatch_header.txt
+.positai

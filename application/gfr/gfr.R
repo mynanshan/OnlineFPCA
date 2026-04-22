@@ -380,7 +380,7 @@ if (compare) {
     G = 0.5,
     R = 1,
     Mcl = 1,
-    C = 1.5,
+    C0 = 1.5,
     verbose = TRUE,
     period = 1
   )
