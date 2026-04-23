@@ -32,7 +32,7 @@ forward_args=("$@")
 for (( seed=1; seed<=reps; seed++ )); do
   echo "Submitting simulation iteration $seed..."
   ## If using a cluster with `sbatch`, use the line below to run remotely:
-  # sbatch -- "$(realpath "$script")" --seed "$seed" "${forward_args[@]}"
+  sbatch -- "$(realpath "$script")" --seed "$seed" "${forward_args[@]}"
   ## If not on a cluster with `sbatch`, use the line below to run locally:
-  Rscript "$(realpath "$script")" --seed "$seed" "${forward_args[@]}"
+  # Rscript "$(realpath "$script")" --seed "$seed" "${forward_args[@]}"
 done
