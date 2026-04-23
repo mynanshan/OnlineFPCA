@@ -49,7 +49,7 @@ nBatch <- 5
 nParams <- 6
 nPass <- 50
 nBlock <- 20
-Ninit <- 200
+Ninit <- 500
 N <- 500
 nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
