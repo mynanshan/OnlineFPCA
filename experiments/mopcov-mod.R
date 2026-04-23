@@ -57,7 +57,7 @@ nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 stepsizeList <- c(0.2, 0.1, 0.05)
 # stepsize0 <- 0.1
-stepsize.min <- 1e-2
+stepsize.min <- 1e-3
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
 
