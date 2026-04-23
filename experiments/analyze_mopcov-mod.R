@@ -40,6 +40,7 @@ sumres <- res |>
 q <- 50
 N1 <- 500
 N0 <- N1 * seq(5, q, 5)
+N0 <- N1 * seq(1, q, 2)
 
 View(
   res |> filter(N %in% N0) |>

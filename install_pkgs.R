@@ -10,8 +10,8 @@ required_pkgs <- c(
   "foreach", "doFuture", "ManifoldOptim", "remotes"
 )
 # NOTE: date 2025-06-29
-# At present time, the newest RcppArnadillo is unstable
-# and it could make mOpCov fail, giving "index out of bound" error.
+# At the present time, the newest RcppArnadillo is unstable
+# and it could make mOpCov fail, giving "Mat::operator(): index out of bound" error.
 # Restore to an order version:
 pkg_install(required_pkgs)
 remotes::install_version("RcppArmadillo", version = "0.12.8.4.0")

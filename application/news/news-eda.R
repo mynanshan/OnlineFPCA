@@ -180,16 +180,18 @@ Lt_list <- lapply(subject_list, `[[`, "Lt")
 time_abs_list <- lapply(subject_list, `[[`, "time_abs")
 
 ## Smooth mean for centering (raw log-click scale)
-mean_fit <- smooth.spline(
-  x = unlist(Lt_list),
-  y = unlist(lapply(seq_len(nrow(log24_raw)), function(i) log24_raw[i, ])),
-  nknots = min(100L, minutes_total + 1L)
+mean_fit <- mgcv::bam(
+  y ~ s(x),
+  data = data.frame(
+    x = unlist(Lt_list),
+    y = unlist(lapply(seq_len(nrow(log24_raw)), function(i) log24_raw[i, ]))
+  )
 )
-mean_raw_eval <- predict(mean_fit, x = tgrid)$y
+mean_raw_eval <- predict(mean_fit, data.frame(x = tgrid)) |> as.vector() |> unname()
 
 Ly_raw <- lapply(seq_len(nrow(log24_raw)), function(i) as.numeric(log24_raw[i, ]))
 Ly_centered <- Map(function(y, tt) {
-  y - predict(mean_fit, x = tt)$y
+  y - predict(mean_fit, data.frame(x = tt)) |> as.vector() |> unname()
 }, Ly_raw, Lt_list)
 
 ysd <- sd(unlist(Ly_centered))

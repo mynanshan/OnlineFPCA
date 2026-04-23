@@ -211,11 +211,6 @@ for (noise_sd in noiseList) {
   sigma2Init <- max(mean((Yinit^2 - covInitEvalDiag[TidInit])[innerPoints]), 1e-3)
   end_time.init <- Sys.time()
 
-  norm_factor <- diag(t(ThetaInit) %*% G %*% ThetaInit)
-  ThetaInit <- sweep(ThetaInit, 2, sqrt(norm_factor), "/")
-  lambdaInit <- lambdaInit * norm_factor
-  PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
-
   nBlockIter <- nBlock / nBatch
   nIter1pass <- N / nBatch
 

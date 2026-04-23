@@ -21,7 +21,7 @@ result_olcov_file <- file.path(project_root, "application", "result_news_olcov.R
 out_dir <- file.path(project_root, "application")
 
 ## Subjects at which to show checkpoint figures
-checkpoint_subjects <- c(500, 2500, 5000)
+checkpoint_subjects <- c(1000, 2500, 5000)
 
 ## ================================================================
 ## Helpers
@@ -102,6 +102,7 @@ if (has_compare) {
   PhiEst.ll <- PhiEst.ll[, ord, drop = FALSE]
   PhiEstAll.ll <- PhiEstAll.ll[, ord, , drop = FALSE]
   lambdaEst.ll <- lambdaEst.ll[ord]
+  clock_eval_short <- seq(clock_eval[1], tail(clock_eval, 1), length.out = dim(PhiEstAll.ll)[1])
 }
 if (has_uq) {
   resCI <- resCI[, ord, , , drop = FALSE]
@@ -152,6 +153,7 @@ dev.off()
 ## ================================================================
 add_ci <- has_uq
 npanel <- length(cp_idx) * q
+ci_sub_id <- 6 * seq(0, length(clock_eval)-1) + 1
 pdf(file = file.path(out_dir, "news_eigfun.pdf"), width = 8.2, height = 6.8)
 layout(
   mat = matrix(c(seq_len(npanel), rep(npanel + 1L, q)), byrow = TRUE,
@@ -188,13 +190,13 @@ for (ii in seq_along(cp_idx)) {
     )
     axis(1, at = seq(6, 30, by = 6), labels = FALSE)
     if (has_compare) {
-      lines(clock_eval, phik.compare, lwd = 3, lty = 4, col = "#1A73A0")
+      lines(clock_eval_short, phik.compare, lwd = 3, lty = 4, col = "#1A73A0")
     }
     if (add_ci) {
       ci_idx <- nearest_indices(cp_subjects[ii], match_record_grid(PhiAvgAll.uq, record_subjects.uq, N, nBlock))[1]
-      phik.l <- resCI[, jj, 1, ci_idx]
-      phik.m <- resCI[, jj, 2, ci_idx]
-      phik.u <- resCI[, jj, 3, ci_idx]
+      phik.l <- resCI[ci_sub_id, jj, 1, ci_idx]
+      phik.m <- resCI[ci_sub_id, jj, 2, ci_idx]
+      phik.u <- resCI[ci_sub_id, jj, 3, ci_idx]
       if (
         inprod(
           smooth.basis(seq(0, 1, length.out = length(phik.m)), phik.m, basis)$fd,
@@ -212,7 +214,7 @@ for (ii in seq_along(cp_idx)) {
       )
       lines(clock_eval, phik.est, lwd = 3, col = "#A21B2D")
       if (has_compare) {
-        lines(clock_eval, phik.compare, lwd = 3, lty = 4, col = "#1A73A0")
+        lines(clock_eval_short, phik.compare, lwd = 3, lty = 4, col = "#1A73A0")
       }
     }
 
