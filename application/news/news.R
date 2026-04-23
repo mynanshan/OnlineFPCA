@@ -72,20 +72,6 @@ subset_stream_dat <- function(dat, idx) {
   )
 }
 
-make_generator <- function(dat, Nmax) {
-  force(dat)
-  force(Nmax)
-  function(n, total_count) {
-    idx <- seq.int(total_count, min(total_count + n - 1, Nmax))
-    list(
-      Ly = dat$Ly[idx],
-      Ltid = dat$Ltid[idx],
-      Lt = dat$Lt[idx],
-      Lmi = dat$Lmi[idx]
-    )
-  }
-}
-
 make_init_matrix <- function(dat, idx, xout) {
   t(vapply(idx, function(i) {
     approx(
@@ -137,7 +123,16 @@ if (N < N_total) {
 }
 
 dat <- subset_stream_dat(dat_all, seq_len(N))
-fdata_generator <- make_generator(dat, N)
+
+fdata_generator <- function(n, total_count) {
+  idx <- (total_count):(total_count + n - 1) %% N + 1
+  return(list(
+    Ly = dat$Ly[idx],
+    Ltid = dat$Ltid[idx],
+    Lt = dat$Lt[idx],
+    Lmi = dat$Lmi[idx]
+  ))
+}
 
 message("Loaded ", N_total, " preprocessed subjects.")
 message("Using ", N, " subjects in the online run.")
