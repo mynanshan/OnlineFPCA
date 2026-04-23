@@ -48,7 +48,7 @@ noiseList <- c(0.1)
 nBatch <- 5
 nParams <- 6
 nPass <- 20
-nBlock <- 100
+nBlock <- 20
 Ninit <- 200
 N <- 500
 nIters.1pass <- seq(nBlock, N, nBlock)
