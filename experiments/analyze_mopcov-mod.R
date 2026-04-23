@@ -37,7 +37,7 @@ sumres <- res |>
   group_by(Method, noise, StepSize) |>
   mutate(SumTime = cumsum(Time_mean))
 
-q <- 20
+q <- 50
 N1 <- 500
 N0 <- N1 * seq(5, q, 5)
 
