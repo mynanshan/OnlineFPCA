@@ -423,9 +423,9 @@ for (noise_sd in noiseList) {
   if (compare) {
     batch_start <- Sys.time()
     CovRes <- mOpCov(
-      location = do.call(rbind, dat$Lmi),
+      location = do.call(rbind, dat$Lt),
       x = unlist(dat$Ly),
-      subject = rep(1:N, times = sapply(dat$Ly, length)),
+      subject = rep(1:N, times = dat$Lmi),
       q = c(6, 6),
       lam = list(lam = 1e-10, alpha = 1e-6),
       ker = "cos"
