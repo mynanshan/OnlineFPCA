@@ -57,7 +57,7 @@ nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
 stepsizeList <- c(0.2, 0.1, 0.05)
 # stepsize0 <- 0.1
-stepsize.min <- 1e-4
+stepsize.min <- 1e-2
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
 
@@ -172,50 +172,12 @@ for (noise_sd in noiseList) {
   message("Start OnlineFPCA ---------------")
 
   start_time.init <- Sys.time()
-  Yinit <- dat$Ly[1:Ninit]
-  Tinit <- dat$Lt[1:Ninit]
-  LmiInit <- dat$Lmi[1:Ninit]
-  TidInit <- dat$Ltid[1:Ninit]
-  nsub <- round((LmiInit + runif(Ninit, min = -0.1, max = 0.1)) * 0.5)
-  nsub <- pmax(nsub, 4)
-  nsub <- pmin(nsub, 20)
-  nsub <- pmin(nsub, LmiInit)
-  sampleIds <- mapply(
-    \(mi, mi_sub) {
-      sort(sample(1:mi, mi_sub))
-    },
-    LmiInit,
-    nsub
-  )
-  Yinit <- unlist(mapply(
-    \(yi, ids) {
-      yi[ids]
-    },
-    Yinit,
-    sampleIds
-  ))
-  Tinit <- do.call(
-    rbind,
-    mapply(
-      \(ti, ids) {
-        ti[ids, ]
-      },
-      Tinit,
-      sampleIds
-    )
-  )
-  TidInit <- unlist(mapply(
-    \(tid, ids) {
-      tid[ids]
-    },
-    TidInit,
-    sampleIds
-  ))
-  subject_ids <- rep(1:Ninit, times = nsub)
+  Yinit <- unlist(dat$Ly[1:Ninit])
+  TidInit <- unlist(dat$Ltid[1:Ninit])
   CovRes <- mOpCov(
-    location = Tinit,
+    location = do.call(rbind, dat$Lt[1:Ninit]),
     x = Yinit,
-    subject = subject_ids,
+    subject = rep(1:Ninit, dat$Lmi[1:Ninit]),
     q = c(6, 6),
     lam = list(lam = 1e-10, alpha = 1e-6),
     ker = "cos"
