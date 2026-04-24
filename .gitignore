@@ -9,6 +9,7 @@ LICENSE
 *.rds
 *.pdf
 *.eps
+*.txt
 
 logs/
 output/
