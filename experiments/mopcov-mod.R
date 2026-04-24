@@ -47,7 +47,7 @@ Rcpp::sourceCpp(paste0(mOpCov_path, "mOpCov_cpp.cpp"))
 noiseList <- c(0.1)
 nBatch <- 5
 nParams <- 6
-nPass <- 50
+nPass <- 20
 nBlock <- 20
 Ninit <- 200
 N <- 500
