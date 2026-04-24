@@ -49,13 +49,14 @@ nBatch <- 5
 nParams <- 6
 nPass <- 50
 nBlock <- 20
-Ninit <- 500
+Ninit <- 200
 N <- 500
 nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsizeList <- c(0.2, 0.1, 0.05)
+# stepsizeList <- c(0.2, 0.1, 0.05)
+stepsizeList <- c(1, 0.5, 0.2)
 # stepsize0 <- 0.1
 stepsize.min <- 1e-3
 nRoundNoTune <- 1
