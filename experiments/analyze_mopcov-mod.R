@@ -31,6 +31,7 @@ res <- res |>
   )
 
 sumres <- res |>
+  # filter(!(StepSize %in% c(0.5, 1))) |> 
   group_by(Method, noise, StepSize, N) |>
   summarise_at(vars(Time, RMSEphi1.avg, RMSEphi2.avg, RMSEphi3.avg), list(mean = mean)) |>
   ungroup() |>
