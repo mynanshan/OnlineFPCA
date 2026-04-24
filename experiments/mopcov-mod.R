@@ -55,8 +55,7 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-# stepsizeList <- c(0.2, 0.1, 0.05)
-stepsizeList <- c(1, 0.5, 0.2)
+stepsizeList <- c(0.3, 0.2, 0.1)
 # stepsize0 <- 0.1
 stepsize.min <- 1e-3
 nRoundNoTune <- 1
@@ -117,7 +116,7 @@ evalGridListSmall <- lapply(1:rp$ndim, \(d) {
 })
 evalGridSmall <- margins2grid(evalGridListSmall)
 
-q <- npc <- 3
+q <- npc <- 5
 
 # set B-spline basis
 nbasis1d <- 7
