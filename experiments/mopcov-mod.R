@@ -89,7 +89,7 @@ res <- data.frame(
 
 set.seed(seed)
 
-rp <- get_rp.wang2020(alpha = 2)
+rp <- get_rp.wang2020(alpha = 2, r1 = 2, r2 = 2)
 m_min <- NULL
 m_max <- NULL
 m_mean <- 25
@@ -116,7 +116,7 @@ evalGridListSmall <- lapply(1:rp$ndim, \(d) {
 })
 evalGridSmall <- margins2grid(evalGridListSmall)
 
-q <- npc <- 5
+q <- npc <- 3
 
 # set B-spline basis
 nbasis1d <- 7
