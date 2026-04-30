@@ -428,6 +428,8 @@ for (noise_sd in noiseList) {
 
   ## Batch FPCA ------------------------
   if (compare) {
+
+    # SOAP -------------------
     batch_start <- Sys.time()
     fitBatch <- fpca.reg(
       dat$Ly,
@@ -472,7 +474,59 @@ for (noise_sd in noiseList) {
         RMSEphi3.avg = rmseBatch[3]
       )
     )
-  }
+
+    # mOpCov -----------------------
+    Nsmalls <- c(200, 300, 400, 500)
+    for (Nsmall in Nsmalls) {
+      batch_start <- Sys.time()
+      CovRes <- mOpCov(
+        location = do.call(rbind, dat$Lt[1:Nsmall]),
+        x = unlist(dat$Ly[1:Nsmall]),
+        subject = rep(1:Nsmall, times = dat$Lmi[1:Nsmall]),
+        q = c(6, 6),
+        lam = list(lam = 1e-10, alpha = 1e-6),
+        ker = "cos"
+      )
+      FpcaOut <- fpca.mOpCov(OUT = CovRes)
+      lambdaBatch <- FpcaOut$Eigen$values[1:q]
+      PhiBatchEvalFull <- computeEigen(evalGrid, CovRes, FpcaOut)
+      PhiBatchEval <- PhiBatchEvalFull[, 1:q]
+      ThetaBatch <- smooth_basis(
+        evalGrid,
+        PhiBatchEval,
+        basis,
+        lambda = 1e-8
+      )$coefs
+      norm_factor <- diag(t(ThetaBatch) %*% G %*% ThetaBatch)
+      ThetaBatch <- sweep(ThetaBatch, 2, sqrt(norm_factor), "/")
+      lambdaBatch <- lambdaBatch * norm_factor
+      PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
+      PhiBatchEval <- flip_direc(PhiBatchEval, PhiTrueEval[, 1:q])
+      flipId <- attributes(PhiBatchEval)$flipped
+      ThetaBatch[, flipId] <- -ThetaBatch[, flipId]
+      batch_end <- Sys.time()
+      
+      rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:q])^2))
+      res <- rbind(
+        res,
+        data.frame(
+          noise = noise_sd,
+          seed = seed,
+          Method = paste0("Batch-mOpCov-N", Nsmall),
+          StepSize = NA,
+          N = Nsmall,
+          nBatch = N,
+          Time = difftime(batch_end, batch_start, units = "secs"),
+          RMSEphi1 = rmseBatch[1],
+          RMSEphi2 = rmseBatch[2],
+          RMSEphi3 = rmseBatch[3],
+          RMSEphi1.avg = rmseBatch[1],
+          RMSEphi2.avg = rmseBatch[2],
+          RMSEphi3.avg = rmseBatch[3]
+        )
+      )
+    } # end all Nsmall
+  } # end competing method
 }
 
 
