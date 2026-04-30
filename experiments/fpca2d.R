@@ -1,4 +1,4 @@
-#!/usr/bin/Rscript
+#!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
 #SBATCH --job-name=fpca2d
 #SBATCH --output=logs/fpca2d_%j.out
 #SBATCH --time=12:00:00
