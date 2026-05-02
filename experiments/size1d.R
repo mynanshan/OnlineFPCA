@@ -1,7 +1,7 @@
 #!Rscript
 #SBATCH --job-name=fpca1d
 #SBATCH --output=logs/fpca1d_%j.out
-#SBATCH --time=12:00:00
+#SBATCH --time=3:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
