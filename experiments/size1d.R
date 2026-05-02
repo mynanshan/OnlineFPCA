@@ -520,7 +520,7 @@ for (noise_sd in noiseList) {
       # Batch method 3: REML ----------------------------------------------------
       message("N =", Nsmall)
       tmpdat <- cbind(
-        rep(1:Nsmall, dat$Lmi),
+        rep(1:Nsmall, dat$Lmi[1:Nsmall]),
         unlist(dat$Ly[1:Nsmall]),
         unlist(dat$Lt[1:Nsmall])
       )
