@@ -1,7 +1,7 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
 #SBATCH --job-name=size1d
 #SBATCH --output=logs/size1d_%j.out
-#SBATCH --time=3:00:00
+#SBATCH --time=6:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
@@ -330,10 +330,12 @@ for (noise_sd in noiseList) {
         )
         rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
   
-        times <- c(
+        times <- if (nPass == 1) {
+          colSums(fit$time.history[, 1:nIter1pass])
+        } else {c(
           colSums(fit$time.history[, 1:nIter1pass]),
           fit$time.history[1, (nIter1pass + 1):(nPass * nIter1pass)]
-        )
+        )}
         times <- colSums(matrix(times, nrow = nBlockIter))
         times <- c(difftime(end_time.init, start_time.init, units = "secs"), times)
   
@@ -380,8 +382,10 @@ for (noise_sd in noiseList) {
   } # endif algo==1
 
   if (algo == 2) {
+    message("Starting PACE.")
     for (Nsmall in Nsmalls) {
       # Batch method 1: PACE ----------------------------------------------------
+      message("N =", Nsmall)
       batch_start <- Sys.time()
       fitBatch <- fdapace::FPCA(
         dat$Ly[1:Nsmall],
@@ -442,12 +446,13 @@ for (noise_sd in noiseList) {
   } # endif algo==2
 
   if (algo == 3) {
+    message("Starting FACE.")
     for (Nsmall in Nsmalls) {
       # Batch method 2: FACE ----------------------------------------------------
-  
+      message("N =", Nsmall)
       tmpdat <- data.frame(
         argvals = unlist(dat$Lt[1:Nsmall]),
-        subj = rep(1:Nsmall, dat$Lmi),
+        subj = rep(1:Nsmall, dat$Lmi[1:Nsmall]),
         y = unlist(dat$Ly[1:Nsmall])
       )
       batch_start <- Sys.time()
@@ -510,8 +515,10 @@ for (noise_sd in noiseList) {
   } # endif algo==3
 
   if (algo == 4) {
+    message("Starting REML.")
     for (Nsmall in Nsmalls) {
       # Batch method 3: REML ----------------------------------------------------
+      message("N =", Nsmall)
       tmpdat <- cbind(
         rep(1:Nsmall, dat$Lmi),
         unlist(dat$Ly[1:Nsmall]),
@@ -580,9 +587,11 @@ for (noise_sd in noiseList) {
   } # endif algo==4
 
   if (algo == 5) {
+    message("Starting SOAP.")
     inits_soap <- inits
     for (Nsmall in Nsmalls) {
       # Batch method 4: SOAP ------------------------------------------
+      message("N =", Nsmall)
       batch_start <- Sys.time()
       fitBatch <- fpca.reg(
         dat$Ly[1:Nsmall],
