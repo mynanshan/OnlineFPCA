@@ -37,6 +37,7 @@ algo <- as.integer(args[["algo"]])
 
 
 cat("========= Start Experiment ( Seed =", seed, ")\n")
+cat("Algo: ", algo, "\n")
 
 library(fda)
 library(Matrix)
