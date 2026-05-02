@@ -1,11 +1,11 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
-#SBATCH --job-name=mopcov
-#SBATCH --output=logs/mopcov_%j.out
-#SBATCH --time=06:00:00
+#SBATCH --job-name=fpca2d
+#SBATCH --output=logs/fpca2d_%j.out
+#SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
-#SBATCH --mem-per-cpu=8G
+#SBATCH --mem-per-cpu=4G
 
 parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."
@@ -23,9 +23,17 @@ parser$add_argument(
   choices = c(0, 1),
   help = "Whether to run competing methods."
 )
+parser$add_argument(
+  "--simple",
+  type = "integer",
+  default = 0,
+  choices = c(0, 1),
+  help = "Whether to simplify experiment settings."
+)
 args <- parser$parse_args()
 seed <- as.integer(args[["seed"]])
 compare <- as.logical(args[["compare"]])
+simple <- as.logical(args[["simple"]])
 
 library(fda)
 library(Matrix)
@@ -43,25 +51,25 @@ mOpCov_path <- "external_codes/mOpCov/"
 source(paste0(mOpCov_path, "mOpCov_prep.R"))
 Rcpp::sourceCpp(paste0(mOpCov_path, "mOpCov_cpp.cpp"))
 
-# noiseList <- c(0.1, 0.5, 1.)
-noiseList <- c(0.1)
+noiseList <- c(0.1, 0.5, 1.)
 nBatch <- 5
 nParams <- 6
-nPass <- 30
-nBlock <- 20
-Ninit <- 200
-N <- 500
+nPass <- 5
+nBlock <- 100
+Ninit <- 100
+N <- 5000
 nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsizeList <- c(0.3, 0.2, 0.1)
+# stepsizeList <- c(0.2, 0.1, 0.05)
+stepsizeList <- c(0.1)
 # stepsize0 <- 0.1
-stepsize.min <- 1e-3
+stepsize.min <- 1e-4
 nRoundNoTune <- 1
 nRoundTune <- nRecord.1pass - nRoundNoTune
 
-exprmt <- "fpca2d-mod"
+exprmt <- "fpca2d"
 dirpath <- file.path("experiments", exprmt)
 if (!dir.exists(dirpath)) {
   dir.create(dirpath, recursive = TRUE)
@@ -89,7 +97,7 @@ res <- data.frame(
 
 set.seed(seed)
 
-rp <- get_rp.wang2020(alpha = 2, r1 = 2, r2 = 2)
+rp <- get_rp.wang2020(alpha = 2)
 m_min <- NULL
 m_max <- NULL
 m_mean <- 25
@@ -172,12 +180,50 @@ for (noise_sd in noiseList) {
   message("Start OnlineFPCA ---------------")
 
   start_time.init <- Sys.time()
-  Yinit <- unlist(dat$Ly[1:Ninit])
-  TidInit <- unlist(dat$Ltid[1:Ninit])
+  Yinit <- dat$Ly[1:Ninit]
+  Tinit <- dat$Lt[1:Ninit]
+  LmiInit <- dat$Lmi[1:Ninit]
+  TidInit <- dat$Ltid[1:Ninit]
+  nsub <- round((LmiInit + runif(Ninit, min = -0.1, max = 0.1)) * 0.5)
+  nsub <- pmax(nsub, 4)
+  nsub <- pmin(nsub, 20)
+  nsub <- pmin(nsub, LmiInit)
+  sampleIds <- mapply(
+    \(mi, mi_sub) {
+      sort(sample(1:mi, mi_sub))
+    },
+    LmiInit,
+    nsub
+  )
+  Yinit <- unlist(mapply(
+    \(yi, ids) {
+      yi[ids]
+    },
+    Yinit,
+    sampleIds
+  ))
+  Tinit <- do.call(
+    rbind,
+    mapply(
+      \(ti, ids) {
+        ti[ids, ]
+      },
+      Tinit,
+      sampleIds
+    )
+  )
+  TidInit <- unlist(mapply(
+    \(tid, ids) {
+      tid[ids]
+    },
+    TidInit,
+    sampleIds
+  ))
+  subject_ids <- rep(1:Ninit, times = nsub)
   CovRes <- mOpCov(
-    location = do.call(rbind, dat$Lt[1:Ninit]),
+    location = Tinit,
     x = Yinit,
-    subject = rep(1:Ninit, dat$Lmi[1:Ninit]),
+    subject = subject_ids,
     q = c(6, 6),
     lam = list(lam = 1e-10, alpha = 1e-6),
     ker = "cos"
@@ -210,6 +256,11 @@ for (noise_sd in noiseList) {
   covInitEvalDiag <- as.vector(PhiInitEvalFull^2 %*% FpcaOut$Eigen$values)
   sigma2Init <- max(mean((Yinit^2 - covInitEvalDiag[TidInit])[innerPoints]), 1e-3)
   end_time.init <- Sys.time()
+
+  norm_factor <- diag(t(ThetaInit) %*% G %*% ThetaInit)
+  ThetaInit <- sweep(ThetaInit, 2, sqrt(norm_factor), "/")
+  lambdaInit <- lambdaInit * norm_factor
+  PhiInitEval <- eval_fd(evalGrid, FuncData(ThetaInit, basis))
 
   nBlockIter <- nBlock / nBatch
   nIter1pass <- N / nBatch
@@ -376,47 +427,46 @@ for (noise_sd in noiseList) {
     } # end of all sgdtype
   } # end of all step sizes
 
-  ## Batch FPCA: mOpCov ------------------------
+  ## Batch FPCA ------------------------
   if (compare) {
+
+    # SOAP -------------------
     batch_start <- Sys.time()
-    CovRes <- mOpCov(
-      location = do.call(rbind, dat$Lt),
-      x = unlist(dat$Ly),
-      subject = rep(1:N, times = dat$Lmi),
-      q = c(6, 6),
-      lam = list(lam = 1e-10, alpha = 1e-6),
-      ker = "cos"
+    fitBatch <- fpca.reg(
+      dat$Ly,
+      dat$Ltid,
+      inits = list(
+        Theta = ThetaInit,
+        lambda = lambdaInit,
+        sigma2 = sigma2Init
+      ),
+      meanfun = FALSE,
+      npc = q,
+      maxIter = 100,
+      nu = 0.5,
+      verbose = FALSE,
+      record_iterations = TRUE,
+      tau = 10^seq(-9, -4, 1),
+      use_validation_set = FALSE,
+      refine_alpha = FALSE
     )
-    FpcaOut <- fpca.mOpCov(OUT = CovRes)
-    lambdaBatch <- FpcaOut$Eigen$values[1:q]
-    PhiBatchEvalFull <- computeEigen(evalGrid, CovRes, FpcaOut)
-    PhiBatchEval <- PhiBatchEvalFull[, 1:q]
-    ThetaBatch <- smooth_basis(
-      evalGrid,
-      PhiBatchEval,
-      basis,
-      lambda = 1e-8
-    )$coefs
-    norm_factor <- diag(t(ThetaBatch) %*% G %*% ThetaBatch)
-    ThetaBatch <- sweep(ThetaBatch, 2, sqrt(norm_factor), "/")
-    lambdaBatch <- lambdaBatch * norm_factor
+    ThetaBatch <- fitBatch$Theta
+    muBatchEval <- eval_fd(evalGrid, FuncData(fitBatch$theta_mu, basis))
     PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
-    PhiBatchEval <- flip_direc(PhiBatchEval, PhiTrueEval[, 1:q])
-    flipId <- attributes(PhiBatchEval)$flipped
-    ThetaBatch[, flipId] <- -ThetaBatch[, flipId]
+    PhiBatchEval <- match_fpc(PhiBatchEval, PhiTrueEval[, 1:q, drop = F])
     batch_end <- Sys.time()
-    
     rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:q])^2))
     res <- rbind(
       res,
       data.frame(
         noise = noise_sd,
         seed = seed,
-        Method = "Batch-mOpCov",
+        Method = "Batch-SOAP",
         StepSize = NA,
         N = N,
         nBatch = N,
-        Time = difftime(batch_end, batch_start, units = "secs"),
+        Time = difftime(batch_end, batch_start, units = "secs") +
+          difftime(end_time.init, start_time.init, units = "secs"),
         RMSEphi1 = rmseBatch[1],
         RMSEphi2 = rmseBatch[2],
         RMSEphi3 = rmseBatch[3],
@@ -425,13 +475,66 @@ for (noise_sd in noiseList) {
         RMSEphi3.avg = rmseBatch[3]
       )
     )
-  }
+
+    # mOpCov -----------------------
+    # Nsmalls <- c(200, 300, 400, 500)
+    Nsmalls <- c(200, 500)
+    for (Nsmall in Nsmalls) {
+      batch_start <- Sys.time()
+      CovRes <- mOpCov(
+        location = do.call(rbind, dat$Lt[1:Nsmall]),
+        x = unlist(dat$Ly[1:Nsmall]),
+        subject = rep(1:Nsmall, times = dat$Lmi[1:Nsmall]),
+        q = c(6, 6),
+        lam = list(lam = 1e-10, alpha = 1e-6),
+        ker = "cos"
+      )
+      FpcaOut <- fpca.mOpCov(OUT = CovRes)
+      lambdaBatch <- FpcaOut$Eigen$values[1:q]
+      PhiBatchEvalFull <- computeEigen(evalGrid, CovRes, FpcaOut)
+      PhiBatchEval <- PhiBatchEvalFull[, 1:q]
+      ThetaBatch <- smooth_basis(
+        evalGrid,
+        PhiBatchEval,
+        basis,
+        lambda = 1e-8
+      )$coefs
+      norm_factor <- diag(t(ThetaBatch) %*% G %*% ThetaBatch)
+      ThetaBatch <- sweep(ThetaBatch, 2, sqrt(norm_factor), "/")
+      lambdaBatch <- lambdaBatch * norm_factor
+      PhiBatchEval <- eval_fd(evalGrid, FuncData(ThetaBatch, basis))
+      PhiBatchEval <- flip_direc(PhiBatchEval, PhiTrueEval[, 1:q])
+      flipId <- attributes(PhiBatchEval)$flipped
+      ThetaBatch[, flipId] <- -ThetaBatch[, flipId]
+      batch_end <- Sys.time()
+      
+      rmseBatch <- sqrt(colMeans((PhiBatchEval - PhiTrueEval[, 1:q])^2))
+      res <- rbind(
+        res,
+        data.frame(
+          noise = noise_sd,
+          seed = seed,
+          Method = paste0("Batch-mOpCov-N", Nsmall),
+          StepSize = NA,
+          N = Nsmall,
+          nBatch = N,
+          Time = difftime(batch_end, batch_start, units = "secs"),
+          RMSEphi1 = rmseBatch[1],
+          RMSEphi2 = rmseBatch[2],
+          RMSEphi3 = rmseBatch[3],
+          RMSEphi1.avg = rmseBatch[1],
+          RMSEphi2.avg = rmseBatch[2],
+          RMSEphi3.avg = rmseBatch[3]
+        )
+      )
+    } # end all Nsmall
+  } # end competing method
 }
 
 
 # End experiment ----------------------------------------------------------
 
-readr::write_csv(res, file.path(dirpath, filename))
+if (!simple) readr::write_csv(res, file.path(dirpath, filename))
 
 message("Finishing replication: ", seed)
 set.seed(NULL)

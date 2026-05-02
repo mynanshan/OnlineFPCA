@@ -62,7 +62,8 @@ nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
 nRecord.1pass <- round(N / nBlock)
 nRecord <- length(nIters)
-stepsizeList <- c(0.2, 0.1, 0.05, 0.02)
+# stepsizeList <- c(0.2, 0.1, 0.05)
+stepsizeList <- c(0.1)
 # stepsize0 <- 0.1
 stepsize.min <- 1e-4
 nRoundNoTune <- 1
@@ -476,7 +477,8 @@ for (noise_sd in noiseList) {
     )
 
     # mOpCov -----------------------
-    Nsmalls <- c(200, 300, 400, 500)
+    # Nsmalls <- c(200, 300, 400, 500)
+    Nsmalls <- c(200, 500)
     for (Nsmall in Nsmalls) {
       batch_start <- Sys.time()
       CovRes <- mOpCov(
