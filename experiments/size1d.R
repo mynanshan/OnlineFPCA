@@ -264,7 +264,7 @@ for (noise_sd in noiseList) {
           adareset = 25 * nBlockIter,
           adareset.end = nIter1pass,
           asgd.start = 25 * nBlockIter + 1,
-          asgd.reset = Inf,
+          asgd.reset = 50 * nBlockIter,
           asgd.reset.end = nIter1pass,
           asgd.end = Inf,
           nIter.1stTune = nRoundNoTune * nBlockIter,
