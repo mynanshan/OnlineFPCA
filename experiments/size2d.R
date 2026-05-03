@@ -50,7 +50,7 @@ parser$add_argument(
 parser$add_argument(
   "--mopcov-max-obs",
   type = "integer",
-  default = 15000,
+  default = 20000,
   help = "Largest number of total observations allowed for mOpCov. Use <=0 to disable this guard."
 )
 args <- parser$parse_args()
@@ -510,7 +510,7 @@ for (noise_sd in noiseList) {
             RMSEphi1.avg = rmseAll.avg[, 1],
             RMSEphi2.avg = rmseAll.avg[, 2],
             RMSEphi3.avg = rmseAll.avg[, 3],
-            tau = tau_path$tau_path[1:nrow(rmseAll)]
+            tau = tau_path$tau_path[seq_len(rmseAll)]
           )
         )
 
