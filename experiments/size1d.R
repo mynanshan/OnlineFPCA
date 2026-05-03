@@ -65,7 +65,7 @@ nParams <- 6
 nPass <- 1
 nBlock <- 100
 initMethod <- "face"
-N <- 25000
+N <- 20000
 Nsmalls <- c(200, 500, seq(1000, N, 1000))
 nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
@@ -273,7 +273,7 @@ for (noise_sd in noiseList) {
           adareset.end = Inf,
           asgd.start = 10 * nBlockIter + 1,
           asgd.reset = 20 * nBlockIter,
-          asgd.reset.end = 50 * nBlockIter,
+          asgd.reset.end = 90 * nBlockIter,
           asgd.end = Inf,
           nIter.1stTune = nRoundNoTune * nBlockIter,
           nIter.lastTune = nIter1pass,
