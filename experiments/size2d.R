@@ -58,6 +58,11 @@ seed <- as.integer(args[["seed"]])
 Ninit <- as.integer(args[["ninit"]])
 N <- as.integer(args[["N"]])
 algo <- as.integer(args[["algo"]])
+model_name <- c(
+  "1" = "OnlineFPCA",
+  "2" = "SOAP",
+  "3" = "mOpCov"
+)[as.character(algo)]
 mOpCov.maxN <- as.integer(args[["mopcov_max_n"]])
 mOpCov.maxObs <- as.integer(args[["mopcov_max_obs"]])
 if (mOpCov.maxN <= 0) mOpCov.maxN <- Inf
@@ -78,6 +83,7 @@ Nsmalls.arg <- parse_integer_list(args[["nsmall"]])
 
 cat("========= Start Experiment ( Seed =", seed, ")\n")
 cat("Algo: ", algo, "\n")
+cat("Model: ", model_name, "\n")
 cat("N: ", N, "\n")
 cat("Ninit: ", Ninit, "\n")
 
@@ -367,14 +373,14 @@ for (noise_sd in noiseList) {
   }
 
   if (algo == 1) {
-    message("Start OnlineFPCA ---------------")
+    message("Starting model: OnlineFPCA.")
 
     for (stepsize0 in stepsizeList) {
       sgd_lr0 <- stepsize0 / g_Theta_init_norm
       message("> Step size = ", stepsize0)
 
       for (sgdtype in c("sgd", "adagrad")) {
-        message(">>> sgdtype = ", sgdtype)
+        message(">>> Using model: OnlineFPCA-", sgdtype)
 
         fit <- fpca.sgd(
           fdata_generator,
@@ -417,7 +423,7 @@ for (noise_sd in noiseList) {
           nIter.tauNoIncrease = floor(0.3 * nIter1pass),
           period.tune = nBlockIter,
           period.record = nBlockIter,
-          verbose = TRUE
+          verbose = FALSE
         )
 
         tau.min <- fit$tau.min
@@ -507,31 +513,16 @@ for (noise_sd in noiseList) {
           )
         )
 
-        if (seed == 1234 && noise_sd == 0.1) {
-          pdf(
-            file.path(dirpath, paste0("taupath-sim2d-", sgdtype, ".pdf")),
-            width = 8, height = 5
-          )
-          do.call(
-            plot.tau_path2,
-            list(
-              tau.history = fit$tau.select$tau.history,
-              tau.selectId = fit$tau.select$tau.selectId,
-              final.id = l, nbatch_per_block = nBlock / nBatch
-            )
-          )
-          dev.off()
-        }
       } # end of all sgdtype
     } # end of all step sizes
   } # endif algo==1
 
   ## Batch FPCA ------------------------
   if (algo == 2) {
-    message("Starting SOAP.")
+    message("Starting model: SOAP.")
     inits_soap <- inits
     for (Nsmall in Nsmalls) {
-      message("N = ", Nsmall)
+      message("Using model: SOAP; Nsmall = ", Nsmall)
       batch_start <- Sys.time()
       fitBatch <- fpca.reg(
         dat$Ly[1:Nsmall],
@@ -582,10 +573,10 @@ for (noise_sd in noiseList) {
   } # endif algo==2
 
   if (algo == 3) {
-    message("Starting mOpCov.")
+    message("Starting model: mOpCov.")
     for (Nsmall in Nsmalls) {
       if (!mopcov_size_ok(Nsmall, dat$Lmi, "Batch-mOpCov")) next
-      message("N = ", Nsmall)
+      message("Using model: mOpCov; Nsmall = ", Nsmall)
       batch_start <- Sys.time()
       batch_fit <- tryCatch(
         {

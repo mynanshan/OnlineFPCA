@@ -1,7 +1,7 @@
 #!/cvmfs/soft.computecanada.ca/easybuild/software/2023/x86-64-v4/Compiler/gcccore/r/4.5.0/bin/Rscript
 #SBATCH --job-name=size1d
 #SBATCH --output=logs/size1d_%j.out
-#SBATCH --time=6:00:00
+#SBATCH --time=12:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
@@ -35,9 +35,17 @@ N <- as.integer(args[["N"]])
 Ninit <- as.integer(args[["ninit"]])
 algo <- as.integer(args[["algo"]])
 
+model_name <- c(
+  "1" = "OnlineFPCA",
+  "2" = "PACE",
+  "3" = "FACE",
+  "4" = "REML",
+  "5" = "SOAP"
+)[as.character(algo)]
 
 cat("========= Start Experiment ( Seed =", seed, ")\n")
 cat("Algo: ", algo, "\n")
+cat("Model: ", model_name, "\n")
 
 library(fda)
 library(Matrix)
@@ -57,7 +65,7 @@ nParams <- 6
 nPass <- 1
 nBlock <- 100
 initMethod <- "face"
-N <- 20000
+N <- 25000
 Nsmalls <- c(200, 500, seq(1000, N, 1000))
 nIters.1pass <- seq(nBlock, N, nBlock)
 nIters <- seq(nBlock, nPass * N, nBlock)
@@ -222,14 +230,14 @@ for (noise_sd in noiseList) {
   if (algo == 1) {
     # Online FPCA  ------------------------------------------------------
 
-    message("Start OnlineFPCA ---------------")
+    message("Starting model: OnlineFPCA.")
   
     for (stepsize0 in stepsizeList) {
       sgd_lr0 <- stepsize0 / g_Theta_init_norm
       message("> Step size = ", stepsize0)
   
       for (sgdtype in c("sgd", "adagrad")) {
-        message(">>> sgdtype = ", sgdtype)
+        message(">>> Using model: OnlineFPCA-", sgdtype)
   
         fit <- fpca.sgd(
           fdata_generator,
@@ -272,7 +280,7 @@ for (noise_sd in noiseList) {
           nIter.tauNoIncrease = floor(0.3 * nIter1pass),
           period.tune = nBlockIter,
           period.record = nBlockIter,
-          verbose = TRUE
+          verbose = FALSE
         )
   
         check <- fit$check
@@ -362,30 +370,15 @@ for (noise_sd in noiseList) {
           )
         )
   
-        if (seed == 1234 && noise_sd == 0.5) {
-          pdf(
-            file.path(dirpath, paste0("taupath-sim1d-", sgdtype, ".pdf")),
-            width = 8, height = 5
-          )
-          do.call(
-            plot.tau_path2,
-            list(
-              tau.history = fit$tau.select$tau.history,
-              tau.selectId = fit$tau.select$tau.selectId,
-              final.id = l, nbatch_per_block = nBlock / nBatch
-            )
-          )
-          dev.off()
-        }
       } # end of all sgdtype
     } # end of all step sizes
   } # endif algo==1
 
   if (algo == 2) {
-    message("Starting PACE.")
+    message("Starting model: PACE.")
     for (Nsmall in Nsmalls) {
       # Batch method 1: PACE ----------------------------------------------------
-      message("N =", Nsmall)
+      message("Using model: PACE; Nsmall = ", Nsmall)
       batch_start <- Sys.time()
       fitBatch <- fdapace::FPCA(
         dat$Ly[1:Nsmall],
@@ -446,10 +439,10 @@ for (noise_sd in noiseList) {
   } # endif algo==2
 
   if (algo == 3) {
-    message("Starting FACE.")
+    message("Starting model: FACE.")
     for (Nsmall in Nsmalls) {
       # Batch method 2: FACE ----------------------------------------------------
-      message("N =", Nsmall)
+      message("Using model: FACE; Nsmall = ", Nsmall)
       tmpdat <- data.frame(
         argvals = unlist(dat$Lt[1:Nsmall]),
         subj = rep(1:Nsmall, dat$Lmi[1:Nsmall]),
@@ -515,10 +508,10 @@ for (noise_sd in noiseList) {
   } # endif algo==3
 
   if (algo == 4) {
-    message("Starting REML.")
+    message("Starting model: REML.")
     for (Nsmall in Nsmalls) {
       # Batch method 3: REML ----------------------------------------------------
-      message("N =", Nsmall)
+      message("Using model: REML; Nsmall = ", Nsmall)
       tmpdat <- cbind(
         rep(1:Nsmall, dat$Lmi[1:Nsmall]),
         unlist(dat$Ly[1:Nsmall]),
@@ -587,11 +580,11 @@ for (noise_sd in noiseList) {
   } # endif algo==4
 
   if (algo == 5) {
-    message("Starting SOAP.")
+    message("Starting model: SOAP.")
     inits_soap <- inits
     for (Nsmall in Nsmalls) {
       # Batch method 4: SOAP ------------------------------------------
-      message("N =", Nsmall)
+      message("Using model: SOAP; Nsmall = ", Nsmall)
       batch_start <- Sys.time()
       fitBatch <- fpca.reg(
         dat$Ly[1:Nsmall],
