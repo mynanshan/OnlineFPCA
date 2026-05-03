@@ -20,8 +20,6 @@ result_uq_file <- file.path(project_root, "application", "result_news_uq.Rdata")
 result_olcov_file <- file.path(project_root, "application", "result_news_olcov.Rdata")
 out_dir <- file.path(project_root, "application")
 
-## Subjects at which to show checkpoint figures
-checkpoint_subjects <- c(1000, 2500, 5000)
 
 ## ================================================================
 ## Helpers
@@ -41,6 +39,22 @@ safe_range <- function(...) {
   vals <- unlist(list(...), use.names = FALSE)
   vals <- vals[is.finite(vals)]
   if (length(vals) == 0) c(-1, 1) else range(vals)
+}
+
+align_curve_sign <- function(target, reference, basis) {
+  target_fd <- smooth.basis(seq(0, 1, length.out = length(target)), target, basis)$fd
+  reference_fd <- smooth.basis(seq(0, 1, length.out = length(reference)), reference, basis)$fd
+  if (inprod(target_fd, reference_fd) < 0) -target else target
+}
+
+align_ci_band <- function(lower, middle, upper, reference, basis) {
+  middle_fd <- smooth.basis(seq(0, 1, length.out = length(middle)), middle, basis)$fd
+  reference_fd <- smooth.basis(seq(0, 1, length.out = length(reference)), reference, basis)$fd
+  if (inprod(middle_fd, reference_fd) < 0) {
+    list(lower = -upper, middle = -middle, upper = -lower)
+  } else {
+    list(lower = lower, middle = middle, upper = upper)
+  }
 }
 
 match_record_grid <- function(PhiAvgAll, record_subjects, N, nBlock) {
@@ -88,6 +102,10 @@ q <- run_config$q
 basis <- create.bspline.basis(c(0, 1), nbasis = run_config$nbasis, norder = run_config$basis_order)
 
 record_grid <- match_record_grid(PhiMainAll, record_main, N, nBlock)
+
+# Subjects at which to show checkpoint figures
+# checkpoint_subjects <- c(1000, 2500, 5000)
+checkpoint_subjects <- c(1000, 5000, 10000)
 cp_idx <- nearest_indices(checkpoint_subjects, record_grid)
 cp_subjects <- record_grid[cp_idx]
 cp_labels <- format(cp_subjects, big.mark = ",")
@@ -170,11 +188,19 @@ for (ii in seq_along(cp_idx)) {
     if (has_compare) {
       kk2 <- nearest_indices(cp_subjects[ii], record_subjects.ll)[1]
       phik.compare <- get_array_slice(PhiEstAll.ll, kk2)[, jj]
+      phik.compare <- align_curve_sign(phik.compare, phik.est, basis)
     }
     yrng <- safe_range(phik.est, phik.compare)
     if (add_ci) {
       ci_idx <- nearest_indices(cp_subjects[ii], match_record_grid(PhiAvgAll.uq, record_subjects.uq, N, nBlock))[1]
-      yrng <- safe_range(yrng, resCI[, jj, , ci_idx])
+      phik.l <- resCI[ci_sub_id, jj, 1, ci_idx]
+      phik.m <- resCI[ci_sub_id, jj, 2, ci_idx]
+      phik.u <- resCI[ci_sub_id, jj, 3, ci_idx]
+      ci_band <- align_ci_band(phik.l, phik.m, phik.u, phik.est, basis)
+      phik.l <- ci_band$lower
+      phik.m <- ci_band$middle
+      phik.u <- ci_band$upper
+      yrng <- safe_range(yrng, phik.l, phik.m, phik.u)
     }
     pad <- 0.08 * diff(yrng)
     if (!is.finite(pad) || pad == 0) pad <- 0.3
@@ -190,19 +216,6 @@ for (ii in seq_along(cp_idx)) {
       lines(clock_eval_short, phik.compare, lwd = 3, lty = 4, col = "#1A73A0")
     }
     if (add_ci) {
-      ci_idx <- nearest_indices(cp_subjects[ii], match_record_grid(PhiAvgAll.uq, record_subjects.uq, N, nBlock))[1]
-      phik.l <- resCI[ci_sub_id, jj, 1, ci_idx]
-      phik.m <- resCI[ci_sub_id, jj, 2, ci_idx]
-      phik.u <- resCI[ci_sub_id, jj, 3, ci_idx]
-      if (
-        inprod(
-          smooth.basis(seq(0, 1, length.out = length(phik.m)), phik.m, basis)$fd,
-          smooth.basis(seq(0, 1, length.out = length(phik.est)), phik.est, basis)$fd
-        ) < 0
-      ) {
-        phik.l <- -phik.l
-        phik.u <- -phik.u
-      }
       polygon(
         c(clock_eval, rev(clock_eval)),
         c(phik.l, rev(phik.u)),
@@ -324,4 +337,3 @@ writeLines(c(
   paste(capture.output(print(summary_tbl, row.names = FALSE)), collapse = "\n")
 ), con = con)
 close(con)
-
