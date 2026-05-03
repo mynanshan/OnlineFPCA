@@ -162,7 +162,6 @@ layout(
   heights = c(rep(0.31, length(cp_idx)), 0.11)
 )
 par(mar = c(2.3, 4.3, 2.0, 1.2), oma = c(2, 0, 1, 0))
-
 for (ii in seq_along(cp_idx)) {
   kk <- cp_idx[ii]
   for (jj in seq_len(q)) {
@@ -172,7 +171,6 @@ for (ii in seq_along(cp_idx)) {
       kk2 <- nearest_indices(cp_subjects[ii], record_subjects.ll)[1]
       phik.compare <- get_array_slice(PhiEstAll.ll, kk2)[, jj]
     }
-
     yrng <- safe_range(phik.est, phik.compare)
     if (add_ci) {
       ci_idx <- nearest_indices(cp_subjects[ii], match_record_grid(PhiAvgAll.uq, record_subjects.uq, N, nBlock))[1]
@@ -181,7 +179,6 @@ for (ii in seq_along(cp_idx)) {
     pad <- 0.08 * diff(yrng)
     if (!is.finite(pad) || pad == 0) pad <- 0.3
     yrng <- c(yrng[1] - pad, yrng[2] + pad)
-
     plot(
       clock_eval, phik.est,
       type = "l", lwd = 3, col = "#A21B2D",
@@ -217,7 +214,6 @@ for (ii in seq_along(cp_idx)) {
         lines(clock_eval_short, phik.compare, lwd = 3, lty = 4, col = "#1A73A0")
       }
     }
-
     if (jj == 1) {
       mtext(paste0("n=", cp_labels[ii]), side = 2, line = 2.8)
     }

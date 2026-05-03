@@ -109,11 +109,14 @@ library(scales)
 plot_phi_rmse <- function(
     dat,
     noise_level = 0.5,
-    n_subjects = 1000,
+    x_var = c("N", "SumTime"),
+    x_break = 2500,
     y_limits = NULL,
     show_initial_online = FALSE,
     save_path = NULL
 ) {
+
+  x_var <- match.arg(x_var)
 
   dat_long <- dat %>%
     filter(near(noise, noise_level)) %>%
@@ -139,11 +142,42 @@ plot_phi_rmse <- function(
 
   line_dat <- dat_long %>%
     filter(!is.na(RMSE)) %>%
+    mutate(x_value = .data[[x_var]]) %>%
     arrange(component, LegendLabel, N)
 
-  x_end <- max(line_dat$N, na.rm = TRUE)
+  if (x_var == "SumTime") {
+    line_dat <- line_dat %>%
+      filter(x_value > 0)
+  }
+
+  x_end <- max(line_dat$x_value, na.rm = TRUE)
   if (is.null(y_limits)) {
     y_limits <- c(0, max(line_dat$RMSE, na.rm = TRUE) * 1.05)
+  }
+
+  if (x_var == "N") {
+    x_limits <- c(0, x_end)
+    x_breaks <- seq(0, x_end, by = x_break)
+    x_labels <- label_number(scale = 1 / 1000)
+    x_name <- "Number of processed subjects, N (x1000)"
+    x_scale <- scale_x_continuous(
+      name = x_name,
+      limits = x_limits,
+      breaks = x_breaks,
+      labels = x_labels
+    )
+  } else {
+    x_start <- min(line_dat$x_value, na.rm = TRUE)
+    x_limits <- c(x_start, x_end)
+    x_breaks <- scales::breaks_log(n = 6)(x_limits)
+    x_breaks <- x_breaks[x_breaks >= x_start & x_breaks <= x_end]
+    x_name <- "Cumulative computing time"
+    x_scale <- scale_x_log10(
+      name = x_name,
+      limits = x_limits,
+      breaks = x_breaks,
+      labels = label_number()
+    )
   }
 
   method_levels <- c(
@@ -180,14 +214,14 @@ plot_phi_rmse <- function(
 
   p <- ggplot(line_dat) +
     geom_vline(
-      xintercept = seq(n_subjects, x_end, by = n_subjects),
+      xintercept = x_breaks[x_breaks > 0 & x_breaks <= x_end],
       linewidth = 0.25,
       color = "grey85"
     ) +
 
     geom_line(
       aes(
-        x = N,
+        x = x_value,
         y = RMSE,
         color = LegendLabel,
         linetype = LegendLabel
@@ -206,18 +240,7 @@ plot_phi_rmse <- function(
       breaks = active_method_levels,
       name = NULL
     ) +
-
-    scale_x_continuous(
-      name = "Number of processed subjects, N",
-      limits = c(0, x_end),
-      breaks = seq(0, x_end, by = n_subjects),
-      labels = label_comma(),
-      sec.axis = sec_axis(
-        transform = ~ . / n_subjects,
-        breaks = seq(0, x_end / n_subjects, by = 1),
-        name = "Epoch"
-      )
-    ) +
+    x_scale +
 
     scale_y_continuous(
       name = expression("RMSE of estimated " * phi[k]),
@@ -227,12 +250,8 @@ plot_phi_rmse <- function(
 
     facet_wrap(
       ~ component,
-      ncol = 1,
+      nrow = 1,
       labeller = label_parsed
-    ) +
-
-    labs(
-      title = paste0("Noise level: ", noise_level)
     ) +
 
     theme_bw(base_size = 11) +
@@ -246,9 +265,10 @@ plot_phi_rmse <- function(
       panel.grid.minor = element_blank(),
       panel.grid.major.x = element_blank(),
 
-      legend.position = "right",
-      legend.direction = "vertical",
-      legend.box = "vertical",
+      legend.position = "bottom",
+      legend.direction = "horizontal",
+      legend.box = "horizontal",
+      legend.justification = "center",
       legend.key.width = unit(1.1, "cm"),
       legend.key.height = unit(0.55, "cm"),
 
@@ -275,54 +295,37 @@ plot_phi_rmse <- function(
     ggsave(
       filename = save_path,
       plot = p,
-      width = 6.8,
-      height = 8.4,
+      width = 8.4,
+      height = 4.2,
       units = "in",
       device = cairo_pdf
     )
   }
 
-  return(p)
+  p
 }
 
-noise_levels <- sort(unique(sumres$noise))
+noise_sd <- 0.5
 y_limits <- c(
   0,
-  1.05 * max(unlist(sumres |> dplyr::select(starts_with("RMSEphi"))), na.rm = TRUE)
+  1.05 * max(unlist(sumres |> filter(noise == noise_sd) |> dplyr::select(starts_with("RMSEphi"))), na.rm = TRUE)
 )
-plots <- lapply(noise_levels, \(noise_level) {
-  plot_phi_rmse(
-    dat = sumres,
-    noise_level = noise_level,
-    y_limits = y_limits,
-    save_path = NULL
-  )
-})
-
-library(patchwork)
-
-p <- wrap_plots(plots, ncol = length(plots)) +
-  plot_layout(
-    guides = "collect",
-    axes = "collect_y",
-    axis_titles = "collect_y",
-    widths = rep(1, length(plots))
-  ) &
-  theme(
-    legend.position = "bottom",
-    legend.direction = "horizontal",
-    legend.box = "horizontal",
-    legend.justification = "center",
-    legend.key.width = unit(1.4, "cm")
-  )
+p <- plot_phi_rmse(
+  dat = sumres,
+  noise_level = noise_sd,
+  x_var = "N",
+  x_break = 2500,
+  y_limits = y_limits,
+  save_path = NULL
+)
 
 p
 
 ggsave(
   file.path(dirpath, "size1d_rmse.pdf"),
   p,
-  width = 2.8 * length(plots),
-  height = 9,
+  width = 8.4,
+  height = 4.2,
   dpi = 300,
   units = "in",
   device = cairo_pdf

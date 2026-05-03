@@ -23,16 +23,66 @@ parser <- argparse::ArgumentParser(
   description = "Determine the settings for this simple simulation."
 )
 parser$add_argument(
+  "--run",
+  type = "character",
+  default = "all",
+  help = paste(
+    "Comma-separated parts to run and save:",
+    "'fpca' for plain OnlineFPCA, 'ci' for OnlineFPCA with CI,",
+    "'olcov' for OnlineCov comparison, or 'all'.",
+    "Aliases: plain, onlinefpca, uq, compare, onlinecov."
+  )
+)
+parser$add_argument(
   "--compare",
   type = "integer",
-  default = 1,
+  default = NA_integer_,
   choices = c(0, 1),
-  help = "Whether to run competing methods."
+  help = "Deprecated. Use --run instead. Maps 0 to fpca,ci and 1 to all."
 )
 args <- parser$parse_args()
-compare <- as.logical(args[["compare"]])
 
-cat("Whether compare to OnlineCov:", compare, "\n")
+normalize_run_targets <- function(x) {
+  aliases <- c(
+    plain = "fpca",
+    onlinefpca = "fpca",
+    rsgd = "fpca",
+    uq = "ci",
+    fpcaci = "ci",
+    onlinefpcaci = "ci",
+    compare = "olcov",
+    onlinecov = "olcov"
+  )
+  valid <- c("fpca", "ci", "olcov")
+  targets <- trimws(unlist(strsplit(tolower(x), ",")))
+  targets <- targets[nzchar(targets)]
+  if (length(targets) == 0 || "all" %in% targets) {
+    return(valid)
+  }
+  targets <- unname(ifelse(targets %in% names(aliases), aliases[targets], targets))
+  unknown <- setdiff(targets, valid)
+  if (length(unknown) > 0) {
+    stop(
+      "Unknown --run value(s): ", paste(unknown, collapse = ", "),
+      ". Use any comma-separated combination of: fpca, ci, olcov, all."
+    )
+  }
+  unique(targets)
+}
+
+run_arg <- args[["run"]]
+has_run_arg <- any(grepl("^--run($|=)", commandArgs(trailingOnly = TRUE)))
+if (!has_run_arg && !is.na(args[["compare"]])) {
+  run_arg <- if (as.logical(args[["compare"]])) "all" else "fpca,ci"
+  warning("`--compare` is deprecated; use `--run ", run_arg, "` instead.")
+}
+
+run_targets <- normalize_run_targets(run_arg)
+run_fpca <- "fpca" %in% run_targets
+run_ci <- "ci" %in% run_targets
+run_olcov <- "olcov" %in% run_targets
+
+cat("Run targets:", paste(run_targets, collapse = ", "), "\n")
 
 `%||%` <- function(a, b) if (!is.null(a)) a else b
 
@@ -42,6 +92,9 @@ cat("Whether compare to OnlineCov:", compare, "\n")
 project_root <- "."
 processed_file <- file.path(project_root, "data", "news", "processed", "news_preprocessed.rds")
 out_dir <- file.path(project_root, "application")
+result_fpca_file <- file.path(out_dir, "result_news.Rdata")
+result_ci_file <- file.path(out_dir, "result_news_uq.Rdata")
+result_olcov_file <- file.path(out_dir, "result_news_olcov.Rdata")
 use_partial_last_batch <- TRUE
 
 ## OnlineFPCA settings
@@ -100,6 +153,21 @@ match_history_length <- function(tau_path_id, n_slices, nRoundNoTune) {
   out[seq_len(n_slices)]
 }
 
+load_phi_reference <- function(result_file) {
+  if (!file.exists(result_file)) {
+    stop(
+      "OnlineCov matching needs plain OnlineFPCA eigenfunctions. ",
+      "Run with --run fpca,olcov or create ", result_file, " first."
+    )
+  }
+  ref_env <- new.env(parent = emptyenv())
+  load(result_file, envir = ref_env)
+  if (!exists("PhiAvgEval", envir = ref_env, inherits = FALSE)) {
+    stop("Could not find `PhiAvgEval` in ", result_file, ".")
+  }
+  get("PhiAvgEval", envir = ref_env, inherits = FALSE)
+}
+
 ## ================================================================
 ## Load preprocessed data
 ## ================================================================
@@ -126,12 +194,12 @@ dat <- subset_stream_dat(dat_all, seq_len(N))
 
 fdata_generator <- function(n, total_count) {
   idx <- (total_count):(total_count + n - 1) %% N + 1
-  return(list(
+  list(
     Ly = dat$Ly[idx],
     Ltid = dat$Ltid[idx],
     Lt = dat$Lt[idx],
     Lmi = dat$Lmi[idx]
-  ))
+  )
 }
 
 message("Loaded ", N_total, " preprocessed subjects.")
@@ -216,8 +284,9 @@ message("Initialization done. Effective initial learning rate = ", signif(sgd_lr
 ## ================================================================
 ## Online FPCA without CI
 ## ================================================================
-message("Start OnlineFPCA-RSGD on news data")
-fit <- fpca.sgd(
+if (run_fpca) {
+  message("Start OnlineFPCA-RSGD on news data")
+  fit <- fpca.sgd(
   fdata_generator,
   tgrid,
   inits = inits,
@@ -255,40 +324,41 @@ fit <- fpca.sgd(
   period.tune = nBlockIter,
   period.record = nBlockIter,
   verbose = TRUE
-)
+  )
 
-tau.min <- fit$tau.min
-l <- which(fit$tau == tau.min)[1]
-Theta.avg <- fit$Theta.avg[, , l]
-lambda.avg <- fit$lambda.avg[, l]
-sigma2.avg <- fit$sigma2.avg[l]
-PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
+  tau.min <- fit$tau.min
+  l <- which(fit$tau == tau.min)[1]
+  Theta.avg <- fit$Theta.avg[, , l]
+  lambda.avg <- fit$lambda.avg[, l]
+  sigma2.avg <- fit$sigma2.avg[l]
+  PhiAvgEval <- eval_fd(evalGrid, FuncData(Theta.avg, basis))
 
-params <- fit$params.history$params
-tau.select <- fit$tau.select
-tau_path <- with(tau.select, extract_tau_path(tau.history, tau.selectId, l))
+  params <- fit$params.history$params
+  tau.select <- fit$tau.select
+  tau_path <- with(tau.select, extract_tau_path(tau.history, tau.selectId, l))
 
-n_slices <- length(fit$params.history$iter.params)
-tau_path_id_extend <- match_history_length(tau_path$tau_path_id, n_slices, nRoundNoTune)
-ThetaAll.avg <- sapply(
+  n_slices <- length(fit$params.history$iter.params)
+  tau_path_id_extend <- match_history_length(tau_path$tau_path_id, n_slices, nRoundNoTune)
+  ThetaAll.avg <- sapply(
   seq_len(n_slices),
   function(i) params$Theta.avg[, , tau_path_id_extend[i], i],
   simplify = "array"
-)
-PhiAvgAll <- array(
+  )
+  PhiAvgAll <- array(
   apply(ThetaAll.avg, 3, function(X) eval_fd(evalGrid, FuncData(X, basis))),
   dim = c(length(evalGrid), q, dim(ThetaAll.avg)[3])
-)
+  )
 
-iter_time <- colSums(fit$time.history[, seq_len(nIter1pass), drop = FALSE])
-sgd_time <- c(as.numeric(difftime(init_end, init_start, units = "secs")), aggregate_times(iter_time, nBlockIter))
+  iter_time <- colSums(fit$time.history[, seq_len(nIter1pass), drop = FALSE])
+  sgd_time <- c(as.numeric(difftime(init_end, init_start, units = "secs")), aggregate_times(iter_time, nBlockIter))
 
-record_subjects <- if (dim(PhiAvgAll)[3] == length(sgd_time)) {
-  c(0, pmin(seq_len(length(sgd_time) - 1L) * nBlock, N))
-} else if (dim(PhiAvgAll)[3] == length(sgd_time) - 1L) {
-  pmin(seq_len(dim(PhiAvgAll)[3]) * nBlock, N)
-} else {
-  pmin(seq_len(dim(PhiAvgAll)[3]) * nBlock, N)
+  record_subjects <- if (dim(PhiAvgAll)[3] == length(sgd_time)) {
+    c(0, pmin(seq_len(length(sgd_time) - 1L) * nBlock, N))
+  } else if (dim(PhiAvgAll)[3] == length(sgd_time) - 1L) {
+    pmin(seq_len(dim(PhiAvgAll)[3]) * nBlock, N)
+  } else {
+    pmin(seq_len(dim(PhiAvgAll)[3]) * nBlock, N)
+  }
 }
 
 run_config <- list(
@@ -309,25 +379,28 @@ run_config <- list(
   use_partial_last_batch = use_partial_last_batch
 )
 
-save(
-  PhiAvgEval,
-  PhiAvgAll,
-  lambda.avg,
-  sigma2.avg,
-  sgd_time,
-  tau.min,
-  tau_path,
-  tau.select,
-  record_subjects,
-  run_config,
-  file = file.path(out_dir, "result_news.Rdata")
-)
+if (run_fpca) {
+  save(
+    PhiAvgEval,
+    PhiAvgAll,
+    lambda.avg,
+    sigma2.avg,
+    sgd_time,
+    tau.min,
+    tau_path,
+    tau.select,
+    record_subjects,
+    run_config,
+    file = result_fpca_file
+  )
+}
 
 ## ================================================================
 ## Online FPCA with CI
 ## ================================================================
-message("Start OnlineFPCA-RSGD with pointwise CI")
-fit_uq <- fpca.sgd(
+if (run_ci) {
+  message("Start OnlineFPCA-RSGD with pointwise CI")
+  fit_uq <- fpca.sgd(
   fdata_generator,
   tgrid,
   inits = inits,
@@ -366,60 +439,65 @@ fit_uq <- fpca.sgd(
   period.tune = nBlockIter,
   period.record = nBlockIter,
   verbose = FALSE
-)
+  )
 
-resCI <- fit_uq$CI
+  resCI <- fit_uq$CI
 
-tau.min.uq <- fit_uq$tau.min
-l.uq <- which(fit_uq$tau == tau.min.uq)[1]
-Theta.avg.uq <- fit_uq$Theta.avg[, , l.uq]
-lambda.avg.uq <- fit_uq$lambda.avg[, l.uq]
-PhiAvgEval.uq <- eval_fd(evalGrid, FuncData(Theta.avg.uq, basis))
+  tau.min.uq <- fit_uq$tau.min
+  l.uq <- which(fit_uq$tau == tau.min.uq)[1]
+  Theta.avg.uq <- fit_uq$Theta.avg[, , l.uq]
+  lambda.avg.uq <- fit_uq$lambda.avg[, l.uq]
+  PhiAvgEval.uq <- eval_fd(evalGrid, FuncData(Theta.avg.uq, basis))
 
-params.uq <- fit_uq$params.history$params
-tau_path.uq <- with(fit_uq$tau.select, extract_tau_path(tau.history, tau.selectId, l.uq))
-n_slices_uq <- length(fit_uq$params.history$iter.params)
-tau_path_id_extend.uq <- match_history_length(tau_path.uq$tau_path_id, n_slices_uq, nRoundNoTune)
-ThetaAll.avg.uq <- sapply(
+  params.uq <- fit_uq$params.history$params
+  tau_path.uq <- with(fit_uq$tau.select, extract_tau_path(tau.history, tau.selectId, l.uq))
+  n_slices_uq <- length(fit_uq$params.history$iter.params)
+  tau_path_id_extend.uq <- match_history_length(tau_path.uq$tau_path_id, n_slices_uq, nRoundNoTune)
+  ThetaAll.avg.uq <- sapply(
   seq_len(n_slices_uq),
   function(i) params.uq$Theta.avg[, , tau_path_id_extend.uq[i], i],
   simplify = "array"
-)
-PhiAvgAll.uq <- array(
+  )
+  PhiAvgAll.uq <- array(
   apply(ThetaAll.avg.uq, 3, function(X) eval_fd(evalGrid, FuncData(X, basis))),
   dim = c(length(evalGrid), q, dim(ThetaAll.avg.uq)[3])
-)
+  )
 
-iter_time.uq <- colSums(fit_uq$time.history[, seq_len(nIter1pass), drop = FALSE])
-sgd_time.uq <- c(as.numeric(difftime(init_end, init_start, units = "secs")), aggregate_times(iter_time.uq, nBlockIter))
-record_subjects.uq <- if (dim(PhiAvgAll.uq)[3] == length(sgd_time.uq)) {
-  c(0, pmin(seq_len(length(sgd_time.uq) - 1L) * nBlock, N))
-} else if (dim(PhiAvgAll.uq)[3] == length(sgd_time.uq) - 1L) {
-  pmin(seq_len(dim(PhiAvgAll.uq)[3]) * nBlock, N)
-} else {
-  pmin(seq_len(dim(PhiAvgAll.uq)[3]) * nBlock, N)
+  iter_time.uq <- colSums(fit_uq$time.history[, seq_len(nIter1pass), drop = FALSE])
+  sgd_time.uq <- c(as.numeric(difftime(init_end, init_start, units = "secs")), aggregate_times(iter_time.uq, nBlockIter))
+  record_subjects.uq <- if (dim(PhiAvgAll.uq)[3] == length(sgd_time.uq)) {
+    c(0, pmin(seq_len(length(sgd_time.uq) - 1L) * nBlock, N))
+  } else if (dim(PhiAvgAll.uq)[3] == length(sgd_time.uq) - 1L) {
+    pmin(seq_len(dim(PhiAvgAll.uq)[3]) * nBlock, N)
+  } else {
+    pmin(seq_len(dim(PhiAvgAll.uq)[3]) * nBlock, N)
+  }
+
+  tau.select.uq <- fit_uq$tau.select
+
+  save(
+    PhiAvgEval.uq,
+    PhiAvgAll.uq,
+    lambda.avg.uq,
+    sgd_time.uq,
+    tau.min.uq,
+    tau_path.uq,
+    tau.select.uq,
+    resCI,
+    record_subjects.uq,
+    run_config,
+    file = result_ci_file
+  )
 }
-
-tau.select.uq <- fit_uq$tau.select
-
-save(
-  PhiAvgEval.uq,
-  PhiAvgAll.uq,
-  lambda.avg.uq,
-  sgd_time.uq,
-  tau.min.uq,
-  tau_path.uq,
-  tau.select.uq,
-  resCI,
-  record_subjects.uq,
-  run_config,
-  file = file.path(out_dir, "result_news_uq.Rdata")
-)
 
 ## ================================================================
 ## Optional comparison: OnlineCov / local polynomial covariance
 ## ================================================================
-if (compare) {
+if (run_olcov) {
+  if (!exists("PhiAvgEval", inherits = FALSE)) {
+    PhiAvgEval <- load_phi_reference(result_fpca_file)
+  }
+
   message("Start OnlineCov comparison on centered/scaled data")
 
   EV1 <- 121
@@ -446,7 +524,7 @@ if (compare) {
     G = 0.5,
     R = 1,
     Mcl = 1,
-    C0 = 1.5,
+    C0 = 2,
     verbose = TRUE,
     period = 1
   )
@@ -476,7 +554,7 @@ if (compare) {
     loclin_time,
     record_subjects.ll,
     run_config,
-    file = file.path(out_dir, "result_news_olcov.Rdata")
+    file = result_olcov_file
   )
 }
 
