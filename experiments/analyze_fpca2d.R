@@ -83,39 +83,6 @@ tabres <- ungroup(sumres) |>
   relocate(epoch, .before = SumTime) |>
   dplyr::select(-N)
 
-
-tabres <- ungroup(sumres) |>
-  filter(stringr::str_detect(Method, "Batch") | N %in% N0) |>
-  filter(is.na(StepSize) | StepSize == 0.1) |>
-  dplyr::select(
-    Method, N, noise, StepSize, SumTime,
-    RMSEphi1.avg_mean, RMSEphi2.avg_mean, RMSEphi3.avg_mean
-  ) |>
-  mutate(Method = factor(Method, levels = meth_ord)) |>
-  arrange(noise, Method, N) |>
-  relocate(noise, .before = Method) |>
-  mutate(
-    epoch = as.integer(N / N1),
-    Method = recode_values(
-      Method,
-      "OnlineFPCA-sgd" ~ "OnlineFPCA-RSGD",
-      "OnlineFPCA-adagrad" ~ "OnlineFPCA-RAdagrad",
-      "Batch-SOAP" ~ "SOAP",
-      "Batch-mOpCov-N200" ~ "mOpCov (N=200)",
-      "Batch-mOpCov-N300" ~ "mOpCov (N=300)",
-      "Batch-mOpCov-N400" ~ "mOpCov (N=400)",
-      "Batch-mOpCov-N500" ~ "mOpCov (N=500)"
-    ),
-    SumTime = round(SumTime, 1)
-  ) |>
-  rename(
-    RMSEphi1 = RMSEphi1.avg_mean,
-    RMSEphi2 = RMSEphi2.avg_mean,
-    RMSEphi3 = RMSEphi3.avg_mean
-  ) |>
-  relocate(epoch, .before = SumTime) |>
-  dplyr::select(-N)
-
 knitr::kable(
   tabres |>
     filter(is.na(StepSize) | StepSize == 0.1) |>
