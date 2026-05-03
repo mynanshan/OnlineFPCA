@@ -315,12 +315,14 @@ y_limits <- c(
   0,
   1.05 * max(unlist(sumres |> filter(noise == noise_sd) |> dplyr::select(starts_with("RMSEphi"))), na.rm = TRUE)
 )
+N_breaks <- 2500
 p <- plot_phi_rmse(
-  dat = sumres,
+  dat = sumres |>
+  filter(N %% N_breaks == 0),
   noise_level = noise_sd,
   x_var = "N",
-  x_break = 2500,
-  y_limits = y_limits,
+  x_break = N_breaks,
+  y_limits = c(0, 0.5),
   save_path = NULL
 )
 
