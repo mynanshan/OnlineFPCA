@@ -44,7 +44,7 @@ parser$add_argument(
 parser$add_argument(
   "--mopcov-max-n",
   type = "integer",
-  default = 500,
+  default = 2000,
   help = "Largest number of subjects allowed for mOpCov. Use <=0 to disable this guard."
 )
 parser$add_argument(
@@ -103,7 +103,8 @@ mOpCov_path <- "external_codes/mOpCov/"
 source(paste0(mOpCov_path, "mOpCov_prep.R"))
 Rcpp::sourceCpp(paste0(mOpCov_path, "mOpCov_cpp.cpp"))
 
-noiseList <- c(0.1, 0.5, 1.)
+# noiseList <- c(0.1, 0.5, 1.)
+noiseList <- c(0.1)
 nBatch <- 5
 nParams <- 6
 nPass <- 1

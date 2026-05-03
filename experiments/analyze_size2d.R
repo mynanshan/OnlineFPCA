@@ -50,6 +50,11 @@ res <- res |>
     npc = as.integer(npc),
     nBatch = as.integer(nBatch),
     Method = recode_method(Method)
+  ) |>
+  mutate(
+    RMSEphi1.avg = if_else(is.na(RMSEphi1.avg), RMSEphi1, RMSEphi1.avg),
+    RMSEphi2.avg = if_else(is.na(RMSEphi2.avg), RMSEphi2, RMSEphi2.avg),
+    RMSEphi3.avg = if_else(is.na(RMSEphi3.avg), RMSEphi3, RMSEphi3.avg)
   )
 
 N <- 20000

@@ -340,10 +340,12 @@ for (noise_sd in noiseList) {
 
         times <- if (nPass == 1) {
           colSums(fit$time.history[, 1:nIter1pass])
-        } else {c(
-          colSums(fit$time.history[, 1:nIter1pass]),
-          fit$time.history[1, (nIter1pass + 1):(nPass * nIter1pass)]
-        )}
+        } else {
+          c(
+            colSums(fit$time.history[, 1:nIter1pass]),
+            fit$time.history[1, (nIter1pass + 1):(nPass * nIter1pass)]
+          )
+        }
         times <- colSums(matrix(times, nrow = nBlockIter))
         times <- c(difftime(end_time.init, start_time.init, units = "secs"), times)
   
@@ -366,7 +368,7 @@ for (noise_sd in noiseList) {
             RMSEphi1.avg = rmseAll.avg[, 1],
             RMSEphi2.avg = rmseAll.avg[, 2],
             RMSEphi3.avg = rmseAll.avg[, 3],
-            tau = tau_path$tau_path[1:nrow(rmseAll)]
+            tau = tau_path$tau_path[seq_len(rmseAll)]
           )
         )
   
