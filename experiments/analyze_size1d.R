@@ -317,8 +317,7 @@ y_limits <- c(
 )
 N_breaks <- 2500
 p <- plot_phi_rmse(
-  dat = sumres |>
-  filter(N %% N_breaks == 0),
+  dat = sumres |> filter(N %% 1000 == 0),
   noise_level = noise_sd,
   x_var = "N",
   x_break = N_breaks,

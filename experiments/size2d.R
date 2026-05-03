@@ -510,7 +510,7 @@ for (noise_sd in noiseList) {
             RMSEphi1.avg = rmseAll.avg[, 1],
             RMSEphi2.avg = rmseAll.avg[, 2],
             RMSEphi3.avg = rmseAll.avg[, 3],
-            tau = tau_path$tau_path[seq_len(rmseAll)]
+            tau = tau_path$tau_path[seq_len(nrow(rmseAll))]
           )
         )
 
