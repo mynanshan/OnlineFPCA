@@ -263,7 +263,7 @@ for (noise_sd in noiseList) {
           ada.start = 25 * nBlockIter + 1,
           adareset = 25 * nBlockIter,
           adareset.end = nIter1pass,
-          asgd.start = 10 * nBlockIter + 1,
+          asgd.start = 25 * nBlockIter + 1,
           asgd.reset = Inf,
           asgd.reset.end = nIter1pass,
           asgd.end = Inf,
@@ -276,7 +276,7 @@ for (noise_sd in noiseList) {
         )
   
         check <- fit$check
-  
+
         tau.min <- fit$tau.min
         l <- which(fit$tau == tau.min)[1]
         Theta <- fit$Theta[, , l]
@@ -288,13 +288,13 @@ for (noise_sd in noiseList) {
   
         params <- fit$params.history$params
         vcrits <- fit$vcrit.history
-  
+
         # check eigenfunctions
         PhiEstEval <- eval_fd(evalGrid, FuncData(Theta, basis))
         PhiEstEval <- match_fpc(PhiEstEval, PhiTrueEval[, 1:q, drop = F])
         params$Theta <- params$Theta[,
           attributes(PhiEstEval)$match_id, , ,
-          drop = F
+          drop = FALSE
         ]
         params$Theta[, attributes(PhiEstEval)$flipped, , ] <-
           -params$Theta[, attributes(PhiEstEval)$flipped, , ]
@@ -302,11 +302,11 @@ for (noise_sd in noiseList) {
         PhiAvgEval <- match_fpc(PhiAvgEval, PhiTrueEval[, 1:q, drop = F])
         params$Theta.avg <- params$Theta.avg[,
           attributes(PhiAvgEval)$match_id, , ,
-          drop = F
+          drop = FALSE
         ]
         params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ] <-
           -params$Theta.avg[, attributes(PhiAvgEval)$flipped, , ]
-  
+
         tau_path <- with(
           fit$tau.select,
           extract_tau_path(tau.history, tau.selectId, l)
@@ -316,7 +316,7 @@ for (noise_sd in noiseList) {
           rep(1, (nPass - 1) * round(N / nBlock))
         )
         tau_path_id_extend <- c(rep(tau_path_id[1], nRoundNoTune), tau_path_id)
-  
+
         ThetaAll <- sapply(
           seq_along(fit$params.history$iter.params),
           \(i) params$Theta[, , tau_path_id_extend[i], i],
@@ -329,7 +329,7 @@ for (noise_sd in noiseList) {
           simplify = "array"
         )
         rmseAll.avg <- rmse_phi(ThetaAll.avg, phiTrueFunc$coefs, B)
-  
+
         times <- if (nPass == 1) {
           colSums(fit$time.history[, 1:nIter1pass])
         } else {c(

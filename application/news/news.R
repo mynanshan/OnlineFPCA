@@ -36,7 +36,7 @@ parser$add_argument(
 parser$add_argument(
   "--compare",
   type = "integer",
-  default = NA_integer_,
+  default = 1,
   choices = c(0, 1),
   help = "Deprecated. Use --run instead. Maps 0 to fpca,ci and 1 to all."
 )
