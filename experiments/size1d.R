@@ -270,7 +270,7 @@ for (noise_sd in noiseList) {
           sgdtype = sgdtype,
           ada.start = 25 * nBlockIter + 1,
           adareset = 25 * nBlockIter,
-          adareset.end = 50 * nBlockIter,
+          adareset.end = Inf,
           asgd.start = 10 * nBlockIter + 1,
           asgd.reset = 20 * nBlockIter,
           asgd.reset.end = 50 * nBlockIter,
