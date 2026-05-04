@@ -103,7 +103,8 @@ nBlock <- 50           # reporting/tuning block size (subjects)
 nParams <- 3
 nPass <- 1
 Ninit <- 200
-q <- 4                 # Yang–Yao show 4 leading eigenfunctions
+# q <- 4                 # Yang–Yao show 4 leading eigenfunctions
+q <- 6
 nbasis <- 11
 basis_order <- 4
 stepsize0 <- 1e-1

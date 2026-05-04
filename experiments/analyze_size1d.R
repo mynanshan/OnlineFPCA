@@ -117,6 +117,7 @@ plot_phi_rmse <- function(
     x_var = c("N", "SumTime"),
     x_break = 2500,
     y_limits = NULL,
+    y_limit_caps = NULL,
     show_initial_online = FALSE,
     save_path = NULL
 ) {
@@ -135,7 +136,7 @@ plot_phi_rmse <- function(
       component = factor(
         component_id,
         levels = 1:3,
-        labels = c("phi[1]", "phi[2]", "phi[3]")
+        labels = c("\u03D5\u2081", "\u03D5\u2082", "\u03D5\u2083")
       ),
       LegendLabel = as.character(Method)
     )
@@ -156,8 +157,30 @@ plot_phi_rmse <- function(
   }
 
   x_end <- max(line_dat$x_value, na.rm = TRUE)
-  if (is.null(y_limits)) {
+  free_y <- identical(y_limits, "free")
+  if (free_y) {
+    y_limits <- NULL
+  } else if (is.null(y_limits)) {
     y_limits <- c(0, max(line_dat$RMSE, na.rm = TRUE) * 1.05)
+  }
+  if (!is.null(y_limit_caps)) {
+    if (
+      !is.numeric(y_limit_caps) ||
+        length(y_limit_caps) != 3 ||
+        any(!is.finite(y_limit_caps)) ||
+        any(y_limit_caps <= 0)
+    ) {
+      stop("y_limit_caps must be NULL or a length-3 positive numeric vector.")
+    }
+  }
+  if (free_y && !is.null(y_limit_caps)) {
+    line_dat <- line_dat %>%
+      mutate(RMSE = pmin(RMSE, y_limit_caps[component_id]))
+  }
+  y_expand <- if (free_y && !is.null(y_limit_caps)) {
+    expansion(mult = c(0.02, 0))
+  } else {
+    expansion(mult = c(0.02, 0.08))
   }
 
   if (x_var == "N") {
@@ -202,7 +225,7 @@ plot_phi_rmse <- function(
     "PACE"                = "#CC79A7",
     "FACE"                = "#E69F00",
     "REML"                = "#56B4E9",
-    "SOAP"                = "black"
+    "SOAP"                = "#666666"
   )
 
   linetype_values <- c(
@@ -248,15 +271,15 @@ plot_phi_rmse <- function(
     x_scale +
 
     scale_y_continuous(
-      name = expression("RMSE of estimated " * phi[k]),
+      name = "RMSE of estimated \u03D5\u2096",
       limits = y_limits,
-      expand = expansion(mult = c(0.02, 0.08))
+      expand = y_expand
     ) +
 
     facet_wrap(
       ~ component,
       nrow = 1,
-      labeller = label_parsed
+      scales = if (free_y) "free_y" else "fixed"
     ) +
 
     theme_bw(base_size = 11) +
@@ -311,17 +334,14 @@ plot_phi_rmse <- function(
 }
 
 noise_sd <- 0.5
-y_limits <- c(
-  0,
-  1.05 * max(unlist(sumres |> filter(noise == noise_sd) |> dplyr::select(starts_with("RMSEphi"))), na.rm = TRUE)
-)
 N_breaks <- 2500
 p <- plot_phi_rmse(
   dat = sumres |> filter(N %% 1000 == 0),
   noise_level = noise_sd,
   x_var = "N",
   x_break = N_breaks,
-  y_limits = c(0, 0.5),
+  y_limits = "free",
+  y_limit_caps = c(0.15, 0.5, 0.6),
   save_path = NULL
 )
 
