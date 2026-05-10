@@ -50,7 +50,7 @@ parser$add_argument(
 parser$add_argument(
   "--mopcov-max-obs",
   type = "integer",
-  default = 50000,
+  default = 30000,
   help = "Largest number of total observations allowed for mOpCov. Use <=0 to disable this guard."
 )
 args <- parser$parse_args()
