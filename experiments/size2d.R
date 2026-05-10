@@ -139,6 +139,15 @@ if (!dir.exists(dirpath)) {
 n_digit_seed <- ceiling(log10(seed + 1))
 seedtext <- paste0(paste(rep("0", 4 - n_digit_seed), collapse = ""), seed)
 filename <- paste0("simu_", exprmt, "_alg", algo, "_sd", seedtext, ".csv")
+result_path <- file.path(dirpath, filename)
+
+write_results <- function(x) {
+  tmp_path <- paste0(result_path, ".tmp")
+  readr::write_csv(x, tmp_path)
+  if (!file.rename(tmp_path, result_path)) {
+    stop("Failed to write results to ", result_path)
+  }
+}
 
 res <- data.frame(
   noise = numeric(),
@@ -641,6 +650,7 @@ for (noise_sd in noiseList) {
           tau = NA
         )
       )
+      write_results(res)
     } # end all Nsmall
   } # endif algo==3
 }
@@ -648,7 +658,7 @@ for (noise_sd in noiseList) {
 
 # End experiment ----------------------------------------------------------
 
-readr::write_csv(res, file.path(dirpath, filename))
+write_results(res)
 
 message("Finishing replication: ", seed)
 set.seed(NULL)
