@@ -103,13 +103,6 @@ basis <- create.bspline.basis(c(0, 1), nbasis = run_config$nbasis, norder = run_
 
 record_grid <- match_record_grid(PhiMainAll, record_main, N, nBlock)
 
-# Subjects at which to show checkpoint figures
-# checkpoint_subjects <- c(1000, 2500, 5000)
-checkpoint_subjects <- c(1000, 5000, 10000)
-cp_idx <- nearest_indices(checkpoint_subjects, record_grid)
-cp_subjects <- record_grid[cp_idx]
-cp_labels <- format(cp_subjects, big.mark = ",")
-
 ## Order FPCs by final eigenvalues
 ord <- order(lambda.main, decreasing = TRUE)
 PhiMainEval <- PhiMainEval[, ord, drop = FALSE]
@@ -117,13 +110,23 @@ PhiMainAll <- PhiMainAll[, ord, , drop = FALSE]
 lambda.main <- lambda.main[ord]
 
 if (has_compare) {
-  PhiEst.ll <- PhiEst.ll[, ord, drop = FALSE]
-  PhiEstAll.ll <- PhiEstAll.ll[, ord, , drop = FALSE]
-  lambdaEst.ll <- lambdaEst.ll[ord]
+  ord.ll <- order(lambdaEst.ll, decreasing = TRUE)
+  PhiEst.ll <- PhiEst.ll[, ord.ll, drop = FALSE]
+  PhiEstAll.ll <- PhiEstAll.ll[, ord.ll, , drop = FALSE]
+  lambdaEst.ll <- lambdaEst.ll[ord.ll]
+
+  q <- min(q, ncol(PhiEst.ll))
+  PhiMainEval <- PhiMainEval[, seq_len(q), drop = FALSE]
+  PhiMainAll <- PhiMainAll[, seq_len(q), , drop = FALSE]
+  lambda.main <- lambda.main[seq_len(q)]
+  PhiEst.ll <- PhiEst.ll[, seq_len(q), drop = FALSE]
+  PhiEstAll.ll <- PhiEstAll.ll[, seq_len(q), , drop = FALSE]
+  lambdaEst.ll <- lambdaEst.ll[seq_len(q)]
   clock_eval_short <- seq(clock_eval[1], tail(clock_eval, 1), length.out = dim(PhiEstAll.ll)[1])
 }
 if (has_uq) {
   resCI <- resCI[, ord, , , drop = FALSE]
+  resCI <- resCI[, seq_len(q), , , drop = FALSE]
 }
 
 ## Flip signs for readability using the final OnlineFPCA estimate
@@ -131,10 +134,6 @@ flip_idx <- colMeans(PhiMainEval) < 0
 if (any(flip_idx)) {
   PhiMainEval[, flip_idx] <- -PhiMainEval[, flip_idx, drop = FALSE]
   PhiMainAll[, flip_idx, ] <- -PhiMainAll[, flip_idx, , drop = FALSE]
-  if (has_compare) {
-    PhiEst.ll[, flip_idx] <- -PhiEst.ll[, flip_idx, drop = FALSE]
-    PhiEstAll.ll[, flip_idx, ] <- -PhiEstAll.ll[, flip_idx, , drop = FALSE]
-  }
   if (has_uq) {
     resCI[, flip_idx, , ] <- -resCI[, flip_idx, c(3, 2, 1), , drop = FALSE]
   }
@@ -169,15 +168,23 @@ dev.off()
 ## ================================================================
 ## Eigenfunction figure
 ## ================================================================
+
+# Subjects at which to show checkpoint figures
+checkpoint_subjects <- c(2000, 5000, 8000)
+cp_idx <- nearest_indices(checkpoint_subjects, record_grid)
+cp_subjects <- record_grid[cp_idx]
+cp_labels <- format(cp_subjects, big.mark = ",")
 add_ci <- has_uq
 npanel <- length(cp_idx) * q
+xlab_panel <- npanel + 1L
+legend_panel <- npanel + 2L
 ci_sub_id <- 6 * seq(0, length(clock_eval)-1) + 1
 pdf(file = file.path(out_dir, "news_eigfun.pdf"), width = 8.2, height = 6.8)
 layout(
-  mat = matrix(c(seq_len(npanel), rep(npanel + 1L, q)), byrow = TRUE,
-    nrow = length(cp_idx) + 1L, ncol = q
+  mat = matrix(c(seq_len(npanel), rep(xlab_panel, q), rep(legend_panel, q)), byrow = TRUE,
+    nrow = length(cp_idx) + 2L, ncol = q
   ),
-  heights = c(rep(0.31, length(cp_idx)), 0.11)
+  heights = c(rep(0.31, length(cp_idx)), 0.04, 0.10)
 )
 par(mar = c(2.3, 4.3, 2.0, 1.2), oma = c(2, 0, 1, 0))
 for (ii in seq_along(cp_idx)) {
@@ -211,7 +218,8 @@ for (ii in seq_along(cp_idx)) {
       xlab = "", ylab = "", xaxt = "n",
       ylim = yrng
     )
-    axis(1, at = seq(6, 30, by = 6), labels = FALSE)
+    axis_labels <- if (ii == length(cp_idx)) clock_label(seq(6, 30, by = 6)) else FALSE
+    axis(1, at = seq(6, 30, by = 6), labels = axis_labels)
     if (has_compare) {
       lines(clock_eval_short, phik.compare, lwd = 3, lty = 4, col = "#1A73A0")
     }
@@ -233,13 +241,12 @@ for (ii in seq_along(cp_idx)) {
     if (ii == 1) {
       mtext(sprintf("FPC %d, %.1f%%", jj, 100 * fve[jj]), side = 3, line = 0.7)
     }
-    if (ii == length(cp_idx) && jj == ceiling(q / 2)) {
-      axis(1, at = seq(6, 30, by = 6), labels = clock_label(seq(6, 30, by = 6)))
-      mtext("Clock time", side = 1, line = 2.4)
-    }
   }
 }
-par(mar = c(0, 2, 1, 0))
+par(mar = c(0, 0, 0, 0))
+plot.new()
+text(0.53, 0.44, "Clock time", cex = 1.3)
+par(mar = c(0, 2, 0.2, 0))
 plot.new()
 leg_txt <- c("OnlineFPCA-RSGD")
 leg_lty <- c(1)

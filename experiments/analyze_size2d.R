@@ -225,8 +225,8 @@ plot_phi_rmse <- function(
 
   linetype_values <- c(
     "OnlineFPCA-RSGD"     = "solid",
-    "OnlineFPCA-RAdagrad" = "longdash",
-    "SOAP"                = "dashed",
+    "OnlineFPCA-RAdagrad" = "solid",
+    "SOAP"                = "longdash",
     "mOpCov"              = "dotted"
   )
 
@@ -327,7 +327,9 @@ plot_phi_rmse <- function(
 
 noise_sd <- 0.1
 p <- plot_phi_rmse(
-  dat = sumres,
+  dat = sumres |>
+    filter(!str_detect(Method, "OnlineFPCA") | (N %% 1000 == 0)) |> 
+    filter(Method != "mOpCov"),
   noise_level = noise_sd,
   x_var = "N",
   x_break = 2500,

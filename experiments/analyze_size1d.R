@@ -230,12 +230,12 @@ plot_phi_rmse <- function(
 
   linetype_values <- c(
     "OnlineFPCA-RSGD"     = "solid",
-    "OnlineFPCA-RAdagrad" = "longdash",
+    "OnlineFPCA-RAdagrad" = "solid",
     "OnlineCov"           = "twodash",
     "PACE"                = "dashed",
     "FACE"                = "dotdash",
     "REML"                = "dotted",
-    "SOAP"                = "solid"
+    "SOAP"                = "longdash"
   )
 
   active_method_levels <- method_levels[method_levels %in% unique(line_dat$LegendLabel)]
