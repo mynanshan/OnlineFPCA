@@ -38,7 +38,7 @@ If box above is checked and if no simulated/synthetic data files are provided by
 
 ## Abstract
 
-The analyses use two main data sources: (1) EPA daily PM10 (AQI) data aggregated to weekly grid cells and saved as `data/epa-aqs/aqi-us.Rda` (public, processed); and (2) a GFR kidney-transplant dataset (`data/gfr/GFR2023Feb01.csv`) that is privately held and available by request. The README files (`data/README.md`, `application/README.md`) document preprocessing and formats used in the analyses.
+The analyses use three main data sources: (1) EPA daily PM10 (AQI) data aggregated to weekly grid cells and saved as `data/epa-aqs/aqi-us.Rda` (public, processed); (2) the News Popularity in Multiple Social Media Platforms dataset from the UCI Machine Learning Repository, saved under `data/news/` and processed as `data/news/processed/news_preprocessed.rds` (public, CC BY 4.0); and (3) a GFR kidney-transplant dataset (`data/gfr/GFR2023Feb01.csv`) that is privately held and available by request. The README files (`data/README.md`, `application/README.md`) document preprocessing and formats used in the analyses.
 
 ## Availability
 
@@ -48,13 +48,19 @@ The analyses use two main data sources: (1) EPA daily PM10 (AQI) data aggregated
 *Note*: the repository contains a mix of data sources.
 
 - The EPA AQI (PM10 series) raw CSVs are publicly available from EPA (see link below) and the processed AQI object `data/epa-aqs/aqi-us.Rda` is included in the repo.
+- The news-click data are publicly available from the UCI Machine Learning Repository as the News Popularity in Multiple Social Media Platforms dataset (dataset id 432, DOI `10.24432/C5H029`, CC BY 4.0). Raw files are stored under `data/news/Data/`, and the processed object used by the analyses is `data/news/processed/news_preprocessed.rds`.
 - The GFR kidney-transplant dataset (`data/gfr/GFR2023Feb01.csv`) is private and must be requested from the data custodian (see "Non-publicly available data" below). We have attached a `data/gfr/GFR-pseudo.csv` as a pseudo dataset for illustrative purposes.
 
 <!-- If the data are publicly available, see the *Publicly available data* section. Otherwise, see the *Non-publicly available data* section, below. -->
 
 ### Publicly available data
 
--   [x] Data are available online at: https://aqs.epa.gov/aqsweb/airdata/download_files.html (EPA AirData, daily PM10 series 81102). The processed AQI dataset used in the analyses (`data/epa-aqs/aqi-us.Rda`) is included in this repository (see `data/README.md` and `application/README.md` for preprocessing details).
+-   [x] Data are available online at:
+    https://aqs.epa.gov/aqsweb/airdata/download_files.html (EPA AirData, daily PM10 series 81102) and
+    https://archive.ics.uci.edu/dataset/432/news+popularity+in+multiple+social+media+platforms (News Popularity in Multiple Social Media Platforms, UCI Machine Learning Repository dataset id 432).
+    The processed AQI dataset used in the analyses (`data/epa-aqs/aqi-us.Rda`) is included in this repository (see `data/README.md` and `application/README.md` for preprocessing details).
+    The UCI news dataset is licensed under Creative Commons Attribution 4.0 International (CC BY 4.0), has DOI `10.24432/C5H029`, and should be cited as:
+    Torgo, L. & Moniz, N. (2018). *News Popularity in Multiple Social Media Platforms* [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5H029.
 
 -   [ ] Data are available as part of the paper's supplementary material.
 
@@ -66,7 +72,7 @@ The analyses use two main data sources: (1) EPA daily PM10 (AQI) data aggregated
 
 ### Non-publicly available data
 
-The GFR kidney-transplant dataset used in the application (`data/gfr/GFR2023Feb01.csv`) is subject to access restrictions and is not included in this repository. Data sharing is not possible through this repository due to custodial restrictions; interested researchers should request access from the data custodian as described in [Liu et al. (2023)](https://www.jmlr.org/papers/v24/22-0614.html). To aid reproducibility despite the restriction, (i) preprocessing steps and code to build per-subject lists (`Ly`, `Ltid`, `Lmi`) are provided in `application/gfr.R` and `data/README.md`, and (ii) simulation scripts that use estimated FPCs (e.g., `experiments/simu_gfr.R`) allow replication of the computational methods.
+The GFR kidney-transplant dataset used in the application (`data/gfr/GFR2023Feb01.csv`) is subject to access restrictions and is not included in this repository. Data sharing is not possible through this repository due to custodial restrictions; interested researchers should request access from the data custodian as described in [Liu et al. (2023)](https://www.jmlr.org/papers/v24/22-0614.html). To aid reproducibility despite the restriction, (i) preprocessing steps and code to build per-subject lists (`Ly`, `Ltid`, `Lmi`) are provided in `application/gfr/gfr.R` and `data/README.md`, and (ii) simulation scripts that use estimated FPCs (e.g., `experiments/simu_gfr.R`) allow replication of the computational methods.
 We have attached a `data/gfr/GFR-pseudo.csv` as a pseudo dataset for illustrative purposes.
 
 ## Description
@@ -80,7 +86,7 @@ Check all that apply
 ```
 
 -   [x] CSV or other plain text.
--   [x] Software-specific binary format (.Rda, Python pickle, etc.): .Rda file (`data/epa-aqs/aqi-us.Rda`)
+-   [x] Software-specific binary format (.Rda, Python pickle, etc.): .Rda file (`data/epa-aqs/aqi-us.Rda`) and RDS files such as `data/news/processed/news_preprocessed.rds`
 -   [ ] Standardized binary format (e.g., netCDF, HDF5, etc.):
 -   [ ] Other (please specify):
 
@@ -92,9 +98,9 @@ A data dictionary provides information that allows users to understand the meani
 -->
 ```
 
--   [x] Provided by authors in the following file(s): `data/README.md`
+-   [x] Provided by authors in the following file(s): `data/README.md`, `application/README.md`
 -   [ ] Data file(s) is(are) self-describing (e.g., netCDF files)
--   [x] Available at the following URL: https://aqs.epa.gov/aqsweb/airdata/download_files.html (for raw AQI CSVs)
+-   [x] Available at the following URL: https://aqs.epa.gov/aqsweb/airdata/download_files.html (for raw AQI CSVs) and https://archive.ics.uci.edu/dataset/432/news+popularity+in+multiple+social+media+platforms (for raw news CSVs; the original dataset README is also included as `data/news/readme.txt`)
 
 ### Additional Information (optional)
 
@@ -103,6 +109,13 @@ A data dictionary provides information that allows users to understand the meani
 OPTIONAL: Provide any additional details that would be helpful in understanding the data. If relevant, please provide unique identifier/DOI/version information and/or license/terms of use.
 -->
 ```
+
+The public news data are stored as raw CSV files under `data/news/Data/` and processed by `application/news/news-eda.R` into
+
+-   `data/news/processed/news_preprocessed.rds` and
+-   `data/news/processed/news_preprocess_summary.csv`.
+
+The UCI dataset is licensed under CC BY 4.0.
 
 # Part 2: Code
 
@@ -253,8 +266,10 @@ Check all that apply
 * Install required R packages: `Rscript install_pkgs.R` (see `install_pkgs.R` for the package list and `README.md` for tested versions).
 * For simulation studies: run `Rscript experiments/fpca1d.R` / `fpca2d.R` (use `--seed` as needed) and then `Rscript experiments/analyze_fpca1d.R` / `analyze_fpca2d.R` to aggregate results and generate tables/figures.
 * For application analyses:
-    - Ensure required data is present: processed AQI data (`data/epa-aqs/aqi-us.Rda`) is included; raw EPA CSVs can be downloaded from EPA AirData if needed; the private GFR CSV is not included and must be placed in `data/gfr/` if available.
-    - Then, run `Rscript application/aqi.R` and then `Rscript application/analyze_aqi.R` to reproduce AQI figures; run `Rscript application/gfr.R` and then `Rscript application/analyze_gfr.R` for GFR analyses.
+    - Ensure required data is present: processed AQI data (`data/epa-aqs/aqi-us.Rda`) is included; raw EPA CSVs can be downloaded from EPA AirData if needed; public news CSVs are stored under `data/news/Data/` and may be re-downloaded from UCI if needed; the private GFR CSV is not included and must be placed in `data/gfr/` if available.
+    - AQI: run `Rscript application/aqi/aqi.R` and then `Rscript application/aqi/analyze_aqi.R`.
+    - GFR: run `Rscript application/gfr/gfr.R` and then `Rscript application/gfr/analyze_gfr.R`.
+    - News: run `Rscript application/news/news-eda.R`, then `Rscript application/news/news.R --run all`, and finally `Rscript application/news/analyze_news.R`.
 
 See `README.md`, `experiments/README.md`, and `application/README.md` for more details and example commands.
 
