@@ -262,14 +262,14 @@ if (has_compare) {
   leg_ptcex <- c(leg_ptcex, NA)
   leg_col <- c(leg_col, "#1A73A0")
 }
-if (add_ci) {
-  leg_txt <- c(leg_txt, "Pointwise CI")
-  leg_lty <- c(leg_lty, NA)
-  leg_lwd <- c(leg_lwd, NA)
-  leg_pch <- c(leg_pch, 15)
-  leg_ptcex <- c(leg_ptcex, 2)
-  leg_col <- c(leg_col, rgb(0.2, 0.3, 0.9, alpha = 0.25))
-}
+# if (add_ci) {
+#   leg_txt <- c(leg_txt, "Pointwise CI")
+#   leg_lty <- c(leg_lty, NA)
+#   leg_lwd <- c(leg_lwd, NA)
+#   leg_pch <- c(leg_pch, 15)
+#   leg_ptcex <- c(leg_ptcex, 2)
+#   leg_col <- c(leg_col, rgb(0.2, 0.3, 0.9, alpha = 0.25))
+# }
 legend(
   "center",
   legend = leg_txt,
@@ -278,6 +278,7 @@ legend(
   pch = leg_pch,
   pt.cex = leg_ptcex,
   col = leg_col,
+  text.width = max(strwidth(leg_txt)) * 1.18,
   horiz = TRUE, bty = "n", cex = 1.05
 )
 par(par.old)

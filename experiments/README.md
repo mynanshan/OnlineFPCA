@@ -13,6 +13,8 @@ Experiment files:
 * `check_abv.R`, `plot_abv.R`: Check how $\omega$ and block size affects 1D simulation performance
 * `check_bwc.R`: Check how $(C,W,B)$ affects 1D simulation performance
 * `check_nbatch.R`: Check how batch size affects 1D simulation performance
+* `size1d.R`: compare FPC RMSEs across sample sizes for 1D simulations
+* `size2d.R`: compare FPC RMSEs across sample sizes for 2D simulations
 * `simu_gfr.R`: simulation using FPCs from GFR data
 * `simu_aqi.R`: simulation using FPCs from AQI data
 
@@ -119,9 +121,28 @@ Below are **detailed**, per-experiment reproduction notes (what the script does,
 ### Check mini-batch size (nbatch) ⚖️
 - Script: `check_nbatch.R` (produces results for a grid of `nBatch` values)
 - Run: `./experiments/run_reps.sh experiments/check_nbatch.R 100`
-- Output per seed: `experiments/abv1d/simu_abv1d_sdXXXX.csv` with columns like `seed, Method, epoch, nBatch, nBlock, tau, RMSEphi1, ...`
-- Analysis: `Rscript experiments/analyze_nbatch.R` (aggregates RMSEs by `nBatch` and produces tables/plots)
+- Current output per seed: `experiments/abv1d/simu_abv1d_sdXXXX.csv` with columns like `seed, Method, epoch, nBatch, nBlock, tau, RMSEphi1, ...`
+- Analysis: `Rscript experiments/analyze_nbatch.R` aggregates RMSEs by `nBatch` and produces LaTeX tables. Note that this analysis script currently reads from `experiments/nbatch1d/simu_nbatch1d_sdXXXX.csv`, so either generate/copy results into that layout or adjust the script before running the aggregation.
 - Notes: This uses parallel execution (`doFuture`) to sweep over `nBatch` values faster.
+
+---
+
+### Sample-size experiments (size1d and size2d) 📈
+- Purpose: compare FPC estimation RMSEs across increasing sample sizes.
+- 1D run:
+  - Single seed and method: `Rscript experiments/size1d.R --seed 1 --algo 1`
+  - `--algo` choices: `1` OnlineFPCA, `2` PACE, `3` FACE, `4` REML, `5` SOAP
+  - Repeat across seeds and algorithms before analysis.
+- 2D run:
+  - Single seed and method: `Rscript experiments/size2d.R --seed 1 --algo 1`
+  - `--algo` choices: `1` OnlineFPCA, `2` SOAP, `3` mOpCov
+  - Optional controls include `--N`, `--ninit`, `--nsmall`, `--mopcov-max-n`, and `--mopcov-max-obs`.
+- Typical outputs:
+  - `experiments/size1d/simu_size1d_alg*_sdXXXX.csv`
+  - `experiments/size2d/simu_size2d_alg*_sdXXXX.csv`
+- Analysis:
+  - `Rscript experiments/analyze_size1d.R` → `experiments/size1d/size1d_rmse.pdf`
+  - `Rscript experiments/analyze_size2d.R` → `experiments/size2d/size2d_rmse.pdf`
 
 ---
 
@@ -163,4 +184,3 @@ Below are **detailed**, per-experiment reproduction notes (what the script does,
   - Outputs per seed: `experiments/aqi/simu_aqi_sdXXXX.csv`, and `experiments/aqi/Theta_aqi_sdXXXX.rds`
   - Analysis: `Rscript experiments/analyze_simu_aqi.R` → plots such as `simu-aqi-fpc.pdf`
   - Note: AQI helper `gendata.aqi()` uses preprocessed `data/epa-aqs/aqi-us.Rda` included in the repo.
-

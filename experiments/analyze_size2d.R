@@ -328,8 +328,7 @@ plot_phi_rmse <- function(
 noise_sd <- 0.1
 p <- plot_phi_rmse(
   dat = sumres |>
-    filter(!str_detect(Method, "OnlineFPCA") | (N %% 1000 == 0)) |> 
-    filter(Method != "mOpCov"),
+    filter(!str_detect(Method, "OnlineFPCA") | (N %% 1000 == 0)),
   noise_level = noise_sd,
   x_var = "N",
   x_break = 2500,
